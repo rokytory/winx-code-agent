@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
 use async_openai::{
     types::{
-        ChatCompletionRequestMessage, ChatCompletionRequestMessageArgs,
-        CreateChatCompletionRequest, CreateChatCompletionRequestArgs, Role,
+        ChatCompletionRequestMessage,
+        CreateChatCompletionRequestArgs, Role,
     },
     Client,
 };
@@ -44,7 +44,7 @@ impl Default for OpenAIConfig {
 /// OpenAI client wrapper
 #[derive(Debug, Clone)]
 pub struct OpenAIClient {
-    client: Client,
+    client: Client<async_openai::config::OpenAIConfig>,
     config: OpenAIConfig,
 }
 
@@ -53,19 +53,21 @@ impl OpenAIClient {
     pub fn new(config: Option<OpenAIConfig>) -> Result<Self> {
         let config = config.unwrap_or_default();
         
-        // Set up the client with API key
-        let client = if let Some(api_key) = &config.api_key {
-            Client::new().with_api_key(api_key)
-        } else {
-            Client::new()
-        };
+        // Create OpenAI config
+        let mut openai_config = async_openai::config::OpenAIConfig::new();
+        
+        // Set API key if provided
+        if let Some(api_key) = &config.api_key {
+            openai_config = openai_config.with_api_key(api_key);
+        }
         
         // Set org ID if provided
-        let client = if let Some(org_id) = &config.org_id {
-            client.with_org_id(org_id)
-        } else {
-            client
-        };
+        if let Some(org_id) = &config.org_id {
+            openai_config = openai_config.with_org_id(org_id);
+        }
+        
+        // Create client with config
+        let client = Client::with_config(openai_config);
         
         Ok(Self { client, config })
     }
@@ -74,15 +76,29 @@ impl OpenAIClient {
     pub async fn execute_prompt(&self, prompt: &str) -> Result<String> {
         debug!("Executing prompt against OpenAI: {}", prompt);
         
-        let request = CreateChatCompletionRequestArgs::default()
+        // Criar vetor de mensagens
+        let messages = vec![
+            serde_json::json!({
+                "role": Role::User.to_string(),
+                "content": prompt
+            })
+        ];
+        
+        // Criar request
+        let mut request = CreateChatCompletionRequestArgs::default()
             .model(&self.config.model)
-            .messages([ChatCompletionRequestMessageArgs::default()
-                .role(Role::User)
-                .content(prompt)
-                .build()?])
-            .max_tokens(self.config.max_tokens)
-            .temperature(self.config.temperature)
+            .messages(messages)
             .build()?;
+            
+        // Adicionar max_tokens se definido
+        if let Some(max_tokens) = self.config.max_tokens {
+            request.max_tokens = Some(max_tokens as u16);
+        }
+        
+        // Adicionar temperature se definido
+        if let Some(temp) = self.config.temperature {
+            request.temperature = Some(temp);
+        }
         
         let response = self.client.chat().create(request).await?;
         
@@ -96,15 +112,24 @@ impl OpenAIClient {
     }
     
     /// Execute a chat conversation against the OpenAI API
-    pub async fn execute_chat(&self, messages: Vec<ChatCompletionRequestMessage>) -> Result<String> {
+    pub async fn execute_chat(&self, messages: Vec<serde_json::Value>) -> Result<String> {
         debug!("Executing chat against OpenAI with {} messages", messages.len());
         
-        let request = CreateChatCompletionRequestArgs::default()
+        // Criar request
+        let mut request = CreateChatCompletionRequestArgs::default()
             .model(&self.config.model)
             .messages(messages)
-            .max_tokens(self.config.max_tokens)
-            .temperature(self.config.temperature)
             .build()?;
+            
+        // Adicionar max_tokens se definido
+        if let Some(max_tokens) = self.config.max_tokens {
+            request.max_tokens = Some(max_tokens as u16);
+        }
+        
+        // Adicionar temperature se definido
+        if let Some(temp) = self.config.temperature {
+            request.temperature = Some(temp);
+        }
         
         let response = self.client.chat().create(request).await?;
         
@@ -146,14 +171,18 @@ Your goal is to reach the best possible solution through careful sequential thin
     pub async fn process_query(&mut self, query: &str, total_steps: usize) -> Result<String> {
         // Initialize the conversation with system and user prompts
         let mut messages = vec![
-            ChatCompletionRequestMessageArgs::default()
-                .role(Role::System)
-                .content(&self.system_prompt)
-                .build()?,
-            ChatCompletionRequestMessageArgs::default()
-                .role(Role::User)
-                .content(format!("Question: {}\n\nThink step-by-step to solve this problem. Start your first step with 'Step 1:'", query))
-                .build()?,
+            ChatCompletionRequestMessage {
+                role: Role::System,
+                content: Some(self.system_prompt.clone()),
+                name: None,
+                function_call: None,
+            },
+            ChatCompletionRequestMessage {
+                role: Role::User,
+                content: Some(format!("Question: {}\n\nThink step-by-step to solve this problem. Start your first step with 'Step 1:'", query)),
+                name: None,
+                function_call: None,
+            },
         ];
         
         // First thought
@@ -176,20 +205,20 @@ Your goal is to reach the best possible solution through careful sequential thin
         
         // Add assistant's first thought to the conversation
         messages.push(
-            ChatCompletionRequestMessageArgs::default()
-                .role(Role::Assistant)
-                .content(response)
-                .build()?
+            serde_json::json!({
+                "role": Role::Assistant.to_string(),
+                "content": response
+            })
         );
         
         // Process remaining thoughts
         for step in 2..=total_steps {
             // Add user prompt for next step
             messages.push(
-                ChatCompletionRequestMessageArgs::default()
-                    .role(Role::User)
-                    .content(format!("Continue your thinking process. What is step {}?", step))
-                    .build()?
+                serde_json::json!({
+                    "role": Role::User.to_string(),
+                    "content": format!("Continue your thinking process. What is step {}?", step)
+                })
             );
             
             // Get response for this step
@@ -212,19 +241,19 @@ Your goal is to reach the best possible solution through careful sequential thin
             
             // Add assistant's thought to the conversation
             messages.push(
-                ChatCompletionRequestMessageArgs::default()
-                    .role(Role::Assistant)
-                    .content(response)
-                    .build()?
+                serde_json::json!({
+                    "role": Role::Assistant.to_string(),
+                    "content": response
+                })
             );
         }
         
         // Finally, ask for a conclusion
         messages.push(
-            ChatCompletionRequestMessageArgs::default()
-                .role(Role::User)
-                .content("Based on your step-by-step thinking, what is your final answer or conclusion?".to_string())
-                .build()?
+            serde_json::json!({
+                "role": Role::User.to_string(),
+                "content": "Based on your step-by-step thinking, what is your final answer or conclusion?"
+            })
         );
         
         let conclusion = self.client.execute_chat(messages).await?;
