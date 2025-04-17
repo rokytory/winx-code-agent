@@ -64,7 +64,11 @@ Winx is inspired by the [WCGW project](https://github.com/rusiaaman/wcgw) but re
   "mcpServers": {
     "winx": {
       "command": "/path/to/winx",
-      "args": []
+      "args": [],
+      "env": {
+        "NO_COLOR": "1",
+        "RUST_LOG": "error"
+      }
     }
   }
 }
