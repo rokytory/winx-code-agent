@@ -404,7 +404,7 @@ pub fn apply_search_replace(content: &str, blocks: &[SearchReplaceBlock]) -> Res
 }
 
 /// Adjusts indentation of replacement lines based on original lines
-fn adjust_indentation(
+pub fn adjust_indentation(
     original_lines: &[String],
     search_lines: &[String],
     replace_lines: &[String],
@@ -537,7 +537,7 @@ pub fn find_best_match_line(content_lines: &[String], search_line: &str) -> Opti
 }
 
 /// Calculate similarity score between two strings (0-1, higher is better)
-fn similarity_score(s1: &str, s2: &str) -> f64 {
+pub fn similarity_score(s1: &str, s2: &str) -> f64 {
     let diff = TextDiff::from_chars(s1, s2);
 
     let mut unchanged = 0;
