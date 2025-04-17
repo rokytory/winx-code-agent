@@ -1,12 +1,12 @@
 use anyhow::{Context, Result};
-use rmcp::{ServiceExt, transport::Transport};
+use rmcp::{ServiceExt, transport};
 use std::env;
 use std::path::PathBuf;
 use tracing::{debug, error, info};
 use std::pin::Pin;
 use std::task::{Context as TaskContext, Poll};
-use futures::prelude::*;
-use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::io::AsyncRead;
+use tokio_util::compat::FuturesAsyncReadCompatExt;
 
 use winx::{
     commands::tools::WinxTools,
@@ -190,13 +190,13 @@ async fn main() -> Result<()> {
     info!("Server starting...");
 
     // Create a custom transport wrapper that filters log-like messages
-    let stdio_transport = rmcp::transport::stdio();
+    let stdio_transport = transport::stdio();
     
     // Create a filtering transport adapter that wraps the standard stdio transport
-    let filtering_transport = FilteringTransport::new(stdio_transport);
+    //let filtering_transport = FilteringTransport::new(stdio_transport);
     
-    // Use our custom filtered transport
-    let client_result = tools.serve(filtering_transport).await;
+    // Use standard transport
+    let client_result = tools.serve(stdio_transport).await;
     let client = match client_result {
         Ok(client) => {
             info!("MCP server started successfully");
@@ -232,6 +232,10 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
+// NOTE: Temporarily commented out the FilteringTransport implementation
+// until the dependencies and Transport trait issues are resolved
+
+/*
 /// A custom transport wrapper that filters out log-like messages
 /// which might be mistakenly parsed as JSON
 struct FilteringTransport<T> {
@@ -269,17 +273,6 @@ impl<T> FilteringTransport<T> {
     }
 }
 
-impl<T: Transport> Transport for FilteringTransport<T> {
-    type Error = T::Error;
-    type Reader = FilteringReader<T::Reader>;
-    type Writer = T::Writer;
-    
-    fn split(self) -> (Self::Reader, Self::Writer) {
-        let (reader, writer) = self.inner.split();
-        (FilteringReader { inner: reader }, writer)
-    }
-}
-
 /// A filtering reader that silently discards log-like messages
 struct FilteringReader<R> {
     inner: R,
@@ -314,3 +307,4 @@ impl<R: AsyncRead + Unpin> AsyncRead for FilteringReader<R> {
         }
     }
 }
+*/
