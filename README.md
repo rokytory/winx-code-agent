@@ -1,19 +1,24 @@
 # Winx
 
-A high-performance code agent written in Rust, based on the WCGW project but optimized for efficiency and speed.
+Uma agente de código de alta performance escrita em Rust, combinando os melhores recursos do WCGW e do Serena para máxima eficiência e capacidades semânticas.
 
-## Features
+## Funcionalidades
 
-- ⚡ **High Performance**: Implemented in Rust to ensure speed and efficiency
-- ⚡ **Optimized file editing**: Efficient implementation of diff, edit, and insert with optimized algorithms
-- ⚡ **SQL Support**: Integrated interface for executing SQL queries
-- ⚡ **Sequential Thinking**: Implementation of efficient sequential thinking algorithms
-- ⚡ **MCP Integration**: Works as an MCP server for Claude and other LLMs
-- ⚡ **Multiple operation modes**: Support for `wcgw`, `architect`, and `code_writer`
+- ⚡ **Alto Desempenho**: Implementada em Rust para garantir velocidade e eficiência
+- ⚡ **Análise Semântica de Código**: Integração com Language Server Protocol (LSP) para compreensão de símbolos de código
+- ⚡ **Edição de arquivos otimizada**: Implementação eficiente de diff, edit e insert com algoritmos otimizados
+- ⚡ **Memória de Projeto**: Sistema de memória inspirado no Serena para manter contexto entre sessões
+- ⚡ **Pensamento Sequencial Avançado**: Ferramentas de raciocínio sobre aderência e conclusão de tarefas
+- ⚡ **Verificação de Sintaxe**: Validação da sintaxe de código antes de aplicar modificações
+- ⚡ **Suporte a SQL**: Interface integrada para executar consultas SQL
+- ⚡ **Integração MCP**: Funciona como servidor MCP para Claude e outros LLMs
+- ⚡ **Terminal Interativo**: Suporte para comandos interativos com feedback em tempo real
+- ⚡ **Múltiplos modos de operação**: Suporte para `wcgw`, `architect` e `code_writer`
+- ⚡ **Manipulação de Arquivos Grandes**: Edição incremental de arquivos grandes para evitar problemas de limites de tokens
 
-## Installation
+## Instalação
 
-To compile the project:
+Para compilar o projeto:
 
 ```bash
 git clone https://github.com/your-username/winx.git
@@ -21,56 +26,61 @@ cd winx
 cargo build --release
 ```
 
-## Usage
+## Uso
 
 ```bash
 ./target/release/winx [workspace_path]
 ```
 
-If no path is provided, the current directory will be used as the workspace.
+Se nenhum caminho for fornecido, o diretório atual será usado como workspace.
 
-## Integration with Claude
+## Integração com Claude
 
-To integrate with Claude Desktop, configure the `claude_desktop_config.json` file (located at
-`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+Para integrar com Claude Desktop, configure o arquivo `claude_desktop_config.json` (localizado em
+`~/Library/Application Support/Claude/claude_desktop_config.json` no macOS):
 
 ```json
 {
   "mcpServers": {
     "winx": {
-      "command": "/full/path/to/winx",
+      "command": "/caminho/completo/para/winx",
       "args": []
     }
   }
 }
 ```
 
-## Available Tools
+## Ferramentas Disponíveis
 
-Winx offers the following tools for interaction with the system:
+Winx oferece as seguintes ferramentas para interação com o sistema:
 
-- **BashCommand**: Execute shell commands with interaction support
-- **ReadFiles**: Read content from one or more files
-- **FileWriteOrEdit**: Write or edit files with support for partial edits
-- **SqlQuery**: Execute SQL queries interactively
-- **SequentialThinking**: Sequential thinking processor for problem solving
+- **BashCommand**: Execute comandos shell com suporte a interatividade
+- **ReadFiles**: Leia conteúdo de um ou mais arquivos
+- **FileWriteOrEdit**: Escreva ou edite arquivos com suporte a edições parciais
+- **SqlQuery**: Execute consultas SQL interativamente
+- **SequentialThinking**: Processador de pensamento sequencial para resolução de problemas
+- **SymbolTools**: Ferramentas para manipulação de símbolos de código (inspiradas no Serena)
+- **MemoryTools**: Ferramentas para guardar e recuperar memórias de projeto
+- **TaskAdherence**: Ferramentas para avaliar a aderência e conclusão de tarefas
+- **InteractiveTerminal**: Terminal interativo para comandos com entrada/saída em tempo real
 
-## Operation Modes
+## Modos de Operação
 
-- **wcgw**: Default mode with all permissions
-- **architect**: Read-only mode for planning
-- **code_writer**: Restricted mode for writing code in specific paths
+- **wcgw**: Modo padrão com todas as permissões
+- **architect**: Modo somente leitura para planejamento
+- **code_writer**: Modo restrito para escrever código em caminhos específicos
 
-## Security
+## Segurança
 
-- The agent checks file permissions before any operation
-- Configurable restrictions for commands and paths
-- Verification of changes before applying edits to files
+- O agente verifica permissões de arquivo antes de qualquer operação
+- Restrições configuráveis para comandos e caminhos
+- Verificação de alterações antes de aplicar edições a arquivos
+- Verificação de sintaxe para evitar código mal formado
 
-## Contribution
+## Contribuição
 
-Contributions are welcome! Open a PR or issue to get started.
+Contribuições são bem-vindas! Abra um PR ou issue para começar.
 
-## License
+## Licença
 
 MIT
