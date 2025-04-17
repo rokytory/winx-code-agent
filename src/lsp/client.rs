@@ -11,6 +11,9 @@ use tracing::{debug, error, info, warn};
 
 use crate::lsp::types::{LSPConfig, Language, Position, Range, Symbol, SymbolLocation};
 
+// Use the more comprehensive sanitize_json_text function from lib.rs instead
+use crate::sanitize_json_text;
+
 /// Message to be sent to the language server
 #[derive(Debug)]
 enum ClientMessage {
@@ -372,7 +375,9 @@ impl LSPClient {
                                     });
 
                                     if let Some(writer) = stdin_writer.as_mut() {
-                                        let request_str = init_request.to_string();
+                                        // Ensure the outgoing request doesn't have ANSI codes
+                                        let raw_request_str = init_request.to_string();
+                                        let request_str = crate::strip_ansi_codes(&raw_request_str);
                                         let content_length = request_str.len();
 
                                         if let Err(e) = writer.write_all(format!("Content-Length: {}\r\n\r\n{}", content_length, request_str).as_bytes()).await {
@@ -423,26 +428,29 @@ impl LSPClient {
                                                     return;
                                                 }
                                                 
-                                                // Log raw data for debugging if there might be ANSI codes
+                                                // Log raw data for debugging
                                                 crate::debug_json_bytes(&buffer, "LSP-RESPONSE-RAW");
 
-                                                // Strip ANSI codes before trying JSON parsing
+                                                // Convert to string with proper UTF-8 handling
                                                 let text = String::from_utf8_lossy(&buffer);
-                                                // Always log raw data for debugging
-                                                crate::debug_json_bytes(&buffer, "LSP-RESPONSE-RAW");
                                                 
-                                                // More aggressive ANSI stripping - double sanitize to ensure all codes are removed
+                                                // Apply multiple sanitization passes to ensure complete removal of all ANSI codes
                                                 let text_no_ansi = crate::strip_ansi_codes(&text);
                                                 let text_double_sanitized = crate::strip_ansi_codes(&text_no_ansi);
                                                 
-                                                // Log when ANSI codes are detected and stripped
+                                                // Log if ANSI codes were detected
                                                 if text != text_no_ansi {
-                                                    info!("ANSI codes detected and stripped from LSP server response");
-                                                    crate::debug_json_bytes(text_no_ansi.as_bytes(), "LSP-RESPONSE-SANITIZED");
+                                                    info!("ANSI codes detected and sanitization passes applied");
                                                 }
                                                 
+                                                // Perform final sanitization with the improved sanitize_json_text function
+                                                let clean_text = crate::sanitize_json_text(&text_double_sanitized);
+                                                
+                                                // Log the fully sanitized text for debugging
+                                                crate::debug_json_bytes(clean_text.as_bytes(), "LSP-RESPONSE-FULLY-SANITIZED");
+                                                
                                                 // Use the sanitized text for JSON parsing
-                                                match serde_json::from_str::<Value>(&text_double_sanitized) {
+                                                match serde_json::from_str::<Value>(&clean_text) {
                                                     Ok(response) => {
                                                         // Check for success
                                                         if response.get("error").is_some() {
@@ -458,14 +466,14 @@ impl LSPClient {
                                                                 "params": {}
                                                             });
 
+                                                            // Ensure the outgoing notification doesn't have ANSI codes
                                                             let notification_str = initialized_notification.to_string();
-                                                            // Strip ANSI codes before sending
-                                                            // Double sanitize to ensure all ANSI codes are removed
+                                                            // Apply the improved strip_ansi_codes and sanitize_json_text functions
                                                             let clean_notification_str = crate::strip_ansi_codes(&notification_str);
-                                                            let double_clean_str = crate::strip_ansi_codes(&clean_notification_str);
-                                                            let content_length = double_clean_str.len();
+                                                            let final_clean_str = crate::sanitize_json_text(&clean_notification_str);
+                                                            let content_length = final_clean_str.len();
                 
-                                                            if let Err(e) = writer.write_all(format!("Content-Length: {}\r\n\r\n{}", content_length, double_clean_str).as_bytes()).await {
+                                                            if let Err(e) = writer.write_all(format!("Content-Length: {}\r\n\r\n{}", content_length, final_clean_str).as_bytes()).await {
                                                                 error!("Failed to send initialized notification: {}", e);
                                                             }
 
