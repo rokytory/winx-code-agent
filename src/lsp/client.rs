@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader, BufWriter};
 use tokio::process::{Child, Command};
@@ -308,9 +309,9 @@ impl LSPClient {
                             
                             match (process_stdin, process_stdout) {
                                 (Ok(stdin), Ok(stdout)) => {
-                                    // Store the server handle
+                                    // Store the server handle - Process não pode ser clonado
                                     let mut handle = server_handle.lock().unwrap();
-                                    *handle = Some(process);
+                                    *handle = Some(Child::new(process.id()));
                                     server_process = Some(process);
                                     
                                     // Create async writers and readers - Tokio já fornece streams assíncronos
