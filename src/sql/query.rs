@@ -18,14 +18,14 @@ pub struct QueryResult {
 /// Execute a query and format the results
 pub fn execute_query(conn: &DbConnection, sql: &str) -> Result<QueryResult> {
     debug!("Executing SQL query: {}", sql);
-    
+
     // First, we need to get the column names
     let columns = get_column_names(conn, sql)?;
-    
+
     // Execute the query and get the results
     let rows = conn.query(sql)?;
     let row_count = rows.len();
-    
+
     Ok(QueryResult {
         columns,
         rows,
@@ -38,22 +38,23 @@ fn get_column_names(conn: &DbConnection, sql: &str) -> Result<Vec<String>> {
     // We use a trick to get column names without executing the full query
     // by wrapping it in a LIMIT 0 query
     let limit_sql = format!("SELECT * FROM ({}) LIMIT 0", sql);
-    
-    let connection = conn.query(&limit_sql)
+
+    let connection = conn
+        .query(&limit_sql)
         .context("Failed to get column names")?;
-    
+
     // If we got no results, we need to execute the original query
     // to get column names
     if connection.is_empty() {
         // Try to execute the original query
         let results = conn.query(sql)?;
-        
+
         // If we still have no results, return an empty vector
         if results.is_empty() {
             return Ok(Vec::new());
         }
     }
-    
+
     // TODO: Actually get column names from rusqlite - for now return placeholders
     Ok(vec!["Column1".to_string(), "Column2".to_string()])
 }
@@ -63,12 +64,14 @@ pub fn format_results_as_table(result: &QueryResult) -> String {
     if result.rows.is_empty() {
         return "No results found.".to_string();
     }
-    
+
     // Calculate column widths
-    let mut col_widths = result.columns.iter()
+    let mut col_widths = result
+        .columns
+        .iter()
         .map(|col| col.len())
         .collect::<Vec<_>>();
-    
+
     for row in &result.rows {
         for (i, cell) in row.iter().enumerate() {
             if i < col_widths.len() {
@@ -76,10 +79,10 @@ pub fn format_results_as_table(result: &QueryResult) -> String {
             }
         }
     }
-    
+
     // Format header
     let mut output = String::new();
-    
+
     // Header row
     for (i, col) in result.columns.iter().enumerate() {
         if i > 0 {
@@ -88,7 +91,7 @@ pub fn format_results_as_table(result: &QueryResult) -> String {
         output.push_str(&format!("{:width$}", col, width = col_widths[i]));
     }
     output.push('\n');
-    
+
     // Separator row
     for (i, width) in col_widths.iter().enumerate() {
         if i > 0 {
@@ -97,7 +100,7 @@ pub fn format_results_as_table(result: &QueryResult) -> String {
         output.push_str(&"-".repeat(*width));
     }
     output.push('\n');
-    
+
     // Data rows
     for row in &result.rows {
         for (i, cell) in row.iter().enumerate() {
@@ -112,17 +115,17 @@ pub fn format_results_as_table(result: &QueryResult) -> String {
         }
         output.push('\n');
     }
-    
+
     // Add row count
     output.push_str(&format!("\n{} row(s) returned", result.row_count));
-    
+
     output
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_format_results() {
         let result = QueryResult {
@@ -134,13 +137,13 @@ mod tests {
             ],
             row_count: 3,
         };
-        
+
         let formatted = format_results_as_table(&result);
         let expected = "id | name   \n---+--------\n1  | Alice  \n2  | Bob    \n3  | Charlie\n\n3 row(s) returned";
-        
+
         assert_eq!(formatted, expected);
     }
-    
+
     #[test]
     fn test_empty_results() {
         let result = QueryResult {
@@ -148,7 +151,7 @@ mod tests {
             rows: Vec::new(),
             row_count: 0,
         };
-        
+
         let formatted = format_results_as_table(&result);
         assert_eq!(formatted, "No results found.");
     }
