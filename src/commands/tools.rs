@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use tracing::{info, warn};
 
 use crate::code;
-use crate::commands::{bash, files};
+use crate::commands::{bash, files, vibe_code};
 use crate::core::{memory, state::SharedState};
 use crate::sql;
 use crate::thinking;
@@ -484,6 +484,7 @@ impl WinxTools {
         #[tool(param)] needs_more_thoughts: Option<bool>,
     ) -> Result<CallToolResult, McpError> {
         check_initialized()?;
+        
         let request = SequentialThinking {
             thought,
             next_thought_needed,
@@ -515,6 +516,140 @@ impl WinxTools {
                 )
             })?;
 
+        Ok(CallToolResult::success(vec![Content::text(result)]))
+    }
+    
+    #[tool(description = "Initialize the VibeCode agent with project understanding")]
+    async fn init_vibe_code(
+        &self,
+        #[tool(param)] project_dir: String,
+    ) -> Result<CallToolResult, McpError> {
+        check_initialized()?;
+        
+        let request = vibe_code::InitVibeCodeRequest {
+            project_dir,
+        };
+        
+        let json = match serde_json::to_string(&request) {
+            Ok(j) => j,
+            Err(e) => {
+                return Err(McpError::internal_error(
+                    "serialize_error",
+                    Some(serde_json::Value::String(e.to_string())),
+                ))
+            }
+        };
+        
+        let result = vibe_code::init_vibe_code(&self.state, &json)
+            .await
+            .map_err(|e| {
+                McpError::internal_error(
+                    "vibe_code_error",
+                    Some(serde_json::Value::String(e.to_string())),
+                )
+            })?;
+            
+        Ok(CallToolResult::success(vec![Content::text(result)]))
+    }
+    
+    #[tool(description = "Analyze a file using the VibeCode agent")]
+    async fn analyze_file_with_vibe_code(
+        &self,
+        #[tool(param)] file_path: String,
+    ) -> Result<CallToolResult, McpError> {
+        check_initialized()?;
+        
+        let request = vibe_code::AnalyzeFileRequest {
+            file_path,
+        };
+        
+        let json = match serde_json::to_string(&request) {
+            Ok(j) => j,
+            Err(e) => {
+                return Err(McpError::internal_error(
+                    "serialize_error",
+                    Some(serde_json::Value::String(e.to_string())),
+                ))
+            }
+        };
+        
+        let result = vibe_code::analyze_file(&self.state, &json)
+            .await
+            .map_err(|e| {
+                McpError::internal_error(
+                    "vibe_code_error",
+                    Some(serde_json::Value::String(e.to_string())),
+                )
+            })?;
+            
+        Ok(CallToolResult::success(vec![Content::text(result)]))
+    }
+    
+    #[tool(description = "Apply search/replace with intelligent error handling")]
+    async fn smart_search_replace(
+        &self,
+        #[tool(param)] file_path: String,
+        #[tool(param)] search_replace_blocks: String,
+    ) -> Result<CallToolResult, McpError> {
+        check_initialized()?;
+        
+        let request = vibe_code::SearchReplaceRequest {
+            file_path,
+            search_replace_blocks,
+        };
+        
+        let json = match serde_json::to_string(&request) {
+            Ok(j) => j,
+            Err(e) => {
+                return Err(McpError::internal_error(
+                    "serialize_error",
+                    Some(serde_json::Value::String(e.to_string())),
+                ))
+            }
+        };
+        
+        let result = vibe_code::apply_search_replace(&self.state, &json)
+            .await
+            .map_err(|e| {
+                McpError::internal_error(
+                    "vibe_code_error",
+                    Some(serde_json::Value::String(e.to_string())),
+                )
+            })?;
+            
+        Ok(CallToolResult::success(vec![Content::text(result)]))
+    }
+    
+    #[tool(description = "Generate code suggestions based on project patterns")]
+    async fn generate_code_suggestions(
+        &self,
+        #[tool(param)] file_path: String,
+    ) -> Result<CallToolResult, McpError> {
+        check_initialized()?;
+        
+        let request = vibe_code::CodeSuggestionsRequest {
+            file_path,
+        };
+        
+        let json = match serde_json::to_string(&request) {
+            Ok(j) => j,
+            Err(e) => {
+                return Err(McpError::internal_error(
+                    "serialize_error",
+                    Some(serde_json::Value::String(e.to_string())),
+                ))
+            }
+        };
+        
+        let result = vibe_code::generate_code_suggestions(&self.state, &json)
+            .await
+            .map_err(|e| {
+                McpError::internal_error(
+                    "vibe_code_error",
+                    Some(serde_json::Value::String(e.to_string())),
+                )
+            })?;
+            
         Ok(CallToolResult::success(vec![Content::text(result)]))
     }
 }
