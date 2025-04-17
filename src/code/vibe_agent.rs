@@ -1,8 +1,8 @@
 use anyhow::{anyhow, Context, Result};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
-use tracing::{debug, error, info, warn};
+use std::sync::Arc;
+use tracing::{debug, info};
 
 use crate::code::project_analyzer::{ProjectAnalysis, ProjectAnalyzer};
 use crate::code::refactoring_engine::RefactoringEngine;
@@ -347,8 +347,10 @@ impl VibeAgent {
         let project_dir = project_dir.as_ref();
 
         if !project_dir.exists() || !project_dir.is_dir() {
-            return Err(anyhow!(
-                "Project directory does not exist or is not a directory"
+            return Err(crate::utils::localized_error(
+                "Project directory does not exist or is not a directory",
+                "O diretório do projeto não existe ou não é um diretório",
+                "El directorio del proyecto no existe o no es un directorio"
             ));
         }
 
@@ -503,13 +505,34 @@ impl VibeAgent {
         Ok(knowledge.get_unread_ranges())
     }
 
-    /// Auto-read a file's content and update file knowledge
+    /// Auto-read a file's content and update file knowledge with concurrency control
     pub async fn auto_read_file(&mut self, file_path: impl AsRef<Path>) -> Result<()> {
         let file_path = file_path.as_ref();
-        debug!("Auto-reading file: {}", file_path.display());
+        debug!("Auto-reading file with concurrency control: {}", file_path.display());
         
-        // Read the file content using fs_utils
-        let content = crate::utils::fs::read_file_to_string(file_path)?;
+        // Acquire a read lock for this operation
+        let _guard = match crate::utils::concurrency::FileOperationGuard::for_reading(file_path).await {
+            Ok(guard) => guard,
+            Err(e) => {
+                return Err(crate::utils::localized_error(
+                    format!("Failed to acquire read lock on file {}: {}", file_path.display(), e),
+                    format!("Falha ao adquirir bloqueio de leitura no arquivo {}: {}", file_path.display(), e),
+                    format!("Error al adquirir bloqueo de lectura en el archivo {}: {}", file_path.display(), e)
+                ));
+            }
+        };
+        
+        // Read the file content using fs_utils with concurrency protection
+        let content = match crate::utils::fs::read_file(file_path).await {
+            Ok(content) => content,
+            Err(e) => {
+                return Err(crate::utils::localized_error(
+                    format!("Failed to read file {} during auto-read: {}", file_path.display(), e),
+                    format!("Falha ao ler arquivo {} durante leitura automática: {}", file_path.display(), e),
+                    format!("Error al leer archivo {} durante lectura automática: {}", file_path.display(), e)
+                ));
+            }
+        };
         
         // Calculate hash for tracking
         use sha2::{Digest, Sha256};
@@ -570,34 +593,65 @@ impl VibeAgent {
                         .collect::<Vec<_>>()
                         .join(", ");
 
-                    return Err(anyhow!(
-                        "Auto-read failed for {}. Please read the following line ranges manually: {}. Error: {}",
-                        file_path.display(),
-                        ranges_str,
-                        e
+                    return Err(crate::utils::localized_error(
+                        format!("Auto-read failed for {}. Please read the following line ranges manually: {}. Error: {}", 
+                               file_path.display(), ranges_str, e),
+                        format!("Leitura automática falhou para {}. Por favor, leia os seguintes intervalos de linha manualmente: {}. Erro: {}",
+                               file_path.display(), ranges_str, e),
+                        format!("Lectura automática falló para {}. Por favor, lea los siguientes rangos de línea manualmente: {}. Error: {}",
+                               file_path.display(), ranges_str, e)
                     ));
                 } else {
-                    return Err(anyhow!(
-                        "File {} has changed since it was last read and auto-read failed: {}",
-                        file_path.display(),
-                        e
+                    return Err(crate::utils::localized_error(
+                        format!("File {} has changed since it was last read and auto-read failed: {}", 
+                               file_path.display(), e),
+                        format!("O arquivo {} foi alterado desde a última leitura e a leitura automática falhou: {}", 
+                               file_path.display(), e),
+                        format!("El archivo {} ha cambiado desde la última lectura y la lectura automática falló: {}", 
+                               file_path.display(), e)
                     ));
                 }
             }
             
             // Re-check if the file can be edited after auto-read
             if !self.can_edit_file(file_path)? {
-                return Err(anyhow!(
-                    "File {} still cannot be edited after auto-read. It may have changed during reading.",
-                    file_path.display()
+                return Err(crate::utils::localized_error(
+                    format!("File {} still cannot be edited after auto-read. It may have changed during reading.", 
+                           file_path.display()),
+                    format!("O arquivo {} ainda não pode ser editado após a leitura automática. Ele pode ter sido alterado durante a leitura.", 
+                           file_path.display()),
+                    format!("El archivo {} todavía no se puede editar después de la lectura automática. Puede haber cambiado durante la lectura.", 
+                           file_path.display())
                 ));
             }
             
             debug!("Successfully auto-read file, proceeding with edit");
         }
 
-        // Read the file content
-        let content = fs::read_file_to_string(file_path)?;
+        // Acquire a concurrency lock for this file operation
+        debug!("Acquiring lock for search/replace operation on {}", file_path.display());
+        let _guard = match crate::utils::concurrency::FileOperationGuard::for_writing(file_path).await {
+            Ok(guard) => guard,
+            Err(e) => {
+                return Err(crate::utils::localized_error(
+                    format!("Failed to acquire exclusive lock on file {}: {}", file_path.display(), e),
+                    format!("Falha ao adquirir bloqueio exclusivo no arquivo {}: {}", file_path.display(), e),
+                    format!("Error al adquirir bloqueo exclusivo en el archivo {}: {}", file_path.display(), e)
+                ));
+            }
+        };
+        
+        // Read the file content with concurrency protection
+        let content = match fs::read_file(file_path).await {
+            Ok(content) => content,
+            Err(e) => {
+                return Err(crate::utils::localized_error(
+                    format!("Failed to read file {} for search/replace: {}", file_path.display(), e),
+                    format!("Falha ao ler arquivo {} para busca/substituição: {}", file_path.display(), e),
+                    format!("Error al leer archivo {} para búsqueda/reemplazo: {}", file_path.display(), e)
+                ));
+            }
+        };
 
         // Apply the search/replace
         let result = self
@@ -606,14 +660,23 @@ impl VibeAgent {
 
         // If changes were made, write back to the file
         if result.standard_result.changes_made {
-            fs::write_file_sync(file_path, &result.standard_result.content)?;
-
-            // Update file knowledge
-            if let Ok(knowledge) = self.get_file_knowledge_mut(file_path) {
-                knowledge.mark_modified()?;
+            // Write content back to file with concurrency protection
+            match fs::write_file(file_path, &result.standard_result.content).await {
+                Ok(_) => {
+                    // Update file knowledge
+                    if let Ok(knowledge) = self.get_file_knowledge_mut(file_path) {
+                        knowledge.mark_modified()?;
+                    }
+                    info!("Successfully edited file: {}", file_path.display());
+                },
+                Err(e) => {
+                    return Err(crate::utils::localized_error(
+                        format!("Failed to write changes to file {}: {}", file_path.display(), e),
+                        format!("Falha ao escrever alterações no arquivo {}: {}", file_path.display(), e),
+                        format!("Error al escribir cambios en el archivo {}: {}", file_path.display(), e)
+                    ));
+                }
             }
-
-            info!("Successfully edited file: {}", file_path.display());
         } else {
             info!("No changes made to file: {}", file_path.display());
         }
