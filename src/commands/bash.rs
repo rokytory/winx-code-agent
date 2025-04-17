@@ -1,11 +1,20 @@
 use anyhow::{anyhow, Context, Result};
 use tokio::process::Command;
 use tracing::{debug, info, warn};
+use regex::Regex;
 
 use crate::core::state::SharedState;
 use crate::core::types::{
     BashAction, BashCommand, Command as CommandType, SendAscii, SendSpecials, SendText,
 };
+
+/// Strip ANSI color codes from a string
+fn strip_ansi_codes(input: &str) -> String {
+    // Match ANSI escape sequences: \u001b followed by [ and then any sequence until m
+    // This handles most common color codes and formatting
+    let re = Regex::new(r"\x1b\[[0-9;]*m").unwrap_or_else(|_| Regex::new(r"").unwrap());
+    re.replace_all(input, "").to_string()
+}
 
 /// Execute a bash command from MCP
 pub async fn execute_bash_command(state: &SharedState, command_json: &str) -> Result<String> {
@@ -199,15 +208,20 @@ pub async fn execute_command(state: &SharedState, command: &str) -> Result<Strin
         debug!("Stderr: {}", stderr);
     }
 
-    // Combine stdout and stderr
-    let mut result = stdout;
+    // Combine stdout and stderr with aggressive ANSI stripping
+    let mut result = crate::strip_ansi_codes(&stdout);
     if !stderr.is_empty() {
         if !result.is_empty() {
             result.push_str("\n");
         }
         result.push_str("STDERR: ");
-        result.push_str(&stderr);
+        result.push_str(&crate::strip_ansi_codes(&stderr));
     }
+
+    // Additional safety check - just in case some ANSI codes slip through
+    // Match a wider range of ANSI escape sequences
+    let full_pattern = regex::Regex::new(r"\x1b(?:[@-Z\\-_]|\[[0-9?;]*[0-9A-Za-z])").unwrap();
+    let result = full_pattern.replace_all(&result, "").to_string();
 
     info!("Command execution completed");
     Ok(result)
