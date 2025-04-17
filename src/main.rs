@@ -165,6 +165,11 @@ async fn main() -> Result<()> {
         }
     };
 
+    // Registrar ferramentas e marcar como inicializado
+    winx::commands::tools::register_tools(state.clone())
+        .context("Failed to register tools")?;
+    info!("Tools registered and initialized successfully");
+
     // Create WinxTools instance
     let tools = WinxTools::new(state.clone());
 
