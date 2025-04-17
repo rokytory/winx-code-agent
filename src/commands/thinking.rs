@@ -1,6 +1,7 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use tracing::{debug, info};
 use std::sync::{Arc, Mutex};
+use serde_json::Value;
 
 use crate::core::state::SharedState;
 use crate::thinking::{SequentialThinking, Thought};
@@ -21,7 +22,7 @@ fn get_thinking_process() -> Arc<Mutex<SequentialThinking>> {
 
 /// Process a sequential thinking step
 pub async fn process_thinking(
-    state: &SharedState,
+    _state: &SharedState,
     thought_content: &str,
     thought_number: usize,
     total_thoughts: usize,
@@ -57,6 +58,65 @@ pub async fn process_thinking(
     
     info!("Thought processing completed: {} total thoughts", process.get_thoughts().len());
     Ok(summary)
+}
+
+/// Process sequential thinking from a JSON request
+pub async fn process_sequential_thinking(_state: &SharedState, json_str: &str) -> Result<String> {
+    debug!("Processing sequential thinking from JSON: {}", json_str);
+    
+    // Parse the JSON request
+    let json: Value = serde_json::from_str(json_str)
+        .context("Failed to parse sequential thinking JSON")?;
+    
+    // Extract the thought content
+    let thought = json.get("thought")
+        .and_then(Value::as_str)
+        .ok_or_else(|| anyhow::anyhow!("Missing or invalid 'thought' in JSON"))?;
+    
+    // Extract other parameters with defaults
+    let thought_number = json.get("thoughtNumber")
+        .and_then(Value::as_u64)
+        .unwrap_or(1) as usize;
+    
+    let total_thoughts = json.get("totalThoughts")
+        .and_then(Value::as_u64)
+        .unwrap_or(1) as usize;
+    
+    let next_thought_needed = json.get("nextThoughtNeeded")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    
+    let is_revision = json.get("isRevision")
+        .and_then(Value::as_bool);
+    
+    let revises_thought = json.get("revisesThought")
+        .and_then(Value::as_u64)
+        .map(|v| v as usize);
+    
+    let branch_from_thought = json.get("branchFromThought")
+        .and_then(Value::as_u64)
+        .map(|v| v as usize);
+    
+    let branch_id = json.get("branchId")
+        .and_then(Value::as_str)
+        .map(String::from);
+    
+    let needs_more_thoughts = json.get("needsMoreThoughts")
+        .and_then(Value::as_bool);
+    
+    // Process the thought using the existing functionality
+    process_thinking(
+        _state,
+        thought,
+        thought_number,
+        total_thoughts,
+        next_thought_needed,
+        is_revision,
+        revises_thought,
+        branch_from_thought,
+        branch_id,
+        needs_more_thoughts
+    ).await
 }
 
 #[cfg(test)]

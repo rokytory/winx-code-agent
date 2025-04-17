@@ -5,9 +5,11 @@ use std::fs;
 
 use crate::core::state::SharedState;
 use crate::utils::fs as fs_utils;
+use crate::core::types::{ReadFiles as ReadFilesType, FileWriteOrEdit as FileWriteOrEditType};
+use serde_json::from_str;
 
 /// Read files and return their contents
-pub async fn read_files(state: &SharedState, file_paths: &[String]) -> Result<Vec<(String, String)>> {
+pub async fn read_files_internal(state: &SharedState, file_paths: &[String]) -> Result<Vec<(String, String)>> {
     debug!("Reading files: {:?}", file_paths);
     
     let state_guard = state.lock().unwrap();
@@ -40,7 +42,7 @@ pub async fn read_files(state: &SharedState, file_paths: &[String]) -> Result<Ve
 }
 
 /// Write or edit a file
-pub async fn write_or_edit_file(
+pub async fn write_or_edit_file_internal(
     state: &SharedState,
     file_path: &str,
     percentage_to_change: u8,
@@ -71,7 +73,7 @@ pub async fn write_or_edit_file(
         debug!("Performing partial edit with search/replace blocks: {}", path.display());
         
         // Read the current content if the file exists
-        let current_content = match fs::read_to_string(&path) {
+        let _current_content = match fs::read_to_string(&path) {
             Ok(content) => content,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                 // If file doesn't exist, create it with the full content
@@ -89,6 +91,41 @@ pub async fn write_or_edit_file(
     
     info!("Successfully {} file: {}", mode, path.display());
     Ok(format!("Successfully {} file: {}", mode, path.display()))
+}
+
+/// Read files from a JSON request
+pub async fn read_files(state: &SharedState, json_str: &str) -> Result<String> {
+    debug!("Reading files from JSON: {}", json_str);
+    
+    // Parse the JSON request
+    let request: ReadFilesType = from_str(json_str)?;
+    
+    // Read the files
+    let results = read_files_internal(state, &request.file_paths).await?;
+    
+    // Format the results
+    let mut output = String::new();
+    for (path, content) in results {
+        output.push_str(&format!("\n## File: {}\n```\n{}\n```\n", path, content));
+    }
+    
+    Ok(output)
+}
+
+/// Write or edit a file from a JSON request
+pub async fn write_or_edit_file(state: &SharedState, json_str: &str) -> Result<String> {
+    debug!("Writing/editing file from JSON: {}", json_str);
+    
+    // Parse the JSON request
+    let request: FileWriteOrEditType = from_str(json_str)?;
+    
+    // Write or edit the file
+    write_or_edit_file_internal(
+        state, 
+        &request.file_path, 
+        request.percentage_to_change, 
+        &request.file_content_or_search_replace_blocks
+    ).await
 }
 
 #[cfg(test)]

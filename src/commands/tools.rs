@@ -4,11 +4,111 @@ use tracing::info;
 
 use crate::core::state::SharedState;
 
+use rmcp::{
+    ServiceExt, ServiceRegistry, service_fn,
+    request::{Request, Response},
+};
+use crate::commands::{bash, files, sql, thinking};
+use crate::core::types::WinxContext;
+use serde_json::Value;
+use std::sync::Arc;
+
 /// Initialize tool registration
 pub fn register_tools(state: SharedState) -> Result<()> {
     info!("Registering Winx tools");
     
-    // TODO: Register all tools here
+    let registry = ServiceRegistry::new();
+    let context = Arc::new(WinxContext::new(state));
+    
+    // Register Winx tools with MCP
+    register_bash_tools(&registry, context.clone())?;
+    register_file_tools(&registry, context.clone())?;
+    register_sql_tools(&registry, context.clone())?;
+    register_thinking_tools(&registry, context.clone())?;
+    
+    // Definir o serviço MCP
+    registry.serve().unwrap();
+    
+    info!("All Winx tools registered successfully");
+    Ok(())
+}
+
+/// Register bash commands
+fn register_bash_tools(registry: &ServiceRegistry, context: Arc<WinxContext>) -> Result<()> {
+    registry.add_service(
+        "BashCommand",
+        service_fn(move |req: Request<Value>| {
+            let ctx = context.clone();
+            async move {
+                let params = req.params;
+                let result = bash::execute_bash_command(&ctx.state, &params.to_string()).await?;
+                Ok(Response::new(serde_json::to_value(result)?))
+            }
+        }),
+    );
+    
+    Ok(())
+}
+
+/// Register file operations
+fn register_file_tools(registry: &ServiceRegistry, context: Arc<WinxContext>) -> Result<()> {
+    registry.add_service(
+        "ReadFiles",
+        service_fn(move |req: Request<Value>| {
+            let ctx = context.clone();
+            async move {
+                let params = req.params;
+                let result = files::read_files(&ctx.state, &params.to_string()).await?;
+                Ok(Response::new(serde_json::to_value(result)?))
+            }
+        }),
+    );
+    
+    registry.add_service(
+        "FileWriteOrEdit",
+        service_fn(move |req: Request<Value>| {
+            let ctx = context.clone();
+            async move {
+                let params = req.params;
+                let result = files::write_or_edit_file(&ctx.state, &params.to_string()).await?;
+                Ok(Response::new(serde_json::to_value(result)?))
+            }
+        }),
+    );
+    
+    Ok(())
+}
+
+/// Register SQL tools
+fn register_sql_tools(registry: &ServiceRegistry, context: Arc<WinxContext>) -> Result<()> {
+    registry.add_service(
+        "SqlQuery",
+        service_fn(move |req: Request<Value>| {
+            let ctx = context.clone();
+            async move {
+                let params = req.params;
+                let result = sql::execute_sql_query(&ctx.state, &params.to_string()).await?;
+                Ok(Response::new(serde_json::to_value(result)?))
+            }
+        }),
+    );
+    
+    Ok(())
+}
+
+/// Register sequential thinking tools
+fn register_thinking_tools(registry: &ServiceRegistry, context: Arc<WinxContext>) -> Result<()> {
+    registry.add_service(
+        "SequentialThinking",
+        service_fn(move |req: Request<Value>| {
+            let ctx = context.clone();
+            async move {
+                let params = req.params;
+                let result = thinking::process_sequential_thinking(&ctx.state, &params.to_string()).await?;
+                Ok(Response::new(serde_json::to_value(result)?))
+            }
+        }),
+    );
     
     Ok(())
 }
@@ -64,7 +164,7 @@ pub struct WinxTools {
 }
 
 impl WinxTools {
-    pub fn new(state: SharedState) -> Self {
+    pub fn new(_state: SharedState) -> Self {
         Self {
             // Initialize tools with state
         }
