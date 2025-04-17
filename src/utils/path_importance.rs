@@ -5,10 +5,9 @@ use std::time::SystemTime;
 use std::fs;
 use std::io::BufReader;
 use std::io::prelude::*;
-use tracing::{debug, info, warn};
+use tracing::debug;
 
 use crate::core::state::FileReadInfo;
-use crate::utils::fs;
 
 /// Importance score types for ranking paths
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
