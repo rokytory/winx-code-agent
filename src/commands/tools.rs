@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use rmcp::model::*;
 use rmcp::service::RequestContext;
 use rmcp::{tool, Error as McpError, RoleServer, ServerHandler};
@@ -33,6 +33,24 @@ fn check_initialized() -> Result<(), McpError> {
             })),
         ));
     }
+    Ok(())
+}
+
+/// Reseta o estado de inicialização
+pub fn reset_initialization() {
+    INITIALIZED.store(false, Ordering::SeqCst);
+    info!("Initialization state reset for tools");
+}
+
+/// Registra as ferramentas e marca como inicializado
+pub fn register_tools(state: SharedState) -> Result<()> {
+    // Marca como inicializado
+    INITIALIZED.store(true, Ordering::SeqCst);
+    
+    // Inicializa o suporte a idiomas
+    crate::core::i18n::init_language_support();
+    
+    info!("Tools registered and initialized successfully");
     Ok(())
 }
 
@@ -652,6 +670,53 @@ impl WinxTools {
             
         Ok(CallToolResult::success(vec![Content::text(result)]))
     }
+    
+    #[tool(description = "Change the interface language (en, pt, es)")]
+    async fn change_language(
+        &self,
+        #[tool(param)] language_code: String,
+    ) -> Result<CallToolResult, McpError> {
+        check_initialized()?;
+        
+        let request = crate::commands::language::LanguageRequest {
+            language_code,
+        };
+        
+        let json = match serde_json::to_string(&request) {
+            Ok(j) => j,
+            Err(e) => {
+                return Err(McpError::internal_error(
+                    "serialize_error",
+                    Some(serde_json::Value::String(e.to_string())),
+                ))
+            }
+        };
+        
+        let result = crate::commands::language::change_language(&json)
+            .map_err(|e| {
+                McpError::internal_error(
+                    "language_error",
+                    Some(serde_json::Value::String(e.to_string())),
+                )
+            })?;
+            
+        Ok(CallToolResult::success(vec![Content::text(result)]))
+    }
+    
+    #[tool(description = "List available languages and current language")]
+    async fn list_languages(&self) -> Result<CallToolResult, McpError> {
+        check_initialized()?;
+        
+        let result = crate::commands::language::list_available_languages()
+            .map_err(|e| {
+                McpError::internal_error(
+                    "language_error",
+                    Some(serde_json::Value::String(e.to_string())),
+                )
+            })?;
+            
+        Ok(CallToolResult::success(vec![Content::text(result)]))
+    }
 }
 
 #[tool(tool_box)]
@@ -659,6 +724,18 @@ impl ServerHandler for WinxTools {
     fn get_info(&self) -> ServerInfo {
         // Ensure we use the correct protocol version
         // and that the tools configuration is enabled
+        let current_lang = crate::core::i18n::get_language();
+        
+        // Customized instructions based on language
+        let instructions = match current_lang {
+            crate::core::i18n::Language::English => 
+                "Winx is a Rust code agent that allows executing bash commands, manipulating files, and executing SQL queries.",
+            crate::core::i18n::Language::Portuguese => 
+                "Winx é um agente de código Rust que permite executar comandos bash, manipular arquivos e executar consultas SQL.",
+            crate::core::i18n::Language::Spanish => 
+                "Winx es un agente de código Rust que permite ejecutar comandos bash, manipular archivos y ejecutar consultas SQL.",
+        };
+        
         ServerInfo {
             protocol_version: ProtocolVersion::V_2024_11_05,
             capabilities: ServerCapabilities::builder()
@@ -667,7 +744,7 @@ impl ServerHandler for WinxTools {
                 .enable_tools()
                 .build(),
             server_info: Implementation::from_build_env(),
-            instructions: Some("Winx is a Rust code agent that allows executing bash commands, manipulating files, and executing SQL queries.".to_string()),
+            instructions: Some(instructions.to_string()),
         }
     }
 
@@ -736,31 +813,28 @@ impl ServerHandler for WinxTools {
     }
 }
 
-/// Initialize tool registration
-pub fn register_tools(state: SharedState) -> Result<()> {
-    info!("Registering Winx tools");
-
-    // Create a new WinxTools instance with the shared state
-    let _tools = WinxTools::new(state);
-
-    // In a full implementation, we would register the tools with the RMCP server
-    // But this is now handled by the tool macros
+/// Gets the current internationalized description for the given tool ID
+pub fn get_tool_description(tool_id: &str) -> &'static str {
+    use crate::commands::localized_descriptions;
     
-    // Marcar como inicializado
-    INITIALIZED.store(true, Ordering::SeqCst);
-    info!("All Winx tools registered successfully - initialization complete");
-    Ok(())
-}
-
-/// Verifica se as ferramentas estão inicializadas
-pub fn is_initialized() -> bool {
-    INITIALIZED.load(Ordering::SeqCst)
-}
-
-/// Reseta o estado de inicialização (para testes ou reinicialização)
-pub fn reset_initialization() {
-    INITIALIZED.store(false, Ordering::SeqCst);
-    info!("Tool initialization has been reset");
+    match tool_id {
+        "create_task" => localized_descriptions::create_task_description(),
+        "list_tasks" => localized_descriptions::list_tasks_description(),
+        "start_background_process" => localized_descriptions::start_background_process_description(),
+        "validate_syntax" => localized_descriptions::validate_syntax_description(),
+        "send_text_input" => localized_descriptions::send_text_input_description(),
+        "send_special_keys" => localized_descriptions::send_special_keys_description(),
+        "bash_command" => localized_descriptions::bash_command_description(),
+        "read_files" => localized_descriptions::read_files_description(),
+        "file_write_or_edit" => localized_descriptions::file_write_or_edit_description(),
+        "sql_query" => localized_descriptions::sql_query_description(),
+        "sequential_thinking" => localized_descriptions::sequential_thinking_description(),
+        "init_vibe_code" => localized_descriptions::init_vibe_code_description(),
+        "analyze_file_with_vibe_code" => localized_descriptions::analyze_file_with_vibe_code_description(),
+        "smart_search_replace" => localized_descriptions::smart_search_replace_description(),
+        "generate_code_suggestions" => localized_descriptions::generate_code_suggestions_description(),
+        _ => "Unknown tool",
+    }
 }
 
 /// Basic bash command tool definition
