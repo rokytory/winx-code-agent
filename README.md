@@ -6,13 +6,13 @@
 </table>
 
 <p align="center">
-  <strong>✨ A high-performance code agent written in Rust, combining the best features of WCGW and Serena for maximum efficiency and semantic capabilities. 🦀</strong>
+  <strong>✨ A high-performance code agent written in Rust, combining the best features of WCGW for maximum efficiency and semantic capabilities. 🦀</strong>
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/language-Rust-orange?style=flat&logo=rust" alt="Language" />
   <img src="https://img.shields.io/badge/license-MIT-blue?style=flat" alt="License" />
-  <img src="https://img.shields.io/github/last-commit/gabrielmaia/winx?style=flat" alt="Last Commit" >
+  <img src="https://img.shields.io/github/last-commit/gabrielmaia/winx-code-agent?style=flat" alt="Last Commit" >
   <img src="https://img.shields.io/badge/made%20by-Maia-15c3d6?style=flat" alt="Made by Maia" >  
 </p>
 
