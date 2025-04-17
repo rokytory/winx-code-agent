@@ -1,7 +1,21 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::sync::Arc;
 
 pub use crate::lsp::types::Language;
+use crate::core::state::SharedState;
+
+/// Contexto compartilhado para ferramentas MCP
+pub struct WinxContext {
+    pub state: SharedState,
+}
+
+impl WinxContext {
+    /// Criar novo contexto com o estado compartilhado
+    pub fn new(state: SharedState) -> Self {
+        Self { state }
+    }
+}
 
 /// Available modes for the Winx agent
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

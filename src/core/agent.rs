@@ -179,7 +179,7 @@ impl WinxAgent {
             .args([
                 workspace_path.to_str().unwrap_or("."),
                 "-type", "f",
-                "-name", &format("*.{}", extension),
+                "-name", &format!("*.{}", extension),
                 "-not", "-path", "*/\\.*/*",
                 "-not", "-path", "*/target/*",
                 "-not", "-path", "*/node_modules/*",
@@ -222,7 +222,7 @@ impl WinxAgent {
                 debug!("Reading initial file: {}", rel_path);
                 
                 match code_manager.read_file(&rel_path, 0, None).await {
-                    Ok(content) => {
+                    Ok(_content) => {
                         debug!("Successfully read file: {}", rel_path);
                     },
                     Err(e) => {
