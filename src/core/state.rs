@@ -1,5 +1,6 @@
 use crate::core::types::{AllowedItems, CodeWriterConfig, Mode, ModeType};
 use anyhow::{Context, Result};
+use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -159,7 +160,7 @@ pub struct TaskState {
 }
 
 /// Represents the current state of the Winx agent
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct AgentState {
     /// Current working directory
     pub workspace_path: PathBuf,
@@ -177,6 +178,25 @@ pub struct AgentState {
     pub terminal_session_id: Option<String>,
     /// Running background processes
     pub background_processes: Vec<String>,
+    /// Context data for extensions
+    context_data: HashMap<String, Box<dyn Any + Send>>,
+}
+
+impl Clone for AgentState {
+    fn clone(&self) -> Self {
+        // Note: context_data is not cloned as it may contain non-cloneable types
+        Self {
+            workspace_path: self.workspace_path.clone(),
+            mode: self.mode.clone(),
+            task_id: self.task_id.clone(),
+            process_running: self.process_running,
+            last_exit_code: self.last_exit_code,
+            read_files: self.read_files.clone(),
+            terminal_session_id: self.terminal_session_id.clone(),
+            background_processes: self.background_processes.clone(),
+            context_data: HashMap::new(),
+        }
+    }
 }
 
 impl AgentState {
@@ -210,6 +230,7 @@ impl AgentState {
             read_files: HashMap::new(),
             terminal_session_id: None,
             background_processes: Vec::new(),
+            context_data: HashMap::new(),
         })
     }
 
@@ -359,6 +380,31 @@ impl AgentState {
         self.background_processes.clone()
     }
 
+    /// Get context data of a specific type
+    pub fn get_context_data<T: 'static + Send>(&self, key: &str) -> Option<&T> {
+        self.context_data.get(key).and_then(|boxed| boxed.downcast_ref::<T>())
+    }
+    
+    /// Get mutable context data of a specific type
+    pub fn get_context_data_mut<T: 'static + Send>(&mut self, key: &str) -> Option<&mut T> {
+        self.context_data.get_mut(key).and_then(|boxed| boxed.downcast_mut::<T>())
+    }
+    
+    /// Set context data
+    pub fn set_context_data<T: 'static + Send>(&mut self, key: &str, value: T) {
+        self.context_data.insert(key.to_string(), Box::new(value));
+    }
+    
+    /// Remove context data
+    pub fn remove_context_data(&mut self, key: &str) -> bool {
+        self.context_data.remove(key).is_some()
+    }
+    
+    /// Check if context data exists
+    pub fn has_context_data(&self, key: &str) -> bool {
+        self.context_data.contains_key(key)
+    }
+
     /// Save state to a task
     pub fn save_to_task(&self, task_id: &str) -> Result<()> {
         // Create task state
@@ -410,6 +456,7 @@ impl AgentState {
             read_files: task_state.read_files,
             terminal_session_id: None,
             background_processes: task_state.background_processes,
+            context_data: HashMap::new(),
         })
     }
 }
