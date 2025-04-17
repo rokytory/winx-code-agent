@@ -8,9 +8,18 @@ use std::process::Command as StdCommand;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use uuid::Uuid;
+use regex::Regex;
 
 use crate::core::state::SharedState;
 use crate::core::types::Special;
+
+/// Strip ANSI color codes from a string
+fn strip_ansi_codes(input: &str) -> String {
+    // Match ANSI escape sequences: \u001b followed by [ and then any sequence until m
+    // This handles most common color codes and formatting
+    let re = Regex::new(r"\x1b\[[0-9;]*m").unwrap_or_else(|_| Regex::new(r"").unwrap());
+    re.replace_all(input, "").to_string()
+}
 
 /// Terminal data for serialization
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -56,9 +65,18 @@ impl TerminalSession {
             .current_dir(&self.working_dir)
             .output()?;
 
-        // Capturar saída
-        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        // Capturar saída e remover códigos ANSI com dupla proteção
+        let stdout_raw = String::from_utf8_lossy(&output.stdout).to_string();
+        let stderr_raw = String::from_utf8_lossy(&output.stderr).to_string();
+        
+        // First use our local function
+        let stdout = crate::strip_ansi_codes(&stdout_raw);
+        let stderr = crate::strip_ansi_codes(&stderr_raw);
+        
+        // Then double-check with a comprehensive regex
+        let full_pattern = regex::Regex::new(r"\x1b(?:[@-Z\\-_]|\[[0-9?;]*[0-9A-Za-z])").unwrap();
+        let stdout = full_pattern.replace_all(&stdout, "").to_string();
+        let stderr = full_pattern.replace_all(&stderr, "").to_string();
 
         // Atualizar estado
         self.last_exit_status = Some(output.status.code().unwrap_or(-1));
