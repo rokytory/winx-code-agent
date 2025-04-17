@@ -1,9 +1,6 @@
 use anyhow::{Context, Result};
 use async_openai::{
-    types::{
-        ChatCompletionRequestMessage,
-        CreateChatCompletionRequestArgs, Role,
-    },
+    types::{ChatCompletionRequestMessage, CreateChatCompletionRequestArgs, Role},
     Client,
 };
 use serde::{Deserialize, Serialize};
@@ -52,96 +49,106 @@ impl OpenAIClient {
     /// Create a new OpenAI client
     pub fn new(config: Option<OpenAIConfig>) -> Result<Self> {
         let config = config.unwrap_or_default();
-        
+
         // Create OpenAI config
         let mut openai_config = async_openai::config::OpenAIConfig::new();
-        
+
         // Set API key if provided
         if let Some(api_key) = &config.api_key {
             openai_config = openai_config.with_api_key(api_key);
         }
-        
+
         // Set org ID if provided
         if let Some(org_id) = &config.org_id {
             openai_config = openai_config.with_org_id(org_id);
         }
-        
+
         // Create client with config
         let client = Client::with_config(openai_config);
-        
+
         Ok(Self { client, config })
     }
-    
+
     /// Execute a prompt against the OpenAI API
     pub async fn execute_prompt(&self, prompt: &str) -> Result<String> {
         debug!("Executing prompt against OpenAI: {}", prompt);
-        
+
         // Criar vetor de mensagens usando a API do async-openai
         let message = ChatCompletionRequestMessage::User(
             async_openai::types::ChatCompletionRequestUserMessage {
-                content: Some(async_openai::types::ChatCompletionRequestUserMessageContent::Text(prompt.to_string())),
+                content: Some(
+                    async_openai::types::ChatCompletionRequestUserMessageContent::Text(
+                        prompt.to_string(),
+                    ),
+                ),
                 name: None,
                 role: Role::User,
-            }
+            },
         );
-            
+
         let messages = vec![message];
-        
+
         // Criar request
         let mut request = CreateChatCompletionRequestArgs::default()
             .model(&self.config.model)
             .messages(messages)
             .build()?;
-            
+
         // Adicionar max_tokens se definido
         if let Some(max_tokens) = self.config.max_tokens {
             request.max_tokens = Some(max_tokens as u16);
         }
-        
+
         // Adicionar temperature se definido
         if let Some(temp) = self.config.temperature {
             request.temperature = Some(temp);
         }
-        
+
         let response = self.client.chat().create(request).await?;
-        
+
         if let Some(choice) = response.choices.first() {
             if let Some(content) = &choice.message.content {
                 return Ok(content.clone());
             }
         }
-        
+
         Err(anyhow::anyhow!("No response from OpenAI"))
     }
-    
+
     /// Execute a chat conversation against the OpenAI API
-    pub async fn execute_chat(&self, messages: Vec<ChatCompletionRequestMessage>) -> Result<String> {
-        debug!("Executing chat against OpenAI with {} messages", messages.len());
-        
+    pub async fn execute_chat(
+        &self,
+        messages: Vec<ChatCompletionRequestMessage>,
+    ) -> Result<String> {
+        debug!(
+            "Executing chat against OpenAI with {} messages",
+            messages.len()
+        );
+
         // Criar request
         let mut request = CreateChatCompletionRequestArgs::default()
             .model(&self.config.model)
             .messages(messages)
             .build()?;
-            
+
         // Adicionar max_tokens se definido
         if let Some(max_tokens) = self.config.max_tokens {
             request.max_tokens = Some(max_tokens as u16);
         }
-        
+
         // Adicionar temperature se definido
         if let Some(temp) = self.config.temperature {
             request.temperature = Some(temp);
         }
-        
+
         let response = self.client.chat().create(request).await?;
-        
+
         if let Some(choice) = response.choices.first() {
             if let Some(content) = &choice.message.content {
                 return Ok(content.clone());
             }
         }
-        
+
         Err(anyhow::anyhow!("No response from OpenAI"))
     }
 }
@@ -160,16 +167,16 @@ impl OpenAIThinking {
 For each step in your thinking process, articulate your thoughts clearly and concisely.
 If you realize a mistake in your previous thinking, you can revise it.
 Your goal is to reach the best possible solution through careful sequential thinking."#;
-        
+
         let system_prompt = system_prompt.unwrap_or_else(|| default_system_prompt.to_string());
-        
+
         Self {
             client,
             thinking: SequentialThinking::new(),
             system_prompt,
         }
     }
-    
+
     /// Process a query with sequential thinking
     pub async fn process_query(&mut self, query: &str, total_steps: usize) -> Result<String> {
         // Initialize the conversation with system and user prompts
@@ -191,10 +198,10 @@ Your goal is to reach the best possible solution through careful sequential thin
                 }
             )
         ];
-        
+
         // First thought
         let response = self.client.execute_chat(messages.clone()).await?;
-        
+
         // Add first thought to the thinking process
         let thought = Thought {
             content: response.clone(),
@@ -207,40 +214,38 @@ Your goal is to reach the best possible solution through careful sequential thin
             branch_id: None,
             needs_more_thoughts: false,
         };
-        
+
         self.thinking.add_thought(thought)?;
-        
+
         // Add assistant's first thought to the conversation
-        messages.push(
-            ChatCompletionRequestMessage::Assistant(
-                async_openai::types::ChatCompletionRequestAssistantMessage {
-                    content: Some(response),
-                    name: None,
-                    function_call: None,
-                    tool_calls: None,
-                    role: Role::Assistant,
-                }
-            )
-        );
-        
+        messages.push(ChatCompletionRequestMessage::Assistant(
+            async_openai::types::ChatCompletionRequestAssistantMessage {
+                content: Some(response),
+                name: None,
+                function_call: None,
+                tool_calls: None,
+                role: Role::Assistant,
+            },
+        ));
+
         // Process remaining thoughts
         for step in 2..=total_steps {
             // Add user prompt for next step
-            messages.push(
-                ChatCompletionRequestMessage::User(
-                    async_openai::types::ChatCompletionRequestUserMessage {
-                        content: Some(async_openai::types::ChatCompletionRequestUserMessageContent::Text(
-                            format!("Continue your thinking process. What is step {}?", step)
-                        )),
-                        name: None,
-                        role: Role::User,
-                    }
-                )
-            );
-            
+            messages.push(ChatCompletionRequestMessage::User(
+                async_openai::types::ChatCompletionRequestUserMessage {
+                    content: Some(
+                        async_openai::types::ChatCompletionRequestUserMessageContent::Text(
+                            format!("Continue your thinking process. What is step {}?", step),
+                        ),
+                    ),
+                    name: None,
+                    role: Role::User,
+                },
+            ));
+
             // Get response for this step
             let response = self.client.execute_chat(messages.clone()).await?;
-            
+
             // Add thought to the thinking process
             let thought = Thought {
                 content: response.clone(),
@@ -253,23 +258,21 @@ Your goal is to reach the best possible solution through careful sequential thin
                 branch_id: None,
                 needs_more_thoughts: false,
             };
-            
+
             self.thinking.add_thought(thought)?;
-            
+
             // Add assistant's thought to the conversation
-            messages.push(
-                ChatCompletionRequestMessage::Assistant(
-                    async_openai::types::ChatCompletionRequestAssistantMessage {
-                        content: Some(response),
-                        name: None,
-                        function_call: None,
-                        tool_calls: None,
-                        role: Role::Assistant,
-                    }
-                )
-            );
+            messages.push(ChatCompletionRequestMessage::Assistant(
+                async_openai::types::ChatCompletionRequestAssistantMessage {
+                    content: Some(response),
+                    name: None,
+                    function_call: None,
+                    tool_calls: None,
+                    role: Role::Assistant,
+                },
+            ));
         }
-        
+
         // Finally, ask for a conclusion
         messages.push(
             ChatCompletionRequestMessage::User(
@@ -282,40 +285,43 @@ Your goal is to reach the best possible solution through careful sequential thin
                 }
             )
         );
-        
+
         let conclusion = self.client.execute_chat(messages).await?;
-        
+
         // Get a summary of all the thinking
         let thinking_summary = self.thinking.get_summary();
-        
+
         // Return both the thinking process and the conclusion
-        Ok(format!("# Thinking Process\n\n{}\n\n# Conclusion\n\n{}", thinking_summary, conclusion))
+        Ok(format!(
+            "# Thinking Process\n\n{}\n\n# Conclusion\n\n{}",
+            thinking_summary, conclusion
+        ))
     }
-    
+
     /// Process a query with an option to revise previous thinking
     pub async fn process_query_with_revisions(
-        &mut self, 
-        query: &str, 
+        &mut self,
+        query: &str,
         initial_steps: usize,
-        max_revisions: usize
+        max_revisions: usize,
     ) -> Result<String> {
         // Basic thinking process
         let mut result = self.process_query(query, initial_steps).await?;
-        
+
         // Ask if any revisions are needed
         let revision_prompt = format!(
             "You have completed your initial thinking process:\n\n{}\n\nDo you want to revise any of your previous thoughts? If yes, specify which thought(s) needs revision and why. If no, respond with 'No revisions needed.'",
             self.thinking.get_summary()
         );
-        
+
         let revision_response = self.client.execute_prompt(&revision_prompt).await?;
-        
+
         // Check if revisions are needed
         if !revision_response.contains("No revisions needed") && max_revisions > 0 {
             // Add the revision request to result
             result.push_str("\n\n# Revision Request\n\n");
             result.push_str(&revision_response);
-            
+
             // Extract which thought to revise (this is a simplistic approach)
             // A more robust implementation would parse the response more carefully
             let thought_number = if let Some(num) = extract_thought_number(&revision_response) {
@@ -324,15 +330,15 @@ Your goal is to reach the best possible solution through careful sequential thin
                 // Default to first thought if we can't determine which one
                 1
             };
-            
+
             // Create a revision prompt
             let revision_content_prompt = format!(
                 "Please provide a revised version of thought #{}. Make sure to address the issues you identified.",
                 thought_number
             );
-            
+
             let revised_thought = self.client.execute_prompt(&revision_content_prompt).await?;
-            
+
             // Add the revised thought
             let thought = Thought {
                 content: revised_thought.clone(),
@@ -345,13 +351,13 @@ Your goal is to reach the best possible solution through careful sequential thin
                 branch_id: None,
                 needs_more_thoughts: false,
             };
-            
+
             self.thinking.add_thought(thought)?;
-            
+
             // Add the revision to result
             result.push_str("\n\n# Revised Thought\n\n");
             result.push_str(&revised_thought);
-            
+
             // Process further revisions recursively if needed
             if max_revisions > 1 {
                 // This would be implemented to allow for multiple rounds of revisions
@@ -363,7 +369,7 @@ Your goal is to reach the best possible solution through careful sequential thin
             result.push_str("\n\n# Revision Check\n\n");
             result.push_str(&revision_response);
         }
-        
+
         Ok(result)
     }
 }
@@ -387,7 +393,7 @@ fn extract_thought_number(text: &str) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[tokio::test]
     async fn test_openai_client() {
         // Skip if no API key is set
@@ -395,10 +401,10 @@ mod tests {
             println!("Skipping OpenAI test: No API key");
             return;
         }
-        
+
         let client = OpenAIClient::new(None).unwrap();
         let response = client.execute_prompt("Say hello").await.unwrap();
-        
+
         assert!(!response.is_empty());
         assert!(response.len() > 5);
     }
