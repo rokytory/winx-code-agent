@@ -161,10 +161,10 @@ impl CheckpointManager {
             checkpoint
         } else {
             // Try to load it if not in memory
-            // Carregar o checkpoint e armazenar em self.checkpoints
+            // Load the checkpoint and store it in self.checkpoints
             let loaded = self.load_checkpoint(id).await?;
             self.checkpoints.insert(id.to_string(), loaded);
-            // Agora que está armazenado, podemos pegá-lo novamente
+            // Now that it's stored, we can get it again
             self.checkpoints.get(id).unwrap()
         };
 
