@@ -18,16 +18,16 @@ use crate::lsp::types::LSPConfig;
 pub struct WinxAgent {
     /// Shared state for the agent
     state: SharedState,
-    
+
     /// LSP server for code analysis
     lsp_server: Option<Arc<Mutex<LSPServer>>>,
-    
+
     /// Code manager for symbolic operations
     code_manager: Option<CodeManager>,
-    
+
     /// Checkpoint manager for history tracking
     checkpoint_manager: Option<CheckpointManager>,
-    
+
     /// Git integration for version control
     git_integration: Option<GitIntegration>,
 }
@@ -65,7 +65,9 @@ impl WinxAgent {
         // Process initial files if any
         if !init.initial_files_to_read.is_empty() {
             info!("Reading initial files: {:?}", init.initial_files_to_read);
-            agent.read_initial_files(&init.initial_files_to_read).await?;
+            agent
+                .read_initial_files(&init.initial_files_to_read)
+                .await?;
         }
 
         Ok(agent)
@@ -80,7 +82,11 @@ impl WinxAgent {
         // Initialize LSP server
         let lsp_config = LSPConfig {
             language,
-            ignored_paths: vec![".git".to_string(), "target".to_string(), "node_modules".to_string()],
+            ignored_paths: vec![
+                ".git".to_string(),
+                "target".to_string(),
+                "node_modules".to_string(),
+            ],
             gitignore_content: self.read_gitignore(workspace_path).await.ok(),
             trace_lsp_communication: false,
         };
@@ -94,7 +100,7 @@ impl WinxAgent {
 
         // Start the LSP server
         lsp_server.start().await?;
-        
+
         let lsp_server = Arc::new(Mutex::new(lsp_server));
         self.lsp_server = Some(lsp_server.clone());
 
@@ -116,17 +122,37 @@ impl WinxAgent {
     /// Detect the primary language of the project
     async fn detect_language(&self, workspace_path: &Path) -> Result<Language> {
         // Look for language-specific files
-        let rust_count = self.count_files_with_extension(workspace_path, "rs").await?;
-        let py_count = self.count_files_with_extension(workspace_path, "py").await?;
-        let js_count = self.count_files_with_extension(workspace_path, "js").await?;
-        let ts_count = self.count_files_with_extension(workspace_path, "ts").await?;
-        let go_count = self.count_files_with_extension(workspace_path, "go").await?;
-        let java_count = self.count_files_with_extension(workspace_path, "java").await?;
-        let cs_count = self.count_files_with_extension(workspace_path, "cs").await?;
-        let cpp_count = self.count_files_with_extension(workspace_path, "cpp").await? +
-                        self.count_files_with_extension(workspace_path, "cc").await? +
-                        self.count_files_with_extension(workspace_path, "h").await?;
-        let rb_count = self.count_files_with_extension(workspace_path, "rb").await?;
+        let rust_count = self
+            .count_files_with_extension(workspace_path, "rs")
+            .await?;
+        let py_count = self
+            .count_files_with_extension(workspace_path, "py")
+            .await?;
+        let js_count = self
+            .count_files_with_extension(workspace_path, "js")
+            .await?;
+        let ts_count = self
+            .count_files_with_extension(workspace_path, "ts")
+            .await?;
+        let go_count = self
+            .count_files_with_extension(workspace_path, "go")
+            .await?;
+        let java_count = self
+            .count_files_with_extension(workspace_path, "java")
+            .await?;
+        let cs_count = self
+            .count_files_with_extension(workspace_path, "cs")
+            .await?;
+        let cpp_count = self
+            .count_files_with_extension(workspace_path, "cpp")
+            .await?
+            + self
+                .count_files_with_extension(workspace_path, "cc")
+                .await?
+            + self.count_files_with_extension(workspace_path, "h").await?;
+        let rb_count = self
+            .count_files_with_extension(workspace_path, "rb")
+            .await?;
 
         // Determine the most common language
         let mut language = Language::Rust; // Default to Rust
@@ -174,15 +200,27 @@ impl WinxAgent {
     }
 
     /// Count files with a specific extension in the workspace
-    async fn count_files_with_extension(&self, workspace_path: &Path, extension: &str) -> Result<usize> {
+    async fn count_files_with_extension(
+        &self,
+        workspace_path: &Path,
+        extension: &str,
+    ) -> Result<usize> {
         let output = Command::new("find")
             .args([
                 workspace_path.to_str().unwrap_or("."),
-                "-type", "f",
-                "-name", &format!("*.{}", extension),
-                "-not", "-path", "*/\\.*/*",
-                "-not", "-path", "*/target/*",
-                "-not", "-path", "*/node_modules/*",
+                "-type",
+                "f",
+                "-name",
+                &format!("*.{}", extension),
+                "-not",
+                "-path",
+                "*/\\.*/*",
+                "-not",
+                "-path",
+                "*/target/*",
+                "-not",
+                "-path",
+                "*/node_modules/*",
             ])
             .output()
             .await
@@ -194,21 +232,22 @@ impl WinxAgent {
 
         let stdout = String::from_utf8_lossy(&output.stdout);
         let count = stdout.lines().count();
-        
+
         Ok(count)
     }
 
     /// Read .gitignore file if it exists
     async fn read_gitignore(&self, workspace_path: &Path) -> Result<String> {
         let gitignore_path = workspace_path.join(".gitignore");
-        
+
         if !gitignore_path.exists() {
             return Err(anyhow::anyhow!("No .gitignore file found"));
         }
-        
-        let content = tokio::fs::read_to_string(gitignore_path).await
+
+        let content = tokio::fs::read_to_string(gitignore_path)
+            .await
             .context("Failed to read .gitignore file")?;
-            
+
         Ok(content)
     }
 
@@ -218,20 +257,20 @@ impl WinxAgent {
             for path in file_paths {
                 // Convert absolute paths to relative paths
                 let rel_path = self.get_relative_path(path)?;
-                
+
                 debug!("Reading initial file: {}", rel_path);
-                
+
                 match code_manager.read_file(&rel_path, 0, None).await {
                     Ok(_content) => {
                         debug!("Successfully read file: {}", rel_path);
-                    },
+                    }
                     Err(e) => {
                         warn!("Failed to read file {}: {}", rel_path, e);
                     }
                 }
             }
         }
-        
+
         Ok(())
     }
 
@@ -239,18 +278,19 @@ impl WinxAgent {
     fn get_relative_path(&self, path: &str) -> Result<String> {
         let state = self.state.lock().unwrap();
         let abs_path = PathBuf::from(path);
-        
+
         if abs_path.is_relative() {
             return Ok(path.to_string());
         }
-        
+
         if !abs_path.starts_with(&state.workspace_path) {
             return Err(anyhow::anyhow!("Path is outside of workspace: {}", path));
         }
-        
-        let rel_path = abs_path.strip_prefix(&state.workspace_path)
+
+        let rel_path = abs_path
+            .strip_prefix(&state.workspace_path)
             .context("Failed to get relative path")?;
-            
+
         Ok(rel_path.to_string_lossy().to_string())
     }
 
@@ -301,33 +341,40 @@ impl WinxAgent {
 
         Ok(result)
     }
-    
+
     /// Get the code manager
     pub fn code_manager(&self) -> Option<&CodeManager> {
         self.code_manager.as_ref()
     }
-    
+
     /// Get the checkpoint manager
     pub fn checkpoint_manager(&self) -> Option<&CheckpointManager> {
         self.checkpoint_manager.as_ref()
     }
-    
+
     /// Get the git integration
     pub fn git_integration(&self) -> Option<&GitIntegration> {
         self.git_integration.as_ref()
     }
-    
+
     /// Create a checkpoint for the current state
     pub async fn create_checkpoint(&mut self, description: &str) -> Result<String> {
-        if let (Some(checkpoint_manager), Some(code_manager)) = (self.checkpoint_manager.as_mut(), self.code_manager.as_ref()) {
+        if let (Some(checkpoint_manager), Some(code_manager)) =
+            (self.checkpoint_manager.as_mut(), self.code_manager.as_ref())
+        {
             // Get modified files
             let modified_files = code_manager.get_modified_files().await;
-            
+
             // Create file changes
             let mut changes = Vec::new();
             for relative_path in modified_files {
                 // Get original content (before modification) and current content
-                let file_path = self.state.lock().unwrap().workspace_path.join(&relative_path);
+                let file_path = self
+                    .state
+                    .lock()
+                    .unwrap()
+                    .workspace_path
+                    .join(&relative_path);
                 if file_path.exists() {
                     match tokio::fs::read_to_string(&file_path).await {
                         Ok(current_content) => {
@@ -339,18 +386,22 @@ impl WinxAgent {
                                 &current_content,
                             );
                             changes.push(change);
-                        },
+                        }
                         Err(e) => {
                             warn!("Failed to read file {}: {}", relative_path, e);
                         }
                     }
                 }
             }
-            
+
             // Create the checkpoint
-            checkpoint_manager.create_checkpoint(description, changes).await
+            checkpoint_manager
+                .create_checkpoint(description, changes)
+                .await
         } else {
-            Err(anyhow::anyhow!("Checkpoint manager or code manager not initialized"))
+            Err(anyhow::anyhow!(
+                "Checkpoint manager or code manager not initialized"
+            ))
         }
     }
 }

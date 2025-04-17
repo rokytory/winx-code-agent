@@ -1,11 +1,11 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use std::sync::Arc;
 
-pub use crate::lsp::types::Language;
 use crate::core::state::SharedState;
+pub use crate::lsp::types::Language;
 
 /// Contexto compartilhado para ferramentas MCP
+#[derive(Clone)]
 pub struct WinxContext {
     pub state: SharedState,
 }
@@ -48,7 +48,7 @@ impl AllowedItems {
             _ => false,
         }
     }
-    
+
     /// Update relative globs to absolute paths
     pub fn update_relative_paths(&mut self, workspace_root: &PathBuf) {
         if let AllowedItems::Specific(items) = self {
@@ -130,7 +130,7 @@ pub struct SendSpecials {
     pub send_specials: Vec<Special>,
 }
 
-/// ASCII character input model 
+/// ASCII character input model
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SendAscii {
     pub send_ascii: Vec<u8>,
