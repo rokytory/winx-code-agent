@@ -2708,6 +2708,7 @@ dependencies = [
  "chrono",
  "clap",
  "dirs",
+ "futures",
  "glob",
  "globset",
  "lazy_static",
