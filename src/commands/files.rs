@@ -9,16 +9,18 @@ use crate::core::types::{FileWriteOrEdit as FileWriteOrEditType, ReadFiles as Re
 use crate::utils::fs as fs_utils;
 use serde_json::from_str;
 
-/// Read files and return their contents
+/// Read files and return their contents with line range tracking
 pub async fn read_files_internal(
     state: &SharedState,
     file_paths: &[String],
-) -> Result<Vec<(String, String)>> {
+    line_ranges: Option<&[Option<(usize, usize)>]>,
+) -> Result<Vec<(String, String, (usize, usize))>> {
     debug!("Reading files: {:?}", file_paths);
 
     let mut results = Vec::new();
+    let mut file_reads = Vec::new();
 
-    for file_path in file_paths {
+    for (idx, file_path) in file_paths.iter().enumerate() {
         // Check permissions and resolve path in a separate scope
         let path = {
             let state_guard = state.lock().unwrap();
@@ -36,20 +38,61 @@ pub async fn read_files_internal(
             resolved_path
         };
 
+        // Extract line range if specified
+        let range = if let Some(ranges) = line_ranges {
+            ranges.get(idx).cloned().flatten()
+        } else {
+            None
+        };
+
         // Now read the file without holding the mutex
-        match fs_utils::read_file(&path).await {
-            Ok(content) => {
-                results.push((file_path.clone(), content));
+        match read_file_with_range(&path, range).await {
+            Ok((content, effective_range)) => {
+                results.push((file_path.clone(), content, effective_range));
+                file_reads.push((path, effective_range));
             }
             Err(e) => {
                 debug!("Failed to read file {}: {}", path.display(), e);
-                results.push((file_path.clone(), format!("ERROR: {}", e)));
+                results.push((file_path.clone(), format!("ERROR: {}", e), (0, 0)));
+            }
+        }
+    }
+
+    // Record file reads in state
+    {
+        let mut state_guard = state.lock().unwrap();
+        for (path, range) in file_reads {
+            if range.0 > 0 && range.1 > 0 {
+                let _ = state_guard.record_file_read(path, &[range]);
             }
         }
     }
 
     info!("Read {} files", results.len());
     Ok(results)
+}
+
+/// Read a file with optional line range
+async fn read_file_with_range(path: &Path, range: Option<(usize, usize)>) -> Result<(String, (usize, usize))> {
+    let content = fs_utils::read_file(path).await?;
+    
+    if let Some((start, end)) = range {
+        let lines: Vec<&str> = content.lines().collect();
+        let total_lines = lines.len();
+        
+        // Adjust range to be within bounds
+        let start = start.min(total_lines).max(1);
+        let end = end.min(total_lines).max(start);
+        
+        // Extract requested lines (adjust from 1-based to 0-based indexing)
+        let selected_lines = lines[(start - 1)..end].join("\n");
+        
+        Ok((selected_lines, (start, end)))
+    } else {
+        // Return the full file
+        let total_lines = content.lines().count();
+        Ok((content, (1, total_lines)))
+    }
 }
 
 /// Write or edit a file
@@ -172,11 +215,12 @@ pub async fn read_files(state: &SharedState, json_str: &str) -> Result<String> {
     let request: ReadFilesType = from_str(json_str)?;
 
     // Read the files
-    let results = read_files_internal(state, &request.file_paths).await?;
+    // No line_ranges in ReadFilesType, so pass None
+    let results = read_files_internal(state, &request.file_paths, None).await?;
 
     // Format the results
     let mut output = String::new();
-    for (path, content) in results {
+    for (path, content, _range) in results {
         output.push_str(&format!("\n## File: {}\n```\n{}\n```\n", path, content));
     }
 
@@ -190,6 +234,35 @@ pub async fn write_or_edit_file(state: &SharedState, json_str: &str) -> Result<S
     // Parse the JSON request
     let request: FileWriteOrEditType = from_str(json_str)?;
 
+    // Check file edit permissions based on read history
+    {
+        let state_guard = state.lock().unwrap();
+        let path = Path::new(&request.file_path);
+        
+        if path.exists() && !state_guard.can_edit_file(path)? {
+            // File exists but hasn't been sufficiently read
+            let unread_ranges = state_guard.get_unread_ranges(path)?;
+            
+            if !unread_ranges.is_empty() {
+                // Construct a helpful error message
+                let ranges_str = unread_ranges.iter()
+                    .map(|(start, end)| format!("{}-{}", start, end))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                    
+                return Err(anyhow::anyhow!(
+                    "File {} hasn't been fully read. Please read the following line ranges first: {}",
+                    request.file_path, ranges_str
+                ));
+            } else {
+                return Err(anyhow::anyhow!(
+                    "File {} has changed since it was last read. Please read it again before editing.",
+                    request.file_path
+                ));
+            }
+        }
+    }
+
     // Write or edit the file
     write_or_edit_file_internal(
         state,
@@ -197,7 +270,7 @@ pub async fn write_or_edit_file(state: &SharedState, json_str: &str) -> Result<S
         request.percentage_to_change,
         &request.file_content_or_search_replace_blocks,
     )
-        .await
+    .await
 }
 
 #[cfg(test)]
