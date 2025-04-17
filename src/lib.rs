@@ -1,12 +1,12 @@
 // Winx - A performant code agent written in Rust
 // Based on the WCGW architecture but optimized for performance
 
+pub mod code;
 pub mod commands;
 pub mod core;
 pub mod diff;
 pub mod integrations;
 pub mod lsp;
-pub mod code;
 pub mod sql;
 pub mod thinking;
 pub mod utils;
