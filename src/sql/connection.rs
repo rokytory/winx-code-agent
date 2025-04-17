@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
-use rusqlite::{Connection, OpenFlags};
+use rusqlite::{Connection};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use tracing::{debug, error, info};
+use tracing::{debug};
 
 /// Represents a database connection
 #[derive(Debug)]
