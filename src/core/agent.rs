@@ -6,7 +6,6 @@ use tokio::sync::Mutex;
 use tracing::{debug, error, info, warn};
 
 use crate::code::manager::CodeManager;
-use crate::code::symbol::SymbolManager;
 use crate::core::state::{create_shared_state, SharedState};
 use crate::core::types::{Initialize, Language};
 use crate::diff::checkpoint::CheckpointManager;
@@ -147,8 +146,8 @@ impl WinxAgent {
             .count_files_with_extension(workspace_path, "cpp")
             .await?
             + self
-            .count_files_with_extension(workspace_path, "cc")
-            .await?
+                .count_files_with_extension(workspace_path, "cc")
+                .await?
             + self.count_files_with_extension(workspace_path, "h").await?;
         let rb_count = self
             .count_files_with_extension(workspace_path, "rb")
