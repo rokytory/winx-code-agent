@@ -1,10 +1,11 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use rmcp::model::*;
 use rmcp::service::RequestContext;
 use rmcp::{tool, Error as McpError, RoleServer, ServerHandler};
 use serde::{Deserialize, Serialize};
 use serde_json;
-use tracing::info;
+use std::sync::atomic::{AtomicBool, Ordering};
+use tracing::{info, warn};
 
 use crate::code;
 use crate::commands::{bash, files};
@@ -12,10 +13,27 @@ use crate::core::{memory, state::SharedState};
 use crate::sql;
 use crate::thinking;
 
+// Flag global para controlar se a inicialização foi realizada
+static INITIALIZED: AtomicBool = AtomicBool::new(false);
+
 /// Tool implementations to be registered with MCP
 #[derive(Clone)]
 pub struct WinxTools {
     state: SharedState,
+}
+
+/// Verifica se a inicialização foi realizada e lança erro se não
+fn check_initialized() -> Result<(), McpError> {
+    if !INITIALIZED.load(Ordering::SeqCst) {
+        warn!("Tentativa de usar ferramenta sem inicialização prévia");
+        return Err(McpError::internal_error(
+            "initialize_error",
+            Some(serde_json::json!({
+                "error": "GOT EXCEPTION while calling tool. Error: Initialize tool not called yet."
+            })),
+        ));
+    }
+    Ok(())
 }
 
 #[tool(tool_box)]
@@ -29,6 +47,7 @@ impl WinxTools {
         &self,
         #[tool(param)] name: Option<String>,
     ) -> Result<CallToolResult, McpError> {
+        check_initialized()?;
         let task_id = name.unwrap_or_else(|| memory::create_task_id());
 
         // Save current state to task
@@ -45,6 +64,7 @@ impl WinxTools {
 
     #[tool(description = "List available tasks")]
     async fn list_tasks(&self) -> Result<CallToolResult, McpError> {
+        check_initialized()?;
         let memory_dir = match memory::get_memory_dir() {
             Ok(dir) => dir,
             Err(e) => {
@@ -97,6 +117,7 @@ impl WinxTools {
         &self,
         #[tool(param)] command: String,
     ) -> Result<CallToolResult, McpError> {
+        check_initialized()?;
         let result = bash::start_background_process(&self.state, &command)
             .await
             .map_err(|e| {
@@ -115,6 +136,7 @@ impl WinxTools {
         #[tool(param)] extension: String,
         #[tool(param)] content: String,
     ) -> Result<CallToolResult, McpError> {
+        check_initialized()?;
         let result = code::validate_syntax(&extension, &content).map_err(|e| {
             McpError::internal_error(
                 "syntax_validator_error",
@@ -142,6 +164,7 @@ impl WinxTools {
         &self,
         #[tool(param)] text: String,
     ) -> Result<CallToolResult, McpError> {
+        check_initialized()?;
         let result = bash::send_text_input(&self.state, &text)
             .await
             .map_err(|e| {
@@ -159,6 +182,7 @@ impl WinxTools {
         &self,
         #[tool(param)] keys: Vec<String>,
     ) -> Result<CallToolResult, McpError> {
+        check_initialized()?;
         // Convert string keys to Special enum
         let special_keys = keys
             .iter()
@@ -189,6 +213,7 @@ impl WinxTools {
         #[tool(param)] action_json: serde_json::Value,
         #[tool(param)] wait_for_seconds: Option<f32>,
     ) -> Result<CallToolResult, McpError> {
+        check_initialized()?;
         // Enhanced version to handle nested action_json format from different clients
         // 1. JSON Object: {"command": "ls -la"}
         // 2. Simple String: "ls -la"
@@ -356,6 +381,7 @@ impl WinxTools {
         #[tool(param)] show_line_numbers_reason: Option<String>,
         #[tool(param)] line_ranges: Option<Vec<Option<(usize, usize)>>>,
     ) -> Result<CallToolResult, McpError> {
+        check_initialized()?;
         // Here we also ensure compatibility with different formats
         info!("Reading files: {:?}", file_paths);
 
@@ -389,6 +415,7 @@ impl WinxTools {
         #[tool(param)] percentage_to_change: u8,
         #[tool(param)] file_content_or_search_replace_blocks: String,
     ) -> Result<CallToolResult, McpError> {
+        check_initialized()?;
         let request = FileWriteOrEdit {
             file_path,
             percentage_to_change,
@@ -419,6 +446,7 @@ impl WinxTools {
 
     #[tool(description = "Execute an SQL query")]
     async fn sql_query(&self, #[tool(param)] query: String) -> Result<CallToolResult, McpError> {
+        check_initialized()?;
         let request = SqlQuery { query };
         let json = match serde_json::to_string(&request) {
             Ok(j) => j,
@@ -455,6 +483,7 @@ impl WinxTools {
         #[tool(param)] branch_id: Option<String>,
         #[tool(param)] needs_more_thoughts: Option<bool>,
     ) -> Result<CallToolResult, McpError> {
+        check_initialized()?;
         let request = SequentialThinking {
             thought,
             next_thought_needed,
@@ -581,9 +610,22 @@ pub fn register_tools(state: SharedState) -> Result<()> {
 
     // In a full implementation, we would register the tools with the RMCP server
     // But this is now handled by the tool macros
-
-    info!("All Winx tools registered successfully");
+    
+    // Marcar como inicializado
+    INITIALIZED.store(true, Ordering::SeqCst);
+    info!("All Winx tools registered successfully - initialization complete");
     Ok(())
+}
+
+/// Verifica se as ferramentas estão inicializadas
+pub fn is_initialized() -> bool {
+    INITIALIZED.load(Ordering::SeqCst)
+}
+
+/// Reseta o estado de inicialização (para testes ou reinicialização)
+pub fn reset_initialization() {
+    INITIALIZED.store(false, Ordering::SeqCst);
+    info!("Tool initialization has been reset");
 }
 
 /// Basic bash command tool definition
