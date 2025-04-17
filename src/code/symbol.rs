@@ -1,12 +1,11 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tracing::{debug, error, info};
+use tracing::{info};
 
-use crate::lsp::client::LSPClient;
 use crate::lsp::server::LSPServer;
-use crate::lsp::types::{Position, Range, Symbol, SymbolKind, SymbolLocation};
+use crate::lsp::types::{Symbol, SymbolKind, SymbolLocation};
 
 /// Manager for symbol-based code operations
 pub struct SymbolManager {
