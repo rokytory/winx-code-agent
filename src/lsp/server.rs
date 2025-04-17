@@ -214,8 +214,8 @@ impl LSPServer {
     /// Replace a symbol's body
     pub async fn replace_symbol_body(
         &self,
-        location: SymbolLocation,
-        new_body: &str,
+        _location: SymbolLocation,
+        _new_body: &str,
     ) -> Result<()> {
         if !self.is_running {
             return Err(anyhow::anyhow!("LSP server not running"));
@@ -235,8 +235,8 @@ impl LSPServer {
     /// Insert content after a symbol
     pub async fn insert_after_symbol(
         &self,
-        location: SymbolLocation,
-        content: &str,
+        _location: SymbolLocation,
+        _content: &str,
     ) -> Result<()> {
         if !self.is_running {
             return Err(anyhow::anyhow!("LSP server not running"));
@@ -255,8 +255,8 @@ impl LSPServer {
     /// Insert content before a symbol
     pub async fn insert_before_symbol(
         &self,
-        location: SymbolLocation,
-        content: &str,
+        _location: SymbolLocation,
+        _content: &str,
     ) -> Result<()> {
         if !self.is_running {
             return Err(anyhow::anyhow!("LSP server not running"));

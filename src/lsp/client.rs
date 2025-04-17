@@ -1,11 +1,10 @@
 use anyhow::{Context, Result};
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader, BufWriter};
+use tokio::process::{Child, Command};
 use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error, info, warn};
 
@@ -299,7 +298,7 @@ impl LSPClient {
                     response_tx,
                 } => {
                     // Start the language server process
-                    match Self::start_server_process(&config.language, &root_path) {
+                    match Self::start_server_process(&config.language, &root_path).await {
                         Ok(mut process) => {
                             // Get the process's stdin and stdout
                             let process_stdin = process.stdin.take()
@@ -314,8 +313,8 @@ impl LSPClient {
                                     *handle = Some(process);
                                     server_process = Some(process);
                                     
-                                    // Create async writers and readers
-                                    stdin_writer = Some(tokio::io::BufWriter::new(stdin));
+                                    // Create async writers and readers - Tokio já fornece streams assíncronos
+                                    stdin_writer = Some(BufWriter::new(stdin));
                                     stdout_reader = Some(BufReader::new(stdout));
                                     
                                     // Send initialize request
@@ -589,15 +588,15 @@ impl LSPClient {
     }
 
     /// Start the language server process for the given language
-    fn start_server_process(language: &Language, root_path: &Path) -> Result<Child> {
+    async fn start_server_process(language: &Language, root_path: &Path) -> Result<Child> {
         // Execute the appropriate command for the language
         let command = match language {
             Language::Rust => Command::new("rust-analyzer")
                 .args(["--stdio"])
                 .current_dir(root_path)
-                .stdin(Stdio::piped())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
+                .stdin(std::process::Stdio::piped())
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped())
                 .spawn()
                 .context("Failed to start rust-analyzer")?,
             Language::Python => Command::new("pyright-langserver")
