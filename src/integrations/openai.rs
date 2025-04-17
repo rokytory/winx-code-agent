@@ -217,7 +217,11 @@ Your goal is to reach the best possible solution through careful sequential thin
         // Add assistant's first thought to the conversation
         messages.push(ChatCompletionRequestMessage::Assistant(
             async_openai::types::ChatCompletionRequestAssistantMessage {
-                content: Some(async_openai::types::ChatCompletionRequestAssistantMessageContent::Text(response)),
+                content: Some(
+                    async_openai::types::ChatCompletionRequestAssistantMessageContent::Text(
+                        response,
+                    ),
+                ),
                 name: None,
                 tool_calls: None,
                 audio: None,
@@ -235,7 +239,7 @@ Your goal is to reach the best possible solution through careful sequential thin
                         format!("Continue your thinking process. What is step {}?", step),
                     ),
                     name: None,
-                // Remove role property as it's not in the struct anymore
+                    // Remove role property as it's not in the struct anymore
                 },
             ));
 
@@ -260,7 +264,11 @@ Your goal is to reach the best possible solution through careful sequential thin
             // Add assistant's thought to the conversation
             messages.push(ChatCompletionRequestMessage::Assistant(
                 async_openai::types::ChatCompletionRequestAssistantMessage {
-                    content: Some(async_openai::types::ChatCompletionRequestAssistantMessageContent::Text(response)),
+                    content: Some(
+                        async_openai::types::ChatCompletionRequestAssistantMessageContent::Text(
+                            response,
+                        ),
+                    ),
                     name: None,
                     tool_calls: None,
                     audio: None,
