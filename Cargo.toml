@@ -42,6 +42,7 @@ async-openai = "0.17.1"
 
 # System utilities
 dirs = "5.0"
+uuid = { version = "1.6", features = ["v4", "serde"] }
 
 # Testing
 tempfile = "3.8"
