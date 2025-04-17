@@ -1,11 +1,13 @@
 # Winx
 
-Uma agente de código de alta performance escrita em Rust, combinando os melhores recursos do WCGW e do Serena para máxima eficiência e capacidades semânticas.
+Uma agente de código de alta performance escrita em Rust, combinando os melhores recursos do WCGW e do Serena para
+máxima eficiência e capacidades semânticas.
 
 ## Funcionalidades
 
 - ⚡ **Alto Desempenho**: Implementada em Rust para garantir velocidade e eficiência
-- ⚡ **Análise Semântica de Código**: Integração com Language Server Protocol (LSP) para compreensão de símbolos de código
+- ⚡ **Análise Semântica de Código**: Integração com Language Server Protocol (LSP) para compreensão de símbolos de
+  código
 - ⚡ **Edição de arquivos otimizada**: Implementação eficiente de diff, edit e insert com algoritmos otimizados
 - ⚡ **Memória de Projeto**: Sistema de memória inspirado no Serena para manter contexto entre sessões
 - ⚡ **Pensamento Sequencial Avançado**: Ferramentas de raciocínio sobre aderência e conclusão de tarefas
@@ -14,7 +16,8 @@ Uma agente de código de alta performance escrita em Rust, combinando os melhore
 - ⚡ **Integração MCP**: Funciona como servidor MCP para Claude e outros LLMs
 - ⚡ **Terminal Interativo**: Suporte para comandos interativos com feedback em tempo real
 - ⚡ **Múltiplos modos de operação**: Suporte para `wcgw`, `architect` e `code_writer`
-- ⚡ **Manipulação de Arquivos Grandes**: Edição incremental de arquivos grandes para evitar problemas de limites de tokens
+- ⚡ **Manipulação de Arquivos Grandes**: Edição incremental de arquivos grandes para evitar problemas de limites de
+  tokens
 
 ## Instalação
 

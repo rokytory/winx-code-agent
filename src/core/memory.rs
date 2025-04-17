@@ -87,7 +87,7 @@ impl MemoryStore {
 
         // Load existing memories
         store.load_memories()?;
-        
+
         // Load existing tasks
         store.load_tasks()?;
 
@@ -97,7 +97,7 @@ impl MemoryStore {
     /// Loads all memories from the storage directory
     fn load_memories(&mut self) -> Result<()> {
         debug!("Loading memories from {}", self.storage_dir.display());
-        
+
         // Clear existing memories
         self.memories.clear();
 
@@ -105,7 +105,7 @@ impl MemoryStore {
         for entry in fs::read_dir(&self.storage_dir)? {
             let entry = entry?;
             let path = entry.path();
-            
+
             if path.is_file() && path.extension().map_or(false, |ext| ext == "json") {
                 if let Ok(memory) = self.load_memory_from_file(&path) {
                     debug!("Loaded memory: {}", memory.name);
@@ -123,7 +123,7 @@ impl MemoryStore {
         let mut file = File::open(path)?;
         let mut content = String::new();
         file.read_to_string(&mut content)?;
-        
+
         let memory: Memory = serde_json::from_str(&content)?;
         Ok(memory)
     }
@@ -132,24 +132,24 @@ impl MemoryStore {
     fn save_memory_to_file(&self, memory: &Memory) -> Result<()> {
         let file_name = format!("{}.json", memory.name);
         let file_path = self.storage_dir.join(file_name);
-        
+
         let content = serde_json::to_string_pretty(memory)?;
         let mut file = File::create(file_path)?;
         file.write_all(content.as_bytes())?;
-        
+
         Ok(())
     }
 
     /// Adds or updates a memory
     pub fn write_memory(&mut self, memory: Memory) -> Result<()> {
         debug!("Writing memory: {}", memory.name);
-        
+
         // Save to file first
         self.save_memory_to_file(&memory)?;
-        
+
         // Update in-memory store
         self.memories.insert(memory.name.clone(), memory);
-        
+
         Ok(())
     }
 
@@ -168,7 +168,7 @@ impl MemoryStore {
         if tags.is_empty() {
             return self.list_memories();
         }
-        
+
         self.memories
             .values()
             .filter(|memory| tags.iter().all(|tag| memory.tags.contains(tag)))
@@ -181,15 +181,15 @@ impl MemoryStore {
             // Delete the file
             let file_name = format!("{}.json", memory.name);
             let file_path = self.storage_dir.join(file_name);
-            
+
             if file_path.exists() {
                 fs::remove_file(file_path)?;
             }
-            
+
             debug!("Deleted memory: {}", name);
             return Ok(true);
         }
-        
+
         Ok(false)
     }
 
@@ -200,17 +200,17 @@ impl MemoryStore {
             fs::create_dir_all(&tasks_dir)?;
             return Ok(());
         }
-        
+
         debug!("Loading tasks from {}", tasks_dir.display());
-        
+
         // Clear existing tasks
         self.tasks.clear();
-        
+
         // Read all JSON files in the directory
         for entry in fs::read_dir(&tasks_dir)? {
             let entry = entry?;
             let path = entry.path();
-            
+
             if path.is_file() && path.extension().map_or(false, |ext| ext == "json") {
                 if let Some(stem) = path.file_stem() {
                     if let Some(task_id) = stem.to_str() {
@@ -222,61 +222,61 @@ impl MemoryStore {
                 }
             }
         }
-        
+
         info!("Loaded {} tasks", self.tasks.len());
         Ok(())
     }
-    
+
     /// Loads a single task from a file
     fn load_task_from_file(&self, path: &Path) -> Result<TaskState> {
         let mut file = File::open(path)?;
         let mut content = String::new();
         file.read_to_string(&mut content)?;
-        
+
         let task: TaskState = serde_json::from_str(&content)?;
         Ok(task)
     }
-    
+
     /// Saves a task state to file
     fn save_task_to_file(&self, task_id: &str, task: &TaskState) -> Result<()> {
         let tasks_dir = self.storage_dir.join("tasks");
         if !tasks_dir.exists() {
             fs::create_dir_all(&tasks_dir)?;
         }
-        
+
         let file_name = format!("{}.json", task_id);
         let file_path = tasks_dir.join(file_name);
-        
+
         let content = serde_json::to_string_pretty(task)?;
         let mut file = File::create(file_path)?;
         file.write_all(content.as_bytes())?;
-        
+
         Ok(())
     }
-    
+
     /// Saves or updates a task state
     pub fn save_task(&mut self, task_id: &str, task: TaskState) -> Result<()> {
         debug!("Saving task: {}", task_id);
-        
+
         // Save to file
         self.save_task_to_file(task_id, &task)?;
-        
+
         // Update in-memory
         self.tasks.insert(task_id.to_string(), task);
-        
+
         Ok(())
     }
-    
+
     /// Gets a task state by ID
     pub fn get_task(&self, task_id: &str) -> Option<&TaskState> {
         self.tasks.get(task_id)
     }
-    
+
     /// Lists all tasks
     pub fn list_tasks(&self) -> Vec<String> {
         self.tasks.keys().cloned().collect()
     }
-    
+
     /// Deletes a task
     pub fn delete_task(&mut self, task_id: &str) -> Result<bool> {
         if let Some(_) = self.tasks.remove(task_id) {
@@ -284,15 +284,15 @@ impl MemoryStore {
             let tasks_dir = self.storage_dir.join("tasks");
             let file_name = format!("{}.json", task_id);
             let file_path = tasks_dir.join(file_name);
-            
+
             if file_path.exists() {
                 fs::remove_file(file_path)?;
             }
-            
+
             debug!("Deleted task: {}", task_id);
             return Ok(true);
         }
-        
+
         Ok(false)
     }
 }

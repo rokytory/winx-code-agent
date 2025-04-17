@@ -268,25 +268,25 @@ pub fn find_matches(
     // Try each tolerance level
     for &level in &tolerance_levels {
         let processor = level.processor();
-        
+
         // Apply processor to all search lines
         let processed_search_lines: Vec<String> = search_lines.iter()
             .map(|line| processor(line))
             .collect();
-        
+
         // Apply processor to all content lines
         let processed_content_lines: Vec<String> = content_lines.iter()
             .skip(start_line)
             .map(|line| processor(line))
             .collect();
-        
+
         // Can't find matches if content or search is empty
         // or if content is smaller than search
         if processed_search_lines.is_empty() || processed_content_lines.is_empty() ||
-           processed_search_lines.len() > processed_content_lines.len() {
+            processed_search_lines.len() > processed_content_lines.len() {
             continue;
         }
-        
+
         // Look for exact matches with processed lines
         'outer: for i in 0..=processed_content_lines.len() - processed_search_lines.len() {
             for (j, search_line) in processed_search_lines.iter().enumerate() {
@@ -294,20 +294,20 @@ pub fn find_matches(
                     continue 'outer;
                 }
             }
-            
+
             // Match found! Add the result
             matches.push(ToleranceMatch::new(
                 level,
-                (start_line + i, start_line + i + processed_search_lines.len() - 1)
+                (start_line + i, start_line + i + processed_search_lines.len() - 1),
             ));
         }
-        
+
         // If we found matches with this tolerance level, no need to try higher levels
         if !matches.is_empty() {
             break;
         }
     }
-    
+
     matches
 }
 
@@ -320,7 +320,7 @@ pub fn apply_search_replace(
     let mut result_lines = content_lines.clone();
     let mut warnings = Vec::new();
     let mut changes_made = false;
-    
+
     // Process each block sequentially
     for (block_idx, block) in blocks.iter().enumerate() {
         // Start searching from the beginning of content for the first block
@@ -330,10 +330,10 @@ pub fn apply_search_replace(
             // we're just starting from the beginning for each block
             0
         };
-        
+
         // Find matches for this search block
         let matches = find_matches(&result_lines, &block.search_lines, start_line);
-        
+
         if matches.is_empty() {
             // Try to find the substring with the smallest edit distance
             return Err(anyhow!(
@@ -342,18 +342,18 @@ pub fn apply_search_replace(
                 block.search_lines
             ));
         }
-        
+
         // Use the best match (first in list, as they're ordered by preference)
         let best_match = &matches[0];
-        
+
         // Add warnings if needed
         if let Some(warning) = best_match.warning_message() {
             warnings.push(warning);
         }
-        
+
         // Apply the replacement
         let (start, end) = best_match.range;
-        
+
         // Debug to check what we're replacing
         debug!(
             "Replacing block at lines {}-{} with new content of {} lines",
@@ -361,7 +361,7 @@ pub fn apply_search_replace(
             end + 1,
             block.replace_lines.len()
         );
-        
+
         // When we have multiple matches, warn about ambiguity
         if matches.len() > 1 {
             let warning = format!(
@@ -370,22 +370,22 @@ pub fn apply_search_replace(
             );
             warnings.push(warning);
         }
-        
+
         // Fix indentation of the replacement block if needed
         let replace_lines = if best_match.level == ToleranceLevel::IgnoreLeadingWhitespace {
             adjust_indentation(&result_lines[start..end + 1], &block.search_lines, &block.replace_lines)
         } else {
             block.replace_lines.clone()
         };
-        
+
         // Replace the lines
         result_lines.splice(start..end + 1, replace_lines);
         changes_made = true;
     }
-    
+
     // Join the lines back into a string
     let result_content = result_lines.join("\n");
-    
+
     Ok(EditResult {
         content: result_content,
         warnings,
@@ -403,7 +403,7 @@ fn adjust_indentation(
     if original_lines.is_empty() || search_lines.is_empty() || replace_lines.is_empty() {
         return replace_lines.to_vec();
     }
-    
+
     // Function to get indentation of a line
     let get_indentation = |line: &str| -> String {
         let mut indent = String::new();
@@ -416,37 +416,37 @@ fn adjust_indentation(
         }
         indent
     };
-    
+
     // Calculate indentation difference between original and search
     let mut indentation_diff = None;
-    
+
     for (orig_line, search_line) in original_lines.iter().zip(search_lines.iter()) {
         if orig_line.trim().is_empty() || search_line.trim().is_empty() {
             continue;
         }
-        
+
         let orig_indent = get_indentation(orig_line);
         let search_indent = get_indentation(search_line);
-        
+
         // If we haven't set the indentation difference yet, set it now
         if indentation_diff.is_none() {
             indentation_diff = Some((orig_indent, search_indent));
         }
     }
-    
+
     // If we couldn't determine indentation difference, return lines as is
     let (orig_indent, search_indent) = match indentation_diff {
         Some(diff) => diff,
         None => return replace_lines.to_vec(),
     };
-    
+
     // Calculate target indentation
     let target_indent = if orig_indent.len() >= search_indent.len() {
         &orig_indent[..orig_indent.len() - search_indent.len()]
     } else {
         ""
     };
-    
+
     // Apply indentation to replacement lines
     replace_lines.iter()
         .map(|line| {
@@ -474,10 +474,10 @@ pub fn find_best_match_line(content_lines: &[String], search_line: &str) -> Opti
     if content_lines.is_empty() {
         return None;
     }
-    
+
     let mut best_score = f64::MAX;
     let mut best_idx = 0;
-    
+
     for (i, line) in content_lines.iter().enumerate() {
         // Create a string from the line for TextDiff
         let line_str = line.to_string();
@@ -490,13 +490,13 @@ pub fn find_best_match_line(content_lines: &[String], search_line: &str) -> Opti
         } else {
             0.0
         };
-        
+
         if score < best_score {
             best_score = score;
             best_idx = i;
         }
     }
-    
+
     Some((best_idx, best_score))
 }
 
@@ -509,37 +509,37 @@ pub fn find_context_for_search_block(
     if search_block.is_empty() {
         return None;
     }
-    
+
     let content_lines: Vec<String> = content.lines().map(ToString::to_string).collect();
     if content_lines.is_empty() {
         return None;
     }
-    
+
     // Try to find the line with the best match for the first line of the block
     let (best_idx, score) = match find_best_match_line(&content_lines, &search_block[0]) {
         Some(result) => result,
         None => return None,
     };
-    
+
     // If the match is too poor, return None
     if score > 0.5 {
         return None;
     }
-    
+
     // Calculate line range for context
     let start_idx = best_idx.saturating_sub(context_lines);
     let end_idx = (best_idx + search_block.len() + context_lines).min(content_lines.len());
-    
+
     // Extract context lines
     let context = content_lines[start_idx..end_idx].join("\n");
-    
+
     Some(context)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_parse_search_replace_blocks() {
         let text = r#"<<<<<<< SEARCH
@@ -556,7 +556,7 @@ const x = 5;
 =======
 const x = 10;
 >>>>>>> REPLACE"#;
-        
+
         let blocks = parse_search_replace_blocks(text).unwrap();
         assert_eq!(blocks.len(), 2);
         assert_eq!(blocks[0].search_lines.len(), 3);
@@ -564,7 +564,7 @@ const x = 10;
         assert_eq!(blocks[1].search_lines.len(), 1);
         assert_eq!(blocks[1].replace_lines.len(), 1);
     }
-    
+
     #[test]
     fn test_parse_invalid_block() {
         let text = r#"<<<<<<< SEARCH
@@ -572,11 +572,11 @@ function hello() {
     console.log("Hello");
 }
 >>>>>>> REPLACE"#;
-        
+
         let result = parse_search_replace_blocks(text);
         assert!(result.is_err());
     }
-    
+
     #[test]
     fn test_find_matches() {
         let content = vec![
@@ -584,19 +584,19 @@ function hello() {
             "    console.log(\"Hello\");".to_string(),
             "}".to_string(),
         ];
-        
+
         let search = vec![
             "function hello() {".to_string(),
             "    console.log(\"Hello\");".to_string(),
             "}".to_string(),
         ];
-        
+
         let matches = find_matches(&content, &search, 0);
         assert_eq!(matches.len(), 1);
         assert_eq!(matches[0].range, (0, 2));
         assert_eq!(matches[0].level, ToleranceLevel::Exact);
     }
-    
+
     #[test]
     fn test_find_matches_with_tolerance() {
         let content = vec![
@@ -604,23 +604,23 @@ function hello() {
             "        console.log(\"Hello\");".to_string(),
             "}".to_string(),
         ];
-        
+
         let search = vec![
             "function hello() {".to_string(),
             "    console.log(\"Hello\");".to_string(),
             "}".to_string(),
         ];
-        
+
         let matches = find_matches(&content, &search, 0);
         assert_eq!(matches.len(), 1);
         assert_eq!(matches[0].range, (0, 2));
         assert_eq!(matches[0].level, ToleranceLevel::IgnoreLeadingWhitespace);
     }
-    
+
     #[test]
     fn test_apply_search_replace() {
         let content = "function hello() {\n    console.log(\"Hello\");\n}\n\nconst x = 5;";
-        
+
         let blocks = vec![
             SearchReplaceBlock {
                 search_lines: vec![
@@ -639,7 +639,7 @@ function hello() {
                 replace_lines: vec!["const x = 10;".to_string()],
             },
         ];
-        
+
         let result = apply_search_replace(content, &blocks).unwrap();
         assert!(result.changes_made);
         assert_eq!(
@@ -647,7 +647,7 @@ function hello() {
             "function hello() {\n    console.log(\"Hello, World!\");\n}\n\nconst x = 10;"
         );
     }
-    
+
     #[test]
     fn test_adjust_indentation() {
         let original = vec![
@@ -655,19 +655,19 @@ function hello() {
             "        console.log(\"Hello\");".to_string(),
             "    }".to_string(),
         ];
-        
+
         let search = vec![
             "function hello() {".to_string(),
             "    console.log(\"Hello\");".to_string(),
             "}".to_string(),
         ];
-        
+
         let replace = vec![
             "function hello() {".to_string(),
             "    console.log(\"Hello, World!\");".to_string(),
             "}".to_string(),
         ];
-        
+
         let adjusted = adjust_indentation(&original, &search, &replace);
         assert_eq!(
             adjusted,

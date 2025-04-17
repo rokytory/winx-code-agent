@@ -60,7 +60,7 @@ pub fn process_large_file<P: AsRef<Path>>(
 
     for line in reader.lines() {
         let line = line.context("Failed to read line")?;
-        
+
         // Check if we need to perform an operation at this line
         if next_op_index < sorted_ops.len() {
             match &sorted_ops[next_op_index] {
@@ -69,7 +69,7 @@ pub fn process_large_file<P: AsRef<Path>>(
                         // Write the replacement content instead of the original lines
                         temp_file.write_all(new_content.as_bytes())
                             .context("Failed to write replacement content")?;
-                        
+
                         // Skip lines until we reach the end of the replacement
                         current_line = *end_line + 1;
                         next_op_index += 1;
@@ -86,7 +86,7 @@ pub fn process_large_file<P: AsRef<Path>>(
             temp_file.write_all(b"\n")
                 .context("Failed to write newline")?;
         }
-        
+
         current_line += 1;
     }
 
@@ -122,10 +122,10 @@ pub fn apply_operations<P: AsRef<Path>>(
     operations: &[FileOperation],
 ) -> Result<()> {
     let path = path.as_ref();
-    
+
     // Collect all edit operations
     let mut edit_operations = Vec::new();
-    
+
     for op in operations {
         match op {
             FileOperation::Edit(edit_op) => {
@@ -137,7 +137,7 @@ pub fn apply_operations<P: AsRef<Path>>(
             }
         }
     }
-    
+
     // Process the file with the collected edit operations
     process_large_file(path, &edit_operations)
 }
@@ -147,7 +147,7 @@ mod tests {
     use super::*;
     use std::io::Write;
     use tempfile::NamedTempFile;
-    
+
     #[test]
     fn test_process_large_file() {
         // Create a temporary file with some content
@@ -157,7 +157,7 @@ mod tests {
         writeln!(file, "Line 3").unwrap();
         writeln!(file, "Line 4").unwrap();
         writeln!(file, "Line 5").unwrap();
-        
+
         // Create some edit operations
         let operations = vec![
             EditOperation::ReplaceLines {
@@ -166,11 +166,11 @@ mod tests {
                 new_content: "New Line 2\nNew Line 3\n".to_string(),
             },
         ];
-        
+
         // Process the file
         let path = file.path().to_path_buf();
         process_large_file(&path, &operations).unwrap();
-        
+
         // Read the processed file and verify the changes
         let content = fs::read_to_string(&path).unwrap();
         assert_eq!(content, "Line 1\nNew Line 2\nNew Line 3\nLine 4\nLine 5\n");

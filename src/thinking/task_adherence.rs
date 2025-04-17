@@ -63,12 +63,12 @@ pub async fn evaluate_task_adherence(
     // In a real implementation, this would compare current progress to the task
     // For now, we'll provide a simple implementation
     let is_on_track = params.current_progress.contains(&params.original_task);
-    
+
     Ok(TaskAdherenceEvaluation {
-        status: if is_on_track { 
-            TaskAdherenceStatus::OnTrack 
-        } else { 
-            TaskAdherenceStatus::Deviated 
+        status: if is_on_track {
+            TaskAdherenceStatus::OnTrack
+        } else {
+            TaskAdherenceStatus::Deviated
         },
         assessment: if is_on_track {
             format!("Task execution is aligned with the original goal: {}", params.original_task)
@@ -92,14 +92,14 @@ pub async fn evaluate_task_completion(
     // In a real implementation, this would determine if the task is complete
     // For now, we'll provide a simple implementation
     let completion_keywords = ["completed", "done", "finished", "implemented"];
-    let is_completed = completion_keywords.iter().any(|&keyword| 
+    let is_completed = completion_keywords.iter().any(|&keyword|
         params.current_progress.to_lowercase().contains(keyword));
-    
+
     Ok(TaskAdherenceEvaluation {
-        status: if is_completed { 
-            TaskAdherenceStatus::Completed 
-        } else { 
-            TaskAdherenceStatus::OnTrack 
+        status: if is_completed {
+            TaskAdherenceStatus::Completed
+        } else {
+            TaskAdherenceStatus::OnTrack
         },
         assessment: if is_completed {
             String::from("Task appears to be completed based on progress description.")

@@ -3,7 +3,6 @@ use anyhow::{Context, Result};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use tracing::{debug, info, warn};
 
 /// Information about a file that has been read
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -24,20 +23,20 @@ impl FileReadInfo {
         // Calculate hash and total lines
         let hash = match std::fs::read(path) {
             Ok(content) => {
-                use sha2::{Sha256, Digest};
+                use sha2::{Digest, Sha256};
                 let mut hasher = Sha256::new();
                 hasher.update(&content);
                 format!("{:x}", hasher.finalize())
-            },
+            }
             Err(_) => String::new(),
         };
-        
+
         // Count total lines
         let total_lines = match std::fs::read_to_string(path) {
             Ok(content) => content.lines().count(),
             Err(_) => 0,
         };
-        
+
         Self {
             file_hash: hash,
             line_ranges: Vec::new(),
@@ -45,13 +44,13 @@ impl FileReadInfo {
             last_read: chrono::Utc::now(),
         }
     }
-    
+
     /// Add a line range that has been read
     pub fn add_range(&mut self, start: usize, end: usize) {
         // Normalize range (ensure start <= end)
         let start = start.min(end);
         let end = end.max(start);
-        
+
         // Check for overlaps and merge ranges
         let mut merged = false;
         for range in &mut self.line_ranges {
@@ -64,14 +63,14 @@ impl FileReadInfo {
                 break;
             }
         }
-        
+
         if !merged {
             self.line_ranges.push((start, end));
         }
-        
+
         // Sort ranges
         self.line_ranges.sort_by_key(|r| r.0);
-        
+
         // Merge any overlapping ranges after sorting
         let mut i = 0;
         while i < self.line_ranges.len() - 1 {
@@ -84,40 +83,40 @@ impl FileReadInfo {
                 i += 1;
             }
         }
-        
+
         // Update last read time
         self.last_read = chrono::Utc::now();
     }
-    
+
     /// Check if a file has changed since it was read
     pub fn has_changed(&self, path: &Path) -> Result<bool> {
         let current_hash = match std::fs::read(path) {
             Ok(content) => {
-                use sha2::{Sha256, Digest};
+                use sha2::{Digest, Sha256};
                 let mut hasher = Sha256::new();
                 hasher.update(&content);
                 format!("{:x}", hasher.finalize())
-            },
+            }
             Err(e) => return Err(anyhow::anyhow!("Failed to read file: {}", e)),
         };
-        
+
         Ok(current_hash != self.file_hash)
     }
-    
+
     /// Calculate the percentage of the file that has been read
     pub fn percentage_read(&self) -> f64 {
         if self.total_lines == 0 {
             return 100.0;
         }
-        
+
         let mut read_lines = 0;
         for &(start, end) in &self.line_ranges {
             read_lines += end - start + 1;
         }
-        
+
         (read_lines as f64 / self.total_lines as f64) * 100.0
     }
-    
+
     /// Get ranges of the file that haven't been read yet
     pub fn get_unread_ranges(&self) -> Vec<(usize, usize)> {
         if self.total_lines == 0 || self.line_ranges.is_empty() {
@@ -127,21 +126,21 @@ impl FileReadInfo {
                 Vec::new()
             };
         }
-        
+
         let mut unread = Vec::new();
         let mut current_line = 1;
-        
+
         for &(start, end) in &self.line_ranges {
             if current_line < start {
                 unread.push((current_line, start - 1));
             }
             current_line = end + 1;
         }
-        
+
         if current_line <= self.total_lines {
             unread.push((current_line, self.total_lines));
         }
-        
+
         unread
     }
 }
@@ -248,54 +247,54 @@ impl AgentState {
         self.process_running = running;
         self.last_exit_code = exit_code;
     }
-    
+
     /// Record file read with line ranges
     pub fn record_file_read(&mut self, path: impl AsRef<Path>, ranges: &[(usize, usize)]) -> Result<()> {
         let path = path.as_ref();
-        
+
         // Ensure it's an absolute path
         let path = if path.is_absolute() {
             path.to_path_buf()
         } else {
             self.workspace_path.join(path)
         };
-        
+
         // Get or create file info
         let file_info = self.read_files
             .entry(path.clone())
             .or_insert_with(|| FileReadInfo::new(&path));
-            
+
         // Record ranges
         for &(start, end) in ranges {
             file_info.add_range(start, end);
         }
-        
+
         Ok(())
     }
-    
+
     /// Check if a file can be edited based on read history
     pub fn can_edit_file(&self, path: impl AsRef<Path>) -> Result<bool> {
         let path = path.as_ref();
-        
+
         // Ensure it's an absolute path
         let path = if path.is_absolute() {
             path.to_path_buf()
         } else {
             self.workspace_path.join(path)
         };
-        
+
         // If file doesn't exist yet, it can be created
         if !path.exists() {
             return Ok(true);
         }
-        
+
         // Check read history
         if let Some(file_info) = self.read_files.get(&path) {
             // Check if file has changed
             if file_info.has_changed(&path)? {
                 return Ok(false);
             }
-            
+
             // Check read percentage
             let percentage = file_info.percentage_read();
             Ok(percentage >= 95.0)
@@ -304,18 +303,18 @@ impl AgentState {
             Ok(false)
         }
     }
-    
+
     /// Get unread ranges for a file
     pub fn get_unread_ranges(&self, path: impl AsRef<Path>) -> Result<Vec<(usize, usize)>> {
         let path = path.as_ref();
-        
+
         // Ensure it's an absolute path
         let path = if path.is_absolute() {
             path.to_path_buf()
         } else {
             self.workspace_path.join(path)
         };
-        
+
         if let Some(file_info) = self.read_files.get(&path) {
             Ok(file_info.get_unread_ranges())
         } else {
@@ -324,7 +323,7 @@ impl AgentState {
                 let total_lines = std::fs::read_to_string(&path)?
                     .lines()
                     .count();
-                
+
                 if total_lines > 0 {
                     Ok(vec![(1, total_lines)])
                 } else {
@@ -335,27 +334,27 @@ impl AgentState {
             }
         }
     }
-    
+
     /// Register a terminal session
     pub fn set_terminal_session(&mut self, session_id: String) {
         self.terminal_session_id = Some(session_id);
     }
-    
+
     /// Register a background process
     pub fn add_background_process(&mut self, process_id: String) {
         self.background_processes.push(process_id);
     }
-    
+
     /// Get active terminal session ID
     pub fn get_terminal_session(&self) -> Option<String> {
         self.terminal_session_id.clone()
     }
-    
+
     /// Get active background processes
     pub fn get_background_processes(&self) -> Vec<String> {
         self.background_processes.clone()
     }
-    
+
     /// Save state to a task
     pub fn save_to_task(&self, task_id: &str) -> Result<()> {
         // Create task state
@@ -365,39 +364,39 @@ impl AgentState {
             read_files: self.read_files.clone(),
             background_processes: self.background_processes.clone(),
         };
-        
+
         // Save to file in task directory
         let task_dir = dirs::data_local_dir()
             .ok_or_else(|| anyhow::anyhow!("Could not determine data directory"))?
             .join("winx")
             .join("tasks");
-            
+
         std::fs::create_dir_all(&task_dir)?;
-        
+
         let task_path = task_dir.join(format!("{}.json", task_id));
         let task_json = serde_json::to_string_pretty(&task_state)?;
-        
+
         std::fs::write(task_path, task_json)?;
-        
+
         Ok(())
     }
-    
+
     /// Load state from a task
     pub fn load_from_task(task_id: &str) -> Result<Self> {
         let task_dir = dirs::data_local_dir()
             .ok_or_else(|| anyhow::anyhow!("Could not determine data directory"))?
             .join("winx")
             .join("tasks");
-            
+
         let task_path = task_dir.join(format!("{}.json", task_id));
-        
+
         if !task_path.exists() {
             return Err(anyhow::anyhow!("Task not found: {}", task_id));
         }
-        
+
         let task_json = std::fs::read_to_string(task_path)?;
         let task_state: TaskState = serde_json::from_str(&task_json)?;
-        
+
         Ok(Self {
             workspace_path: PathBuf::from(task_state.workspace_path),
             mode: task_state.mode,

@@ -6,7 +6,6 @@ use anyhow::{anyhow, Result};
 use std::io::{Read, Write};
 use std::process::Command as StdCommand;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
@@ -47,7 +46,7 @@ impl TerminalSession {
             last_exit_status: None,
         })
     }
-    
+
     /// Execute a command
     pub async fn execute_command(&mut self, command: &str) -> Result<String> {
         // Criar o comando usando o shell padrão
@@ -56,23 +55,23 @@ impl TerminalSession {
             .arg(command)
             .current_dir(&self.working_dir)
             .output()?;
-        
+
         // Capturar saída
         let stdout = String::from_utf8_lossy(&output.stdout).to_string();
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-        
+
         // Atualizar estado
         self.last_exit_status = Some(output.status.code().unwrap_or(-1));
-        
+
         // Combinar stdout e stderr
         let combined_output = if stderr.is_empty() {
             stdout
         } else {
             format!("{}\n--- stderr ---\n{}", stdout, stderr)
         };
-        
+
         self.last_output = combined_output.clone();
-        
+
         // Atualizar working directory se o comando foi 'cd'
         if command.starts_with("cd ") {
             let path = command.trim_start_matches("cd ").trim();
@@ -81,14 +80,14 @@ impl TerminalSession {
             // Para qualquer outro comando, verificar o diretório atual
             self.refresh_working_directory().await?;
         }
-        
+
         Ok(combined_output)
     }
-    
+
     /// Atualizar o diretório de trabalho
     fn update_working_directory(&mut self, path: &str) -> Result<()> {
         use std::path::Path;
-        
+
         let new_dir = if path.starts_with('/') {
             // Caminho absoluto
             path.to_string()
@@ -98,7 +97,7 @@ impl TerminalSession {
             let new_path = current.join(path);
             new_path.to_string_lossy().to_string()
         };
-        
+
         // Verificar se o diretório existe
         if std::path::Path::new(&new_dir).is_dir() {
             self.working_dir = new_dir;
@@ -107,37 +106,37 @@ impl TerminalSession {
             Err(anyhow!("Directory does not exist: {}", path))
         }
     }
-    
+
     /// Verificar qual é o diretório atual
     async fn refresh_working_directory(&mut self) -> Result<()> {
         let output = StdCommand::new("pwd")
             .current_dir(&self.working_dir)
             .output()?;
-        
+
         if output.status.success() {
             let pwd = String::from_utf8_lossy(&output.stdout).trim().to_string();
             if !pwd.is_empty() {
                 self.working_dir = pwd;
             }
         }
-        
+
         Ok(())
     }
-    
+
     /// Send text to a running process
     pub async fn send_text(&mut self, text: &str) -> Result<String> {
         // Simplificação: apenas retorna uma mensagem indicando que o texto foi enviado
         // Na implementação completa, isso enviaria o texto para um processo em execução
         Ok(format!("Text sent: {}", text))
     }
-    
+
     /// Send special keys to a running process
     pub async fn send_special_keys(&mut self, keys: &[Special]) -> Result<String> {
         // Simplificação: apenas retorna uma mensagem indicando que as teclas foram enviadas
         let keys_str = keys.iter().map(|k| format!("{:?}", k)).collect::<Vec<_>>().join(", ");
         Ok(format!("Special keys sent: {}", keys_str))
     }
-    
+
     /// Check status
     pub fn check_status(&self) -> TerminalData {
         TerminalData {
@@ -148,24 +147,24 @@ impl TerminalSession {
             process_running: false,
         }
     }
-    
+
     /// Start a background process
     pub async fn start_background_process(&mut self, command: &str) -> Result<String> {
         // Verificar se o screen está disponível
         if is_screen_available() {
             let session_id = format!("winx-{}", Uuid::new_v4().to_string());
-            
+
             // Executar o comando em background usando screen
-            let screen_cmd = format!("screen -dmS {} bash -c '{} ; echo \"[Process completed with status $?]\"'", 
-                                    session_id, command);
-            
+            let screen_cmd = format!("screen -dmS {} bash -c '{} ; echo \"[Process completed with status $?]\"'",
+                                     session_id, command);
+
             // Executar screen_cmd
             let output = StdCommand::new("sh")
                 .arg("-c")
                 .arg(&screen_cmd)
                 .current_dir(&self.working_dir)
                 .output()?;
-            
+
             if output.status.success() {
                 Ok(format!("Background process started with ID: {}", session_id))
             } else {
@@ -176,7 +175,7 @@ impl TerminalSession {
             Err(anyhow!("screen command not available - please install it to use background processes"))
         }
     }
-    
+
     /// Check screen session status
     pub async fn check_screen_status(&self, screen_id: &str) -> Result<String> {
         // Verificar o status de uma sessão do screen
@@ -184,16 +183,16 @@ impl TerminalSession {
             .arg("-c")
             .arg(format!("screen -ls | grep {}", screen_id))
             .output()?;
-            
+
         let status_str = String::from_utf8_lossy(&output.stdout).to_string();
-        
+
         if status_str.contains(screen_id) {
             Ok(format!("Process {} is still running", screen_id))
         } else {
             Ok(format!("Process {} has completed", screen_id))
         }
     }
-    
+
     /// Cleanup resources
     pub fn cleanup(&mut self) {
         // Na implementação simplificada, não há recursos para limpar
@@ -231,21 +230,21 @@ impl TerminalManager {
             default_workspace,
         }
     }
-    
+
     /// Create a new terminal session
     pub async fn create_session(&self) -> Result<String> {
         let session_id = Uuid::new_v4().to_string();
-        
+
         // Create the terminal session
         let session = TerminalSession::new(&self.default_workspace).await?;
-        
+
         // Store the session
         let mut sessions = self.sessions.lock().await;
         sessions.insert(session_id.clone(), Arc::new(Mutex::new(session)));
-        
+
         Ok(session_id)
     }
-    
+
     /// Get a terminal session
     pub async fn get_session(&self, session_id: &str) -> Result<Arc<Mutex<TerminalSession>>> {
         let sessions = self.sessions.lock().await;
@@ -253,49 +252,49 @@ impl TerminalManager {
             .cloned()
             .ok_or_else(|| anyhow!("Session not found: {}", session_id))
     }
-    
+
     /// Execute a command in a session
     pub async fn execute_command(&self, session_id: &str, command: &str) -> Result<String> {
         let session = self.get_session(session_id).await?;
         let mut session_guard = session.lock().await;
         session_guard.execute_command(command).await
     }
-    
+
     /// Send text to a session
     pub async fn send_text(&self, session_id: &str, text: &str) -> Result<String> {
         let session = self.get_session(session_id).await?;
         let mut session_guard = session.lock().await;
         session_guard.send_text(text).await
     }
-    
+
     /// Send special keys to a session
     pub async fn send_special_keys(&self, session_id: &str, keys: &[Special]) -> Result<String> {
         let session = self.get_session(session_id).await?;
         let mut session_guard = session.lock().await;
         session_guard.send_special_keys(keys).await
     }
-    
+
     /// Check session status
     pub async fn check_status(&self, session_id: &str) -> Result<TerminalData> {
         let session = self.get_session(session_id).await?;
         let session_guard = session.lock().await;
         Ok(session_guard.check_status())
     }
-    
+
     /// Start a background process
     pub async fn start_background_process(&self, session_id: &str, command: &str) -> Result<String> {
         let session = self.get_session(session_id).await?;
         let mut session_guard = session.lock().await;
         session_guard.start_background_process(command).await
     }
-    
+
     /// Check screen session status
     pub async fn check_screen_status(&self, session_id: &str, screen_id: &str) -> Result<String> {
         let session = self.get_session(session_id).await?;
         let session_guard = session.lock().await;
         session_guard.check_screen_status(screen_id).await
     }
-    
+
     /// Close a session
     pub async fn close_session(&self, session_id: &str) -> Result<()> {
         let mut sessions = self.sessions.lock().await;
@@ -303,7 +302,7 @@ impl TerminalManager {
             let mut session_guard = session.lock().await;
             session_guard.cleanup();
         }
-        
+
         Ok(())
     }
 }
@@ -331,13 +330,13 @@ pub async fn execute_terminal_command(state: &SharedState, command: &str) -> Res
         let state_guard = state.lock().unwrap();
         state_guard.workspace_path.clone()
     };
-    
+
     // Initialize terminal manager if needed
     let manager = match get_terminal_manager() {
         Ok(manager) => manager,
         Err(_) => init_terminal_manager(workspace_path.to_string_lossy().to_string()),
     };
-    
+
     // Create a default session if none exists
     let session_id = {
         let sessions = manager.sessions.lock().await;
@@ -350,7 +349,7 @@ pub async fn execute_terminal_command(state: &SharedState, command: &str) -> Res
             }
         }
     };
-    
+
     // Execute the command
     manager.execute_command(&session_id, command).await
 }
@@ -360,26 +359,26 @@ mod tests {
     use super::*;
     use tempfile::tempdir;
     use tokio::runtime::Runtime;
-    
+
     #[test]
     fn test_terminal_manager() {
         let rt = Runtime::new().unwrap();
-        
+
         rt.block_on(async {
             let dir = tempdir().unwrap();
             let manager = TerminalManager::new(dir.path().to_string_lossy().to_string());
-            
+
             // Create a session
             let session_id = manager.create_session().await.unwrap();
-            
+
             // Execute a simple command
             let output = manager.execute_command(&session_id, "echo 'Hello, world!'").await.unwrap();
             assert!(output.contains("Hello, world!"));
-            
+
             // Check status
             let status = manager.check_status(&session_id).await.unwrap();
             assert_eq!(status.state, "Ready");
-            
+
             // Close the session
             manager.close_session(&session_id).await.unwrap();
         });

@@ -5,8 +5,8 @@ pub use sequential::*;
 pub use task_adherence::*;
 
 use anyhow::Result;
-use tracing::{debug, info};
 use serde::{Deserialize, Serialize};
+use tracing::{debug, info};
 
 use crate::core::state::SharedState;
 

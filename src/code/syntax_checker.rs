@@ -1,7 +1,7 @@
-use anyhow::{Result};
+use anyhow::Result;
 use std::sync::Arc;
+use tracing::debug;
 use tree_sitter::{Language, Parser, Tree};
-use tracing::{debug};
 
 /// Result of syntax validation
 #[derive(Debug, Clone)]
@@ -35,12 +35,12 @@ impl SyntaxValidator {
         let js_lang = tree_sitter_javascript::language();
         js_parser.set_language(js_lang)?;
         parsers.insert("js".to_string(), (js_parser, js_lang));
-        
+
         // Create a new parser for JSX since Parser doesn't implement Clone
         let mut jsx_parser = Parser::new();
         jsx_parser.set_language(js_lang)?;
         parsers.insert("jsx".to_string(), (jsx_parser, js_lang));
-        
+
         let mut py_parser = Parser::new();
         let py_lang = tree_sitter_python::language();
         py_parser.set_language(py_lang)?;
@@ -52,7 +52,7 @@ impl SyntaxValidator {
     /// Validate syntax for a given language extension and content
     pub fn validate(&mut self, extension: &str, content: &str) -> SyntaxValidationResult {
         let extension = extension.trim().to_lowercase();
-        
+
         // Check if we support this language
         if !self.parsers.contains_key(&extension) {
             debug!("No syntax validator for extension: {}", extension);
@@ -66,7 +66,7 @@ impl SyntaxValidator {
         // Parse the content
         if let Some((parser, _)) = self.parsers.get_mut(&extension) {
             let tree = parser.parse(content.as_bytes(), None);
-            
+
             match tree {
                 Some(tree) => {
                     self.analyze_syntax_errors(&tree, &extension)
@@ -93,13 +93,13 @@ impl SyntaxValidator {
     fn analyze_syntax_errors(&self, tree: &Tree, extension: &str) -> SyntaxValidationResult {
         // Tree-sitter doesn't directly report syntax errors
         // We need to look for ERROR nodes in the syntax tree
-        
+
         // Get the root node
         let root_node = tree.root_node();
-        
+
         // Check if the root node has an error
         let has_error = root_node.is_error() || root_node.has_error();
-        
+
         if !has_error {
             return SyntaxValidationResult {
                 is_valid: true,
@@ -107,7 +107,7 @@ impl SyntaxValidator {
                 description: "Syntax is valid".to_string(),
             };
         }
-        
+
         // Versão simplificada para evitar problemas de lifetime
         // Verifica apenas o nó raiz
         let mut syntax_errors = Vec::new();
@@ -119,7 +119,7 @@ impl SyntaxValidator {
                 format!("Syntax error at line {}, column {}", start.row + 1, start.column + 1),
             ));
         }
-        
+
         // Build description
         let description = if syntax_errors.is_empty() {
             format!("Partial syntax errors detected in {} code", extension)
@@ -133,7 +133,7 @@ impl SyntaxValidator {
             }
             desc
         };
-        
+
         SyntaxValidationResult {
             is_valid: false,
             errors: syntax_errors,
@@ -166,11 +166,11 @@ pub fn validate_syntax(extension: &str, content: &str) -> Result<SyntaxValidatio
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_rust_syntax_validation() {
         let mut validator = SyntaxValidator::new().unwrap();
-        
+
         // Valid Rust code
         let valid_code = r#"
 fn main() {
@@ -180,7 +180,7 @@ fn main() {
         let result = validator.validate("rs", valid_code);
         assert!(result.is_valid);
         assert!(result.errors.is_empty());
-        
+
         // Invalid Rust code
         let invalid_code = r#"
 fn main() {

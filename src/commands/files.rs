@@ -1,6 +1,6 @@
 use anyhow::Result;
-use std::fs;
 use std::env;
+use std::fs;
 use std::path::{Path, PathBuf};
 use tracing::{debug, info, warn};
 
@@ -75,18 +75,18 @@ pub async fn read_files_internal(
 /// Read a file with optional line range
 async fn read_file_with_range(path: &Path, range: Option<(usize, usize)>) -> Result<(String, (usize, usize))> {
     let content = fs_utils::read_file(path).await?;
-    
+
     if let Some((start, end)) = range {
         let lines: Vec<&str> = content.lines().collect();
         let total_lines = lines.len();
-        
+
         // Adjust range to be within bounds
         let start = start.min(total_lines).max(1);
         let end = end.min(total_lines).max(start);
-        
+
         // Extract requested lines (adjust from 1-based to 0-based indexing)
         let selected_lines = lines[(start - 1)..end].join("\n");
-        
+
         Ok((selected_lines, (start, end)))
     } else {
         // Return the full file
@@ -156,7 +156,7 @@ pub async fn write_or_edit_file_internal(
             Ok(result) => {
                 // Write the updated content
                 fs::write(&path, &result.content)?;
-                
+
                 // Handle warnings
                 if !result.warnings.is_empty() {
                     debug!("Search/replace warnings: {:?}", result.warnings);
@@ -164,30 +164,30 @@ pub async fn write_or_edit_file_internal(
                         info!("Warning: {}", warning);
                     }
                 }
-                
+
                 if result.changes_made {
                     "edited with search/replace blocks"
                 } else {
                     "no changes required"
                 }
-            },
+            }
             Err(e) => {
                 // If search/replace fails, try to provide helpful error message
                 warn!("Search/replace failed: {}", e);
-                
+
                 // Try to find context for failing search blocks
                 if let Ok(blocks) = crate::diff::search_replace::parse_search_replace_blocks(content) {
                     for (i, block) in blocks.iter().enumerate() {
                         if let Some(context) = crate::diff::search_replace::find_context_for_search_block(
-                            &current_content, 
-                            &block.search_lines, 
-                            3
+                            &current_content,
+                            &block.search_lines,
+                            3,
                         ) {
                             debug!("Context for search block #{}: {}", i+1, context);
                         }
                     }
                 }
-                
+
                 // Fall back to full replacement if required
                 if env::var("WINX_FALLBACK_ON_SEARCH_REPLACE_ERROR").unwrap_or_default() == "1" {
                     warn!("Falling back to full replacement due to search/replace error");
@@ -238,18 +238,18 @@ pub async fn write_or_edit_file(state: &SharedState, json_str: &str) -> Result<S
     {
         let state_guard = state.lock().unwrap();
         let path = Path::new(&request.file_path);
-        
+
         if path.exists() && !state_guard.can_edit_file(path)? {
             // File exists but hasn't been sufficiently read
             let unread_ranges = state_guard.get_unread_ranges(path)?;
-            
+
             if !unread_ranges.is_empty() {
                 // Construct a helpful error message
                 let ranges_str = unread_ranges.iter()
                     .map(|(start, end)| format!("{}-{}", start, end))
                     .collect::<Vec<_>>()
                     .join(", ");
-                    
+
                 return Err(anyhow::anyhow!(
                     "File {} hasn't been fully read. Please read the following line ranges first: {}",
                     request.file_path, ranges_str
@@ -270,7 +270,7 @@ pub async fn write_or_edit_file(state: &SharedState, json_str: &str) -> Result<S
         request.percentage_to_change,
         &request.file_content_or_search_replace_blocks,
     )
-    .await
+        .await
 }
 
 #[cfg(test)]

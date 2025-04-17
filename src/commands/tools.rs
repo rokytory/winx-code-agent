@@ -1,16 +1,16 @@
 use anyhow::Result;
 use rmcp::model::*;
-use rmcp::{tool, Error as McpError, ServerHandler, RoleServer};
 use rmcp::service::RequestContext;
+use rmcp::{tool, Error as McpError, RoleServer, ServerHandler};
 use serde::{Deserialize, Serialize};
 use serde_json;
 use tracing::info;
 
+use crate::code;
 use crate::commands::{bash, files};
 use crate::core::{memory, state::SharedState};
 use crate::sql;
 use crate::thinking;
-use crate::code;
 
 /// Tool implementations to be registered with MCP
 #[derive(Clone)]
@@ -23,14 +23,14 @@ impl WinxTools {
     pub fn new(state: SharedState) -> Self {
         Self { state }
     }
-    
+
     #[tool(description = "Create a new task session that can be resumed later")]
     async fn create_task(
         &self,
         #[tool(param)] name: Option<String>,
     ) -> Result<CallToolResult, McpError> {
         let task_id = name.unwrap_or_else(|| memory::create_task_id());
-        
+
         // Save current state to task
         let result = {
             let state_guard = self.state.lock().unwrap();
@@ -39,10 +39,10 @@ impl WinxTools {
                 Err(e) => format!("Failed to create task: {}", e),
             }
         };
-        
+
         Ok(CallToolResult::success(vec![Content::text(result)]))
     }
-    
+
     #[tool(description = "List available tasks")]
     async fn list_tasks(&self) -> Result<CallToolResult, McpError> {
         let memory_dir = match memory::get_memory_dir() {
@@ -54,7 +54,7 @@ impl WinxTools {
                 ))
             }
         };
-        
+
         let store = match memory::create_shared_memory_store(memory_dir) {
             Ok(store) => store,
             Err(e) => {
@@ -64,7 +64,7 @@ impl WinxTools {
                 ))
             }
         };
-        
+
         // Use a temp variable to avoid releasing the lock before calling list_tasks
         let tasks = {
             let mut store_guard = store.lock().unwrap();
@@ -73,7 +73,7 @@ impl WinxTools {
             // Clone task_list to a new variable so we can release the lock
             task_list
         };
-        
+
         if tasks.is_empty() {
             Ok(CallToolResult::success(vec![Content::text("No tasks available.")]))
         } else {
@@ -81,11 +81,11 @@ impl WinxTools {
                 .map(|task| format!("- {}", task))
                 .collect::<Vec<_>>()
                 .join("\n");
-                
+
             Ok(CallToolResult::success(vec![Content::text(format!("Available tasks:\n{}", task_list))]))
         }
     }
-    
+
     #[tool(description = "Start or resume a background process")]
     async fn start_background_process(
         &self,
@@ -99,10 +99,10 @@ impl WinxTools {
                     Some(serde_json::Value::String(e.to_string())),
                 )
             })?;
-            
+
         Ok(CallToolResult::success(vec![Content::text(result)]))
     }
-    
+
     #[tool(description = "Validate syntax of code")]
     async fn validate_syntax(
         &self,
@@ -116,19 +116,19 @@ impl WinxTools {
                     Some(serde_json::Value::String(e.to_string())),
                 )
             })?;
-            
+
         let is_valid = result.is_valid;
         let description = result.description;
-        
+
         let response = if is_valid {
             format!("Syntax validation passed for .{} file.", extension)
         } else {
             format!("Syntax validation failed for .{} file:\n{}", extension, description)
         };
-        
+
         Ok(CallToolResult::success(vec![Content::text(response)]))
     }
-    
+
     #[tool(description = "Send text to a running interactive process")]
     async fn send_text_input(
         &self,
@@ -142,10 +142,10 @@ impl WinxTools {
                     Some(serde_json::Value::String(e.to_string())),
                 )
             })?;
-            
+
         Ok(CallToolResult::success(vec![Content::text(result)]))
     }
-    
+
     #[tool(description = "Send special keys to a running interactive process")]
     async fn send_special_keys(
         &self,
@@ -157,11 +157,11 @@ impl WinxTools {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
                 McpError::invalid_params(
-                    "invalid_special_key", 
+                    "invalid_special_key",
                     Some(serde_json::Value::String(e.to_string())),
                 )
             })?;
-            
+
         let result = bash::send_special_keys(&self.state, &special_keys)
             .await
             .map_err(|e| {
@@ -170,7 +170,7 @@ impl WinxTools {
                     Some(serde_json::Value::String(e.to_string())),
                 )
             })?;
-            
+
         Ok(CallToolResult::success(vec![Content::text(result)]))
     }
 
@@ -184,9 +184,9 @@ impl WinxTools {
         // 1. JSON Object: {"command": "ls -la"}
         // 2. Simple String: "ls -la"
         // 3. Nested Object: {"action_json": {"command": "ls -la"}}
-        
+
         info!("Bash command received: {:?}", action_json);
-        
+
         let command = if action_json.is_string() {
             // If it's a simple string, use it as a command
             action_json.as_str().unwrap_or("").to_string()
@@ -224,7 +224,7 @@ impl WinxTools {
                         }
                     } else {
                         return Err(McpError::invalid_params(
-                            "command_format_error", 
+                            "command_format_error",
                             Some(serde_json::json!({
                                 "error": "command property is required in nested action_json object"
                             })),
@@ -240,7 +240,7 @@ impl WinxTools {
                 }
             } else {
                 return Err(McpError::invalid_params(
-                    "command_format_error", 
+                    "command_format_error",
                     Some(serde_json::json!({
                         "error": "command or action_json property is required"
                     })),
@@ -254,10 +254,10 @@ impl WinxTools {
                 })),
             ));
         };
-        
+
         // Execute the command directly
         info!("Executing bash command: {}", command);
-        
+
         // Execute the command
         let result = bash::execute_command(&self.state, &command)
             .await
@@ -280,7 +280,7 @@ impl WinxTools {
     ) -> Result<CallToolResult, McpError> {
         // Here we also ensure compatibility with different formats
         info!("Reading files: {:?}", file_paths);
-        
+
         let request = ReadFiles {
             file_paths,
             show_line_numbers_reason,
@@ -428,9 +428,9 @@ impl ServerHandler for WinxTools {
             instructions: Some("Winx is a Rust code agent that allows executing bash commands, manipulating files, and executing SQL queries.".to_string()),
         }
     }
-    
+
     // Implementation of additional methods that the Counter example includes
-    
+
     async fn list_resources(
         &self,
         _request: Option<PaginatedRequestParam>,
@@ -476,8 +476,8 @@ impl ServerHandler for WinxTools {
     ) -> Result<GetPromptResult, McpError> {
         // No prompts to get
         Err(McpError::invalid_params(
-            "prompt not found", 
-            Some(serde_json::json!({"name": name}))
+            "prompt not found",
+            Some(serde_json::json!({"name": name})),
         ))
     }
 

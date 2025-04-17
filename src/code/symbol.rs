@@ -2,7 +2,7 @@ use anyhow::Result;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tracing::{info};
+use tracing::info;
 
 use crate::lsp::server::LSPServer;
 use crate::lsp::types::{Symbol, SymbolKind, SymbolLocation};

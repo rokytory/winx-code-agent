@@ -25,7 +25,7 @@ pub fn debug_json_bytes(data: &[u8], prefix: &str) {
     if data.is_empty() {
         return;
     }
-    
+
     // Log bytes in hexadecimal format - show up to 100 bytes
     let display_limit = std::cmp::min(data.len(), 100);
     let hex_data = data.iter()
@@ -33,10 +33,10 @@ pub fn debug_json_bytes(data: &[u8], prefix: &str) {
         .map(|b| format!("{:02x}", b))
         .collect::<Vec<_>>()
         .join(" ");
-    
+
     // Log the first bytes for detailed analysis
     info!("{} - Raw bytes (hex, first {}): {}", prefix, display_limit, hex_data);
-    
+
     // Try to decode as UTF-8
     match std::str::from_utf8(data) {
         Ok(text) => {
@@ -47,9 +47,9 @@ pub fn debug_json_bytes(data: &[u8], prefix: &str) {
             } else {
                 text.to_string()
             };
-            
+
             info!("{} - UTF-8 text: {}", prefix, preview);
-            
+
             // If it's JSON, try to parse and examine structure
             if text.contains("jsonrpc") {
                 // Check each character in the first bytes (where parsing errors often occur)
@@ -61,7 +61,7 @@ pub fn debug_json_bytes(data: &[u8], prefix: &str) {
                     };
                     info!("{} - Byte {}: {}", prefix, i, char_desc);
                 }
-                
+
                 // Try to parse as JSON to identify parsing issues
                 match serde_json::from_str::<serde_json::Value>(text) {
                     Ok(json) => {
@@ -73,7 +73,7 @@ pub fn debug_json_bytes(data: &[u8], prefix: &str) {
                                 obj.contains_key("method"),
                                 obj.contains_key("params")
                             );
-                            
+
                             // Log the structure of params if present
                             if let Some(params) = obj.get("params") {
                                 info!("{} - Params type: {}", prefix, 
@@ -83,13 +83,13 @@ pub fn debug_json_bytes(data: &[u8], prefix: &str) {
                                 );
                             }
                         }
-                    },
+                    }
                     Err(e) => {
                         info!("{} - JSON parsing failed: {}", prefix, e);
                     }
                 }
             }
-        },
+        }
         Err(e) => {
             info!("{} - Invalid UTF-8: {}", prefix, e);
         }
@@ -107,25 +107,25 @@ pub fn init() -> Result<()> {
 pub fn init_with_workspace(workspace_path: &str) -> Result<()> {
     // Initialize with default logger
     init_with_logger(true)?;
-    
+
     // Initialize terminal manager
     commands::terminal::init_terminal_manager(workspace_path.to_string());
-    
+
     // Initialize memory store
     let memory_dir = core::memory::get_memory_dir()?;
     core::memory::create_shared_memory_store(memory_dir)?;
-    
+
     Ok(())
 }
 
 /// Initialize the Winx agent with custom logger configuration
-/// 
+///
 /// @param ansi_colors - Whether to enable ANSI color codes in logs
 /// When used as an MCP server, this should be false to avoid JSON parsing errors
 pub fn init_with_logger(ansi_colors: bool) -> Result<()> {
     use tracing_subscriber::fmt;
     use tracing_subscriber::EnvFilter;
-    
+
     // Configure extremely simple format if ansi_colors is false (MCP mode)
     if !ansi_colors {
         // Minimal configuration without formatting that could interfere with JSON
@@ -136,24 +136,24 @@ pub fn init_with_logger(ansi_colors: bool) -> Result<()> {
             .with_target(false)
             .without_time()
             .init();
-        
+
         info!("Initializing Winx agent v{} (minimal log format for MCP)", version());
     } else {
         // Default configuration for CLI usage
         fmt::Subscriber::builder()
-            .with_ansi(true) 
+            .with_ansi(true)
             .with_env_filter(EnvFilter::from_default_env())
             .with_target(true)
             .init();
-        
+
         info!("Initializing Winx agent v{}", version());
     }
-    
+
     // Initialize once_cell modules
     if let Err(e) = initialize_once_cell_modules() {
         debug!("Warning: Some modules failed to initialize: {}", e);
     }
-    
+
     Ok(())
 }
 
@@ -163,9 +163,9 @@ fn initialize_once_cell_modules() -> Result<()> {
     let default_dir = env::current_dir()
         .or_else(|_| dirs::home_dir().ok_or_else(|| anyhow::anyhow!("Could not determine home directory")))
         .context("Failed to determine a default workspace directory")?;
-        
+
     // Initialize terminal manager with default directory
     commands::terminal::init_terminal_manager(default_dir.to_string_lossy().to_string());
-    
+
     Ok(())
 }

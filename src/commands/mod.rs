@@ -6,10 +6,10 @@ pub mod terminal;
 pub mod thinking;
 pub mod tools;
 
-pub use tools::*;
-pub use terminal::*;
+pub use bash::*;
 pub use edit_command::*;
 pub use files::*;
 pub use sql::*;
+pub use terminal::*;
 pub use thinking::*;
-pub use bash::*;
+pub use tools::*;

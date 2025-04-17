@@ -48,12 +48,12 @@ async fn main() -> Result<()> {
     let state = match create_shared_state(workspace_path.clone(), ModeType::Wcgw, None, None) {
         Ok(state) => {
             info!("Agent state created successfully");
-            
+
             // Initialize syntax validator
             if let Err(e) = winx::code::get_syntax_validator() {
                 info!("Warning: Syntax validator initialization failed: {}", e);
             }
-            
+
             state
         }
         Err(e) => {
