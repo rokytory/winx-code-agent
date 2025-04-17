@@ -2,7 +2,8 @@ use anyhow::{Context, Result};
 use glob::glob;
 use std::fs;
 use std::path::{Path, PathBuf};
-use tracing::debug;
+use tracing::{debug, info, warn};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Read a file's contents as string
 pub async fn read_file(path: impl AsRef<Path>) -> Result<String> {
@@ -52,6 +53,44 @@ pub fn create_dir_all(path: impl AsRef<Path>) -> Result<()> {
 
     fs::create_dir_all(path)
         .with_context(|| format!("Failed to create directory: {}", path.display()))
+}
+
+/// Expand ~ to user's home directory in path
+pub fn expand_user(path: &str) -> String {
+    if path.starts_with('~') {
+        if let Some(home) = dirs::home_dir() {
+            if path.len() > 1 {
+                return home.join(&path[2..]).to_string_lossy().to_string();
+            } else {
+                return home.to_string_lossy().to_string();
+            }
+        }
+    }
+    path.to_string()
+}
+
+/// Create a temporary directory for file operations
+pub fn create_temp_dir(base_dir: impl AsRef<Path>, prefix: &str) -> Result<PathBuf> {
+    let base_dir = base_dir.as_ref();
+    
+    // Generate a unique timestamp
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    
+    // Create a unique directory name
+    let temp_dir_name = format!("{}_{}", prefix, timestamp);
+    let temp_dir = base_dir.join("tmp").join(temp_dir_name);
+    
+    // Create the directory
+    if !temp_dir.exists() {
+        debug!("Creating temporary directory: {}", temp_dir.display());
+        fs::create_dir_all(&temp_dir)
+            .with_context(|| format!("Failed to create temporary directory: {}", temp_dir.display()))?;
+    }
+    
+    Ok(temp_dir)
 }
 
 #[cfg(test)]
