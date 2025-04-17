@@ -579,10 +579,26 @@ impl EnhancedSearchReplace {
         content: &str,
         search_replace_text: &str,
     ) -> Result<EnhancedEditResult> {
-        let blocks = parse_search_replace_blocks(search_replace_text)
-            .with_context(|| "Failed to parse search/replace blocks")?;
-
-        self.apply_search_replace(content, &blocks)
+        // Try to parse the blocks, with more detailed error handling
+        match parse_search_replace_blocks(search_replace_text) {
+            Ok(blocks) => self.apply_search_replace(content, &blocks),
+            Err(e) => {
+                // Log the error for debugging
+                debug!("Failed to parse search/replace blocks: {}", e);
+                debug!("Original text: {}", search_replace_text);
+                
+                // Convert to a more user-friendly error message
+                let err_msg = if e.to_string().contains("No valid search/replace blocks") {
+                    String::from("Failed to parse search/replace blocks: No valid blocks found. \
+                    Use either <<<<<<< SEARCH/=======/>>>>>>> REPLACE format \
+                    or search:/replace: prefix format.")
+                } else {
+                    e.to_string()
+                };
+                
+                Err(anyhow!("{}", err_msg))
+            }
+        }
     }
 
     /// Generate a detailed report of the edit result

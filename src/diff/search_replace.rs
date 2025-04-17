@@ -162,8 +162,28 @@ impl fmt::Display for SearchReplaceSyntaxError {
 
 impl std::error::Error for SearchReplaceSyntaxError {}
 
-/// Parses search/replace blocks from text
+/// Parses search/replace blocks from text, supporting both standard format (with markers)
+/// and alternative format with "search:" and "replace:" prefixes
 pub fn parse_search_replace_blocks(text: &str) -> Result<Vec<SearchReplaceBlock>> {
+    // First try the standard marker format (<<<<<<< SEARCH)
+    if let Ok(blocks) = parse_marker_format(text) {
+        return Ok(blocks);
+    }
+    
+    // If standard format fails, try alternative format with "search:" and "replace:" prefixes
+    if let Ok(blocks) = parse_prefix_format(text) {
+        return Ok(blocks);
+    }
+    
+    // If both formats fail, return an error
+    Err(anyhow!(SearchReplaceSyntaxError {
+        message: "No valid search/replace blocks found in either standard or alternative format".to_string(),
+        line_number: None,
+    }))
+}
+
+/// Parse blocks using the standard marker format (<<<<<<< SEARCH)
+fn parse_marker_format(text: &str) -> Result<Vec<SearchReplaceBlock>> {
     let lines: Vec<&str> = text.lines().collect();
     let mut blocks = Vec::new();
     let mut i = 0;
@@ -243,11 +263,97 @@ pub fn parse_search_replace_blocks(text: &str) -> Result<Vec<SearchReplaceBlock>
 
     if blocks.is_empty() {
         return Err(anyhow!(SearchReplaceSyntaxError {
-            message: "No valid search/replace blocks found".to_string(),
+            message: "No valid search/replace blocks found in marker format".to_string(),
             line_number: None,
         }));
     }
 
+    Ok(blocks)
+}
+
+/// Parse blocks using the alternative format with "search:" and "replace:" prefixes
+fn parse_prefix_format(text: &str) -> Result<Vec<SearchReplaceBlock>> {
+    let lines: Vec<&str> = text.lines().collect();
+    let mut blocks = Vec::new();
+    
+    // Variables to track the current block
+    let mut in_search = false;
+    let mut in_replace = false;
+    let mut current_search_lines = Vec::new();
+    let mut current_replace_lines = Vec::new();
+    let mut line_num = 0;
+    
+    for (i, line) in lines.iter().enumerate() {
+        let trimmed = line.trim();
+        
+        // Check for start of search block
+        if trimmed == "search:" {
+            line_num = i + 1;
+            // If we were already in a search/replace pair, finalize the block
+            if !current_search_lines.is_empty() && in_replace {
+                blocks.push(SearchReplaceBlock {
+                    search_lines: current_search_lines,
+                    replace_lines: current_replace_lines,
+                });
+                current_search_lines = Vec::new();
+                current_replace_lines = Vec::new();
+            } else if in_search {
+                // Starting a new search without finishing the previous one
+                return Err(anyhow!(SearchReplaceSyntaxError {
+                    message: "Found 'search:' without matching 'replace:' for previous block".to_string(),
+                    line_number: Some(i + 1),
+                }));
+            }
+            
+            in_search = true;
+            in_replace = false;
+            continue;
+        }
+        
+        // Check for start of replace block
+        if trimmed == "replace:" {
+            // Can't have replace without search
+            if !in_search || current_search_lines.is_empty() {
+                return Err(anyhow!(SearchReplaceSyntaxError {
+                    message: "Found 'replace:' without preceding 'search:' block".to_string(),
+                    line_number: Some(i + 1),
+                }));
+            }
+            
+            in_search = false;
+            in_replace = true;
+            continue;
+        }
+        
+        // Add to appropriate block
+        if in_search {
+            current_search_lines.push(line.to_string());
+        } else if in_replace {
+            current_replace_lines.push(line.to_string());
+        }
+    }
+    
+    // Don't forget the last block if there is one
+    if in_search && !current_search_lines.is_empty() {
+        // Missing replace block
+        return Err(anyhow!(SearchReplaceSyntaxError {
+            message: "Missing 'replace:' for last search block".to_string(),
+            line_number: Some(line_num),
+        }));
+    } else if !current_search_lines.is_empty() && !current_replace_lines.is_empty() {
+        blocks.push(SearchReplaceBlock {
+            search_lines: current_search_lines,
+            replace_lines: current_replace_lines,
+        });
+    }
+    
+    if blocks.is_empty() {
+        return Err(anyhow!(SearchReplaceSyntaxError {
+            message: "No valid search/replace blocks found in prefix format".to_string(),
+            line_number: None,
+        }));
+    }
+    
     Ok(blocks)
 }
 
