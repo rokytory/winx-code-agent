@@ -87,7 +87,7 @@ impl WinxTools {
 
         // Use a temp variable to avoid releasing the lock before calling list_tasks
         let tasks = {
-            let mut store_guard = store.lock().unwrap();
+            let store_guard = store.lock().unwrap();
             // Call the method directly on the MemoryStore struct
             let task_list = store_guard.list_tasks();
             // Clone task_list to a new variable so we can release the lock
