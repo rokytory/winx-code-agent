@@ -122,6 +122,7 @@ impl RefactoringType {
 }
 
 /// Engine for suggesting and applying refactorings
+#[derive(Clone)]
 pub struct RefactoringEngine {
     semantic_analyzer: Option<Arc<SemanticAnalyzer>>,
     workspace_path: PathBuf,
@@ -289,6 +290,7 @@ impl RefactoringEngine {
             .as_ref()
             .ok_or_else(|| anyhow!("Semantic analyzer not initialized"))?
             .get_lsp_client()
+            .ok_or_else(|| anyhow!("LSP client not initialized"))?
             .get_document_symbols(file_path, true)
             .await
             .context("Failed to get document symbols")?;

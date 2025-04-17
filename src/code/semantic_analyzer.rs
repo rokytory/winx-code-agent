@@ -119,6 +119,7 @@ impl DependencyGraph {
 }
 
 /// Semantic analyzer for code analysis
+#[derive(Clone)]
 pub struct SemanticAnalyzer {
     lsp_client: Option<Arc<LSPClient>>,
     workspace_path: PathBuf,
