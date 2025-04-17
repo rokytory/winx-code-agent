@@ -1,6 +1,5 @@
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use std::env;
 use std::path::PathBuf;
 use tracing::{info, level_filters::LevelFilter};
 use tracing_subscriber::fmt::format::FmtSpan;
