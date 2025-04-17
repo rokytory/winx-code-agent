@@ -147,8 +147,8 @@ impl WinxAgent {
             .count_files_with_extension(workspace_path, "cpp")
             .await?
             + self
-                .count_files_with_extension(workspace_path, "cc")
-                .await?
+            .count_files_with_extension(workspace_path, "cc")
+            .await?
             + self.count_files_with_extension(workspace_path, "h").await?;
         let rb_count = self
             .count_files_with_extension(workspace_path, "rb")
