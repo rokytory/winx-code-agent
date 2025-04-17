@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use rmcp::ServiceExt;
 use std::path::PathBuf;
-use tokio::process::Command;
+use std::env;
 use tracing::info;
 
 use winx::{
@@ -11,8 +11,18 @@ use winx::{
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Initialize the Winx agent
-    winx::init().context("Failed to initialize Winx agent")?;
+    // Configura variáveis de ambiente para debug se não estiverem definidas
+    if env::var("RUST_LOG").is_err() {
+        env::set_var("RUST_LOG", "rmcp=trace,winx=trace");
+    }
+    
+    // Garante que não há ANSI color codes ativados (por padrão)
+    if env::var("NO_COLOR").is_err() {
+        env::set_var("NO_COLOR", "1");
+    }
+    
+    // Inicializa com cores ANSI explicitamente desativadas para compatibilidade MCP
+    winx::init_with_logger(false).context("Failed to initialize Winx agent")?;
 
     // Parse command-line arguments
     let args: Vec<String> = std::env::args().collect();
@@ -31,16 +41,22 @@ async fn main() -> Result<()> {
     // Create WinxTools instance
     let tools = WinxTools::new(state.clone());
 
-    // Start the MCP server using stdio transport
-    info!("Starting MCP server");
+    // Configura o servidor MCP
+    info!("Starting MCP server using stdio transport");
+    
+    // Usa o transporte padrão stdio para comunicação via MCP
+    let transport = rmcp::transport::stdio();
+    
+    // Start the MCP server e mantém ele rodando até o cliente desconectar
+    info!("Server starting...");
     let client = tools
-        .serve(rmcp::transport::stdio())
+        .serve(transport)
         .await
         .context("Failed to start MCP server")?;
 
     info!("Winx agent started successfully");
 
-    // Keep the application running until client disconnects
+    // Aguarda até o cliente desconectar
     client.waiting().await?;
 
     info!("Shutting down Winx agent");
