@@ -29,17 +29,32 @@ impl WinxTools {
         #[tool(param)] action_json: serde_json::Value,
         #[tool(param)] wait_for_seconds: Option<f32>,
     ) -> Result<CallToolResult, McpError> {
-        let json = match serde_json::to_string(&action_json) {
-            Ok(j) => j,
-            Err(e) => {
-                return Err(McpError::internal_error(
-                    "serialize_error",
-                    Some(serde_json::Value::String(e.to_string())),
-                ))
-            }
+        // Claude can send action_json in two ways:
+        // 1. As a simple string: "ls -la"
+        // 2. As a JSON object: {"command": "ls -la"}
+        
+        // We check the received format and adapt accordingly
+        let command_json = if action_json.is_string() {
+            // If it's a simple string, we convert it to the expected format
+            let cmd_string = action_json.as_str().unwrap_or("");
+            let bash_cmd = crate::core::types::BashCommand {
+                action_json: crate::core::types::BashAction::Command(
+                    crate::core::types::Command {
+                        command: cmd_string.to_string(),
+                    }
+                ),
+                wait_for_seconds,
+            };
+            serde_json::to_string(&bash_cmd).unwrap_or_default()
+        } else {
+            // If it's already a JSON object, we use it as is
+            serde_json::to_string(&action_json).unwrap_or_default()
         };
-
-        let result = bash::execute_bash_command(&self.state, &json)
+        
+        info!("Executing bash command: {}", command_json);
+        
+        // Execute the command using the correct format
+        let result = bash::execute_bash_command(&self.state, &command_json)
             .await
             .map_err(|e| {
                 McpError::internal_error(
@@ -57,6 +72,9 @@ impl WinxTools {
         #[tool(param)] file_paths: Vec<String>,
         #[tool(param)] show_line_numbers_reason: Option<String>,
     ) -> Result<CallToolResult, McpError> {
+        // Here we also ensure compatibility with different formats
+        info!("Reading files: {:?}", file_paths);
+        
         let request = ReadFiles {
             file_paths,
             show_line_numbers_reason,
@@ -190,8 +208,8 @@ impl WinxTools {
 #[tool(tool_box)]
 impl ServerHandler for WinxTools {
     fn get_info(&self) -> ServerInfo {
-        // Garantir que usamos a versão de protocolo correta
-        // e que a configuração de ferramentas está habilitada
+        // Ensure we use the correct protocol version
+        // and that the tools configuration is enabled
         ServerInfo {
             protocol_version: ProtocolVersion::V_2024_11_05,
             capabilities: ServerCapabilities::builder()
@@ -200,18 +218,18 @@ impl ServerHandler for WinxTools {
                 .enable_tools()
                 .build(),
             server_info: Implementation::from_build_env(),
-            instructions: Some("Winx é um agente de código em Rust que permite executar comandos bash, manipular arquivos e executar consultas SQL.".to_string()),
+            instructions: Some("Winx is a Rust code agent that allows executing bash commands, manipulating files, and executing SQL queries.".to_string()),
         }
     }
     
-    // Implementação dos métodos adicionais que o Counter de exemplo inclui
+    // Implementation of additional methods that the Counter example includes
     
     async fn list_resources(
         &self,
         _request: Option<PaginatedRequestParam>,
         _: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
-        // Retorna uma lista vazia de recursos
+        // Returns an empty list of resources
         Ok(ListResourcesResult {
             resources: Vec::new(),
             next_cursor: None,
@@ -223,7 +241,7 @@ impl ServerHandler for WinxTools {
         ReadResourceRequestParam { uri }: ReadResourceRequestParam,
         _: RequestContext<RoleServer>,
     ) -> Result<ReadResourceResult, McpError> {
-        // Sem recursos para ler
+        // No resources to read
         Err(McpError::resource_not_found(
             "resource_not_found",
             Some(serde_json::json!({
@@ -237,7 +255,7 @@ impl ServerHandler for WinxTools {
         _request: Option<PaginatedRequestParam>,
         _: RequestContext<RoleServer>,
     ) -> Result<ListPromptsResult, McpError> {
-        // Retorna uma lista vazia de prompts
+        // Returns an empty list of prompts
         Ok(ListPromptsResult {
             next_cursor: None,
             prompts: Vec::new(),
@@ -249,7 +267,7 @@ impl ServerHandler for WinxTools {
         GetPromptRequestParam { name, .. }: GetPromptRequestParam,
         _: RequestContext<RoleServer>,
     ) -> Result<GetPromptResult, McpError> {
-        // Sem prompts para obter
+        // No prompts to get
         Err(McpError::invalid_params(
             "prompt not found", 
             Some(serde_json::json!({"name": name}))
@@ -261,7 +279,7 @@ impl ServerHandler for WinxTools {
         _request: Option<PaginatedRequestParam>,
         _: RequestContext<RoleServer>,
     ) -> Result<ListResourceTemplatesResult, McpError> {
-        // Retorna uma lista vazia de templates de recursos
+        // Returns an empty list of resource templates
         Ok(ListResourceTemplatesResult {
             next_cursor: None,
             resource_templates: Vec::new(),
