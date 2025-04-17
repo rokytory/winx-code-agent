@@ -9,7 +9,7 @@ use crate::core::types::{FileWriteOrEdit as FileWriteOrEditType, ReadFiles as Re
 use crate::utils::fs as fs_utils;
 use serde_json::from_str;
 
-/// Read files and return their contents with line range tracking
+/// Read files and return their contents with enhanced line range tracking
 pub async fn read_files_internal(
     state: &SharedState,
     file_paths: &[String],
@@ -48,11 +48,18 @@ pub async fn read_files_internal(
             None
         };
 
-        // Now read the file without holding the mutex
+        // Read the file with enhanced error handling and metadata collection
         match read_file_with_range(&path, range).await {
-            Ok((content, effective_range)) => {
+            Ok((content, effective_range, metadata)) => {
+                debug!(
+                    "Read file {}: {} lines, hash: {}", 
+                    path.display(), 
+                    metadata.total_lines, 
+                    metadata.hash.chars().take(8).collect::<String>()
+                );
+                
                 results.push((file_path.clone(), content, effective_range));
-                file_reads.push((path, effective_range));
+                file_reads.push((path, effective_range, metadata));
             }
             Err(e) => {
                 debug!("Failed to read file {}: {}", path.display(), e);
@@ -61,12 +68,35 @@ pub async fn read_files_internal(
         }
     }
 
-    // Record file reads in state
+    // Record file reads in state with improved tracking
     {
         let mut state_guard = state.lock().unwrap();
-        for (path, range) in file_reads {
+        for (path, range, metadata) in file_reads {
             if range.0 > 0 && range.1 > 0 {
-                let _ = state_guard.record_file_read(path, &[range]);
+                // Check if we need to update the file metadata
+                let update_hash = if let Some(file_info) = state_guard.read_files.get(&path) {
+                    file_info.file_hash != metadata.hash
+                } else {
+                    true
+                };
+                
+                // Record the read with updated metadata if needed
+                if update_hash {
+                    debug!("Updating file hash for {}", path.display());
+                    // Remove existing entry if hash changed
+                    state_guard.read_files.remove(&path);
+                    
+                    // Create a new entry with the current hash and total lines
+                    let mut file_info = crate::core::state::FileReadInfo::new(&path);
+                    file_info.file_hash = metadata.hash;
+                    file_info.total_lines = metadata.total_lines;
+                    file_info.add_range(range.0, range.1);
+                    
+                    state_guard.read_files.insert(path, file_info);
+                } else {
+                    // Just record the read range
+                    let _ = state_guard.record_file_read(path, &[range]);
+                }
             }
         }
     }
@@ -75,33 +105,69 @@ pub async fn read_files_internal(
     Ok(results)
 }
 
-/// Read a file with optional line range
+/// File metadata collected during reading
+struct FileMetadata {
+    /// SHA-256 hash of the file content
+    hash: String,
+    /// Total number of lines in the file
+    total_lines: usize,
+    /// File size in bytes
+    file_size: u64,
+    /// Last modified time
+    last_modified: std::time::SystemTime,
+}
+
+/// Read a file with optional line range and collect metadata
 async fn read_file_with_range(
     path: &Path,
     range: Option<(usize, usize)>,
-) -> Result<(String, (usize, usize))> {
+) -> Result<(String, (usize, usize), FileMetadata)> {
+    // Read the file content
     let content = fs_utils::read_file(path).await?;
-
+    
+    // Collect file metadata
+    let metadata = std::fs::metadata(path)?;
+    let file_size = metadata.len();
+    let last_modified = metadata.modified().unwrap_or_else(|_| std::time::SystemTime::now());
+    
+    // Calculate hash of the content
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(content.as_bytes());
+    let hash = format!("{:x}", hasher.finalize());
+    
+    // Count total lines
+    let lines: Vec<&str> = content.lines().collect();
+    let total_lines = lines.len();
+    
+    // Create file metadata
+    let file_metadata = FileMetadata {
+        hash,
+        total_lines,
+        file_size,
+        last_modified,
+    };
+    
     if let Some((start, end)) = range {
-        let lines: Vec<&str> = content.lines().collect();
-        let total_lines = lines.len();
-
         // Adjust range to be within bounds
         let start = start.min(total_lines).max(1);
         let end = end.min(total_lines).max(start);
 
         // Extract requested lines (adjust from 1-based to 0-based indexing)
-        let selected_lines = lines[(start - 1)..end].join("\n");
+        let selected_lines = if total_lines > 0 {
+            lines[(start - 1)..end].join("\n")
+        } else {
+            String::new()
+        };
 
-        Ok((selected_lines, (start, end)))
+        Ok((selected_lines, (start, end), file_metadata))
     } else {
-        // Return the full file
-        let total_lines = content.lines().count();
-        Ok((content, (1, total_lines)))
+        // Return the full file and its metadata
+        Ok((content, (1, total_lines), file_metadata))
     }
 }
 
-/// Write or edit a file
+/// Write or edit a file with enhanced tracking
 pub async fn write_or_edit_file_internal(
     state: &SharedState,
     file_path: &str,
@@ -130,10 +196,27 @@ pub async fn write_or_edit_file_internal(
         resolved_path
     };
 
+    // Get file hash before edit for tracking
+    let pre_edit_hash = if path.exists() {
+        use sha2::{Digest, Sha256};
+        let content = fs::read(&path)?;
+        let mut hasher = Sha256::new();
+        hasher.update(&content);
+        Some(format!("{:x}", hasher.finalize()))
+    } else {
+        None
+    };
+
     // Determine if this is a full replacement or partial edit
     let mode = if percentage_to_change > 50 {
         // Full content replacement
         debug!("Replacing full file content: {}", path.display());
+        
+        // Ensure parent directories exist
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        
         fs::write(&path, content)?;
         "replaced"
     } else {
@@ -148,6 +231,10 @@ pub async fn write_or_edit_file_internal(
             Ok(content) => content,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                 // If file doesn't exist, create it with the full content
+                // Ensure parent directories exist
+                if let Some(parent) = path.parent() {
+                    fs::create_dir_all(parent)?;
+                }
                 fs::write(&path, content)?;
                 return Ok(format!("Created new file: {}", path.display()));
             }
@@ -217,6 +304,39 @@ pub async fn write_or_edit_file_internal(
         }
     };
 
+    // Update file tracking after edit
+    let post_edit_hash = {
+        use sha2::{Digest, Sha256};
+        let content = fs::read(&path)?;
+        let mut hasher = Sha256::new();
+        hasher.update(&content);
+        format!("{:x}", hasher.finalize())
+    };
+    
+    // Count total lines in the updated file
+    let total_lines = fs::read_to_string(&path)?.lines().count();
+    
+    // Update the file tracking in state
+    {
+        let mut state_guard = state.lock().unwrap();
+        
+        // If pre-edit hash is different or file is new, update hash and invalidate read tracking
+        if pre_edit_hash.is_none() || pre_edit_hash.unwrap() != post_edit_hash {
+            debug!("File hash changed after edit, updating tracking");
+            
+            // Create a new entry with the current hash and mark as fully read
+            state_guard.read_files.remove(&path);
+            
+            // Create a fresh entry with total file read
+            let mut file_info = crate::core::state::FileReadInfo::new(&path);
+            file_info.file_hash = post_edit_hash;
+            file_info.total_lines = total_lines;
+            file_info.add_range(1, total_lines); // Mark entire file as read
+            
+            state_guard.read_files.insert(path.clone(), file_info);
+        }
+    }
+
     info!("Successfully {} file: {}", mode, path.display());
     Ok(format!("Successfully {} file: {}", mode, path.display()))
 }
@@ -241,37 +361,110 @@ pub async fn read_files(state: &SharedState, json_str: &str) -> Result<String> {
     Ok(output)
 }
 
-/// Write or edit a file from a JSON request
+/// Write or edit a file from a JSON request with enhanced file tracking
 pub async fn write_or_edit_file(state: &SharedState, json_str: &str) -> Result<String> {
     debug!("Writing/editing file from JSON: {}", json_str);
 
     // Parse the JSON request
     let request: FileWriteOrEditType = from_str(json_str)?;
+    let path = Path::new(&request.file_path);
 
     // Check file edit permissions based on read history
-    {
+    let (auto_read_required, file_hash, has_changed) = {
         let state_guard = state.lock().unwrap();
-        let path = Path::new(&request.file_path);
+        
+        if path.exists() {
+            let can_edit = state_guard.can_edit_file(path)?;
+            if !can_edit {
+                // Get the current file hash for consistency checks
+                let current_hash = if let Some(file_info) = state_guard.read_files.get(path) {
+                    (true, file_info.file_hash.clone(), file_info.has_changed(path).unwrap_or(true))
+                } else {
+                    // File exists but has never been read
+                    (true, String::new(), true)
+                };
+                current_hash
+            } else {
+                (false, String::new(), false)
+            }
+        } else {
+            // File doesn't exist, no need to read it
+            (false, String::new(), false)
+        }
+    };
 
-        if path.exists() && !state_guard.can_edit_file(path)? {
-            // File exists but hasn't been sufficiently read
+    // Auto-read the file if necessary and enabled
+    if auto_read_required && path.exists() && request.auto_read_if_needed {
+        // Check if file has changed or hasn't been fully read
+        if has_changed {
+            info!("File has changed since last read, auto-reading: {}", request.file_path);
+        } else {
+            info!("File hasn't been fully read, auto-reading: {}", request.file_path);
+        }
+        
+        // Read the entire file
+        let read_result = read_files_internal(
+            state,
+            &[request.file_path.clone()], 
+            None
+        ).await;
+        
+        if let Err(e) = read_result {
+            warn!("Auto-read failed: {}", e);
+            return Err(anyhow::anyhow!(
+                "Cannot edit file {} - auto-read failed: {}. Please read this file manually first.",
+                request.file_path, e
+            ));
+        }
+        
+        // Verify the file hasn't changed during reading
+        if !file_hash.is_empty() {
+            let current_hash = {
+                let state_guard = state.lock().unwrap();
+                if let Some(file_info) = state_guard.read_files.get(path) {
+                    file_info.file_hash.clone()
+                } else {
+                    String::new()
+                }
+            };
+            
+            if current_hash != file_hash && !file_hash.is_empty() {
+                warn!("File changed during auto-read, hash mismatch: {} vs {}", file_hash, current_hash);
+                return Err(anyhow::anyhow!(
+                    "File {} changed during auto-read. Please try again.",
+                    request.file_path
+                ));
+            }
+        }
+        
+        info!("Successfully auto-read file before editing: {}", request.file_path);
+    } else if auto_read_required && !request.auto_read_if_needed {
+        // If auto-read is disabled but required, return a detailed error
+        let state_guard = state.lock().unwrap();
+        
+        if has_changed {
+            return Err(anyhow::anyhow!(
+                "File {} has changed since it was last read. Please read it again before editing.",
+                request.file_path
+            ));
+        } else {
             let unread_ranges = state_guard.get_unread_ranges(path)?;
-
+            
             if !unread_ranges.is_empty() {
-                // Construct a helpful error message
+                // Construct a helpful error message with unread ranges
                 let ranges_str = unread_ranges
                     .iter()
                     .map(|(start, end)| format!("{}-{}", start, end))
                     .collect::<Vec<_>>()
                     .join(", ");
-
+                    
                 return Err(anyhow::anyhow!(
                     "File {} hasn't been fully read. Please read the following line ranges first: {}",
                     request.file_path, ranges_str
                 ));
             } else {
                 return Err(anyhow::anyhow!(
-                    "File {} has changed since it was last read. Please read it again before editing.",
+                    "File {} cannot be edited due to read history issues. Please read it first.",
                     request.file_path
                 ));
             }
