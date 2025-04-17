@@ -1,4 +1,5 @@
 use crate::lsp::client::LSPClient;
+use crate::lsp::symbol::SymbolManager;
 use crate::lsp::types::{Symbol, SymbolKind, SymbolLocation};
 use anyhow::{Context, Result};
 use std::collections::{HashMap, HashSet, VecDeque};

@@ -5,8 +5,8 @@ use std::sync::Arc;
 use tokio::fs;
 use tokio::sync::Mutex;
 
-use crate::code::symbol::SymbolManager;
 use crate::lsp::server::LSPServer;
+use crate::lsp::symbol::SymbolManager;
 
 /// Tracks file modifications to maintain the project context
 #[derive(Debug, Default)]
@@ -145,7 +145,7 @@ impl CodeManager {
         root_path: impl AsRef<Path>,
     ) -> Result<Self> {
         let root = root_path.as_ref().to_path_buf();
-        let symbol_manager = SymbolManager::new(lsp_server, &root);
+        let symbol_manager = SymbolManager::new_with_server(lsp_server, &root);
         let memory_manager = MemoryManager::new(&root)?;
 
         Ok(Self {
