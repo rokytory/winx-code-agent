@@ -1,5 +1,5 @@
-pub mod symbol;
 pub mod manager;
+pub mod symbol;
 
-pub use symbol::*;
 pub use manager::*;
+pub use symbol::*;
