@@ -2,11 +2,11 @@ use anyhow::{Context, Result};
 use rmcp::ServiceExt;
 use std::env;
 use std::path::PathBuf;
-use tracing::{debug, error, info};
+use tracing::{error, info};
 
 use winx::{
     commands::tools::WinxTools,
-    core::{state::create_shared_state, types::ModeType},
+    core::{state, types::ModeType},
 };
 
 /// Simple main function without custom transport wrapper
@@ -94,6 +94,18 @@ async fn main() -> Result<()> {
     winx::init_plugins_async(&workspace_path.to_string_lossy())
         .await
         .context("Failed to initialize plugins")?;
+        
+    // Get state for auto-initialization of file tracking
+    let state = state::create_shared_state(
+        workspace_path.clone(), 
+        ModeType::Wcgw, 
+        None, 
+        None
+    ).context("Failed to create state for file tracking")?;
+    
+    // Auto-initialize important project files
+    winx::init_file_tracking(&state, &[]).await
+        .context("Failed to initialize file tracking")?;
 
     // Log version and environment information
     info!(
@@ -122,7 +134,7 @@ async fn main() -> Result<()> {
     );
 
     // Initialize state with wcgw mode and any stored task information
-    let state = match create_shared_state(workspace_path.clone(), ModeType::Wcgw, None, None) {
+    let state = match state::create_shared_state(workspace_path.clone(), ModeType::Wcgw, None, None) {
         Ok(state) => {
             info!("Agent state created successfully");
 
