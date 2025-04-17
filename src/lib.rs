@@ -341,6 +341,9 @@ pub fn init_with_workspace(workspace_path: &str) -> Result<()> {
     let memory_dir = core::memory::get_memory_dir()?;
     core::memory::create_shared_memory_store(memory_dir)?;
 
+    // Initialize language support
+    core::i18n::init_language_support();
+
     // Note: Plugin initialization is now expected to be done from an async context
     // outside this function to avoid nested runtimes
 
