@@ -307,9 +307,13 @@ impl LSPClient {
                     match Self::start_server_process(&config.language, &root_path).await {
                         Ok(mut process) => {
                             // Get the process's stdin and stdout
-                            let process_stdin = process.stdin.take()
+                            let process_stdin = process
+                                .stdin
+                                .take()
                                 .context("Failed to capture language server stdin");
-                            let process_stdout = process.stdout.take()
+                            let process_stdout = process
+                                .stdout
+                                .take()
                                 .context("Failed to capture language server stdout");
 
                             match (process_stdin, process_stdout) {
@@ -380,15 +384,30 @@ impl LSPClient {
                                         let request_str = crate::strip_ansi_codes(&raw_request_str);
                                         let content_length = request_str.len();
 
-                                        if let Err(e) = writer.write_all(format!("Content-Length: {}\r\n\r\n{}", content_length, request_str).as_bytes()).await {
+                                        if let Err(e) = writer
+                                            .write_all(
+                                                format!(
+                                                    "Content-Length: {}\r\n\r\n{}",
+                                                    content_length, request_str
+                                                )
+                                                .as_bytes(),
+                                            )
+                                            .await
+                                        {
                                             error!("Failed to send initialize request: {}", e);
-                                            let _ = response_tx.send(Err(anyhow::anyhow!("Failed to send initialize request: {}", e)));
+                                            let _ = response_tx.send(Err(anyhow::anyhow!(
+                                                "Failed to send initialize request: {}",
+                                                e
+                                            )));
                                             return;
                                         }
 
                                         if let Err(e) = writer.flush().await {
                                             error!("Failed to flush stdin after initialize request: {}", e);
-                                            let _ = response_tx.send(Err(anyhow::anyhow!("Failed to flush stdin: {}", e)));
+                                            let _ = response_tx.send(Err(anyhow::anyhow!(
+                                                "Failed to flush stdin: {}",
+                                                e
+                                            )));
                                             return;
                                         }
 
@@ -402,7 +421,10 @@ impl LSPClient {
                                                 line.clear();
                                                 if let Err(e) = reader.read_line(&mut line).await {
                                                     error!("Failed to read response header: {}", e);
-                                                    let _ = response_tx.send(Err(anyhow::anyhow!("Failed to read response: {}", e)));
+                                                    let _ = response_tx.send(Err(anyhow::anyhow!(
+                                                        "Failed to read response: {}",
+                                                        e
+                                                    )));
                                                     return;
                                                 }
 
@@ -411,8 +433,12 @@ impl LSPClient {
                                                 }
 
                                                 if line.starts_with("Content-Length:") {
-                                                    if let Some(len_str) = line.strip_prefix("Content-Length:") {
-                                                        if let Ok(len) = len_str.trim().parse::<usize>() {
+                                                    if let Some(len_str) =
+                                                        line.strip_prefix("Content-Length:")
+                                                    {
+                                                        if let Ok(len) =
+                                                            len_str.trim().parse::<usize>()
+                                                        {
                                                             content_length = len;
                                                         }
                                                     }
@@ -422,33 +448,46 @@ impl LSPClient {
                                             // Read the response body
                                             if content_length > 0 {
                                                 let mut buffer = vec![0; content_length];
-                                                if let Err(e) = reader.read_exact(&mut buffer).await {
+                                                if let Err(e) = reader.read_exact(&mut buffer).await
+                                                {
                                                     error!("Failed to read response body: {}", e);
-                                                    let _ = response_tx.send(Err(anyhow::anyhow!("Failed to read response body: {}", e)));
+                                                    let _ = response_tx.send(Err(anyhow::anyhow!(
+                                                        "Failed to read response body: {}",
+                                                        e
+                                                    )));
                                                     return;
                                                 }
-                                                
+
                                                 // Log raw data for debugging
-                                                crate::debug_json_bytes(&buffer, "LSP-RESPONSE-RAW");
+                                                crate::debug_json_bytes(
+                                                    &buffer,
+                                                    "LSP-RESPONSE-RAW",
+                                                );
 
                                                 // Convert to string with proper UTF-8 handling
                                                 let text = String::from_utf8_lossy(&buffer);
-                                                
+
                                                 // Apply multiple sanitization passes to ensure complete removal of all ANSI codes
                                                 let text_no_ansi = crate::strip_ansi_codes(&text);
-                                                let text_double_sanitized = crate::strip_ansi_codes(&text_no_ansi);
-                                                
+                                                let text_double_sanitized =
+                                                    crate::strip_ansi_codes(&text_no_ansi);
+
                                                 // Log if ANSI codes were detected
                                                 if text != text_no_ansi {
                                                     info!("ANSI codes detected and sanitization passes applied");
                                                 }
-                                                
+
                                                 // Perform final sanitization with the improved sanitize_json_text function
-                                                let clean_text = crate::sanitize_json_text(&text_double_sanitized);
-                                                
+                                                let clean_text = crate::sanitize_json_text(
+                                                    &text_double_sanitized,
+                                                );
+
                                                 // Log the fully sanitized text for debugging
-                                                crate::debug_json_bytes(clean_text.as_bytes(), "LSP-RESPONSE-FULLY-SANITIZED");
-                                                
+                                                crate::debug_json_bytes(
+                                                    clean_text.as_bytes(),
+                                                    "LSP-RESPONSE-FULLY-SANITIZED",
+                                                );
+
                                                 // Use the sanitized text for JSON parsing
                                                 match serde_json::from_str::<Value>(&clean_text) {
                                                     Ok(response) => {
@@ -467,12 +506,21 @@ impl LSPClient {
                                                             });
 
                                                             // Ensure the outgoing notification doesn't have ANSI codes
-                                                            let notification_str = initialized_notification.to_string();
+                                                            let notification_str =
+                                                                initialized_notification
+                                                                    .to_string();
                                                             // Apply the improved strip_ansi_codes and sanitize_json_text functions
-                                                            let clean_notification_str = crate::strip_ansi_codes(&notification_str);
-                                                            let final_clean_str = crate::sanitize_json_text(&clean_notification_str);
-                                                            let content_length = final_clean_str.len();
-                
+                                                            let clean_notification_str =
+                                                                crate::strip_ansi_codes(
+                                                                    &notification_str,
+                                                                );
+                                                            let final_clean_str =
+                                                                crate::sanitize_json_text(
+                                                                    &clean_notification_str,
+                                                                );
+                                                            let content_length =
+                                                                final_clean_str.len();
+
                                                             if let Err(e) = writer.write_all(format!("Content-Length: {}\r\n\r\n{}", content_length, final_clean_str).as_bytes()).await {
                                                                 error!("Failed to send initialized notification: {}", e);
                                                             }
@@ -491,15 +539,21 @@ impl LSPClient {
                                                 }
                                             } else {
                                                 error!("Invalid content length in response");
-                                                let _ = response_tx.send(Err(anyhow::anyhow!("Invalid content length in response")));
+                                                let _ = response_tx.send(Err(anyhow::anyhow!(
+                                                    "Invalid content length in response"
+                                                )));
                                             }
                                         } else {
                                             error!("No stdout reader available");
-                                            let _ = response_tx.send(Err(anyhow::anyhow!("No stdout reader available")));
+                                            let _ = response_tx.send(Err(anyhow::anyhow!(
+                                                "No stdout reader available"
+                                            )));
                                         }
                                     } else {
                                         error!("No stdin writer available");
-                                        let _ = response_tx.send(Err(anyhow::anyhow!("No stdin writer available")));
+                                        let _ = response_tx.send(Err(anyhow::anyhow!(
+                                            "No stdin writer available"
+                                        )));
                                     }
                                 }
                                 (Err(e), _) => {
@@ -520,7 +574,9 @@ impl LSPClient {
                 }
                 ClientMessage::Shutdown { response_tx } => {
                     // Send shutdown request to the server
-                    if let (Some(writer), Some(reader)) = (stdin_writer.as_mut(), stdout_reader.as_mut()) {
+                    if let (Some(writer), Some(reader)) =
+                        (stdin_writer.as_mut(), stdout_reader.as_mut())
+                    {
                         request_id += 1;
                         let shutdown_request = json!({
                             "jsonrpc": "2.0",
@@ -532,15 +588,28 @@ impl LSPClient {
                         let request_str = shutdown_request.to_string();
                         let content_length = request_str.len();
 
-                        if let Err(e) = writer.write_all(format!("Content-Length: {}\r\n\r\n{}", content_length, request_str).as_bytes()).await {
+                        if let Err(e) = writer
+                            .write_all(
+                                format!(
+                                    "Content-Length: {}\r\n\r\n{}",
+                                    content_length, request_str
+                                )
+                                .as_bytes(),
+                            )
+                            .await
+                        {
                             error!("Failed to send shutdown request: {}", e);
-                            let _ = response_tx.send(Err(anyhow::anyhow!("Failed to send shutdown request: {}", e)));
+                            let _ = response_tx.send(Err(anyhow::anyhow!(
+                                "Failed to send shutdown request: {}",
+                                e
+                            )));
                             break;
                         }
 
                         if let Err(e) = writer.flush().await {
                             error!("Failed to flush stdin after shutdown request: {}", e);
-                            let _ = response_tx.send(Err(anyhow::anyhow!("Failed to flush stdin: {}", e)));
+                            let _ = response_tx
+                                .send(Err(anyhow::anyhow!("Failed to flush stdin: {}", e)));
                             break;
                         }
 
@@ -557,7 +626,16 @@ impl LSPClient {
                         let notification_str = exit_notification.to_string();
                         let content_length = notification_str.len();
 
-                        if let Err(e) = writer.write_all(format!("Content-Length: {}\r\n\r\n{}", content_length, notification_str).as_bytes()).await {
+                        if let Err(e) = writer
+                            .write_all(
+                                format!(
+                                    "Content-Length: {}\r\n\r\n{}",
+                                    content_length, notification_str
+                                )
+                                .as_bytes(),
+                            )
+                            .await
+                        {
                             error!("Failed to send exit notification: {}", e);
                         }
 
@@ -569,8 +647,12 @@ impl LSPClient {
                     let _ = response_tx.send(Ok(()));
                     break;
                 }
-                ClientMessage::OpenFile { file_path, response_tx } => {
-                    if let (Some(writer), Some(_)) = (stdin_writer.as_mut(), stdout_reader.as_mut()) {
+                ClientMessage::OpenFile {
+                    file_path,
+                    response_tx,
+                } => {
+                    if let (Some(writer), Some(_)) = (stdin_writer.as_mut(), stdout_reader.as_mut())
+                    {
                         // Read file content
                         match tokio::fs::read_to_string(&file_path).await {
                             Ok(content) => {
@@ -591,15 +673,31 @@ impl LSPClient {
                                 let notification_str = open_notification.to_string();
                                 let content_length = notification_str.len();
 
-                                if let Err(e) = writer.write_all(format!("Content-Length: {}\r\n\r\n{}", content_length, notification_str).as_bytes()).await {
+                                if let Err(e) = writer
+                                    .write_all(
+                                        format!(
+                                            "Content-Length: {}\r\n\r\n{}",
+                                            content_length, notification_str
+                                        )
+                                        .as_bytes(),
+                                    )
+                                    .await
+                                {
                                     error!("Failed to send didOpen notification: {}", e);
-                                    let _ = response_tx.send(Err(anyhow::anyhow!("Failed to send didOpen notification: {}", e)));
+                                    let _ = response_tx.send(Err(anyhow::anyhow!(
+                                        "Failed to send didOpen notification: {}",
+                                        e
+                                    )));
                                     continue;
                                 }
 
                                 if let Err(e) = writer.flush().await {
-                                    error!("Failed to flush stdin after didOpen notification: {}", e);
-                                    let _ = response_tx.send(Err(anyhow::anyhow!("Failed to flush stdin: {}", e)));
+                                    error!(
+                                        "Failed to flush stdin after didOpen notification: {}",
+                                        e
+                                    );
+                                    let _ = response_tx
+                                        .send(Err(anyhow::anyhow!("Failed to flush stdin: {}", e)));
                                     continue;
                                 }
 
@@ -607,11 +705,15 @@ impl LSPClient {
                             }
                             Err(e) => {
                                 error!("Failed to read file content: {}", e);
-                                let _ = response_tx.send(Err(anyhow::anyhow!("Failed to read file content: {}", e)));
+                                let _ = response_tx.send(Err(anyhow::anyhow!(
+                                    "Failed to read file content: {}",
+                                    e
+                                )));
                             }
                         }
                     } else {
-                        let _ = response_tx.send(Err(anyhow::anyhow!("Language server not initialized")));
+                        let _ = response_tx
+                            .send(Err(anyhow::anyhow!("Language server not initialized")));
                     }
                 }
                 // Other message handlers will be implemented in future PRs
@@ -645,14 +747,16 @@ impl LSPClient {
                 .stderr(Stdio::piped())
                 .spawn()
                 .context("Failed to start pyright-langserver")?,
-            Language::JavaScript | Language::TypeScript => Command::new("typescript-language-server")
-                .args(["--stdio"])
-                .current_dir(root_path)
-                .stdin(Stdio::piped())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .spawn()
-                .context("Failed to start typescript-language-server")?,
+            Language::JavaScript | Language::TypeScript => {
+                Command::new("typescript-language-server")
+                    .args(["--stdio"])
+                    .current_dir(root_path)
+                    .stdin(Stdio::piped())
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::piped())
+                    .spawn()
+                    .context("Failed to start typescript-language-server")?
+            }
             Language::Go => Command::new("gopls")
                 .args(["serve", "-rpc.trace", "--debug=localhost:6060"])
                 .current_dir(root_path)

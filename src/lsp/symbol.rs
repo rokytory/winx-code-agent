@@ -228,7 +228,10 @@ impl SymbolManager {
             }
         });
 
-        let response = self.client.send_request("textDocument/documentSymbol", params).await?;
+        let response = self
+            .client
+            .send_request("textDocument/documentSymbol", params)
+            .await?;
         let symbols: Vec<Symbol> = serde_json::from_value(response)?;
 
         info!("Found {} symbols in {}", symbols.len(), file_path.display());
@@ -251,8 +254,15 @@ impl SymbolManager {
     }
 
     /// Gets the definition for a symbol at a specific position
-    pub async fn get_definition(&self, file_path: &Path, position: Position) -> Result<Vec<Location>> {
-        debug!("Getting definition at {}:{}", position.line, position.character);
+    pub async fn get_definition(
+        &self,
+        file_path: &Path,
+        position: Position,
+    ) -> Result<Vec<Location>> {
+        debug!(
+            "Getting definition at {}:{}",
+            position.line, position.character
+        );
 
         let uri = path_to_uri(file_path);
         let params = serde_json::json!({
@@ -265,7 +275,10 @@ impl SymbolManager {
             }
         });
 
-        let response = self.client.send_request("textDocument/definition", params).await?;
+        let response = self
+            .client
+            .send_request("textDocument/definition", params)
+            .await?;
 
         // The response can be either a single Location or an array of Locations
         let locations: Vec<Location> = if response.is_array() {
@@ -279,8 +292,16 @@ impl SymbolManager {
     }
 
     /// Gets all references to a symbol at a specific position
-    pub async fn get_references(&self, file_path: &Path, position: Position, include_definition: bool) -> Result<Vec<Location>> {
-        debug!("Getting references at {}:{}", position.line, position.character);
+    pub async fn get_references(
+        &self,
+        file_path: &Path,
+        position: Position,
+        include_definition: bool,
+    ) -> Result<Vec<Location>> {
+        debug!(
+            "Getting references at {}:{}",
+            position.line, position.character
+        );
 
         let uri = path_to_uri(file_path);
         let params = serde_json::json!({
@@ -296,7 +317,10 @@ impl SymbolManager {
             }
         });
 
-        let response = self.client.send_request("textDocument/references", params).await?;
+        let response = self
+            .client
+            .send_request("textDocument/references", params)
+            .await?;
         let locations: Vec<Location> = serde_json::from_value(response)?;
 
         info!("Found {} references", locations.len());
@@ -305,7 +329,10 @@ impl SymbolManager {
 
     /// Gets the hover information for a symbol at a specific position
     pub async fn get_hover(&self, file_path: &Path, position: Position) -> Result<Option<String>> {
-        debug!("Getting hover info at {}:{}", position.line, position.character);
+        debug!(
+            "Getting hover info at {}:{}",
+            position.line, position.character
+        );
 
         let uri = path_to_uri(file_path);
         let params = serde_json::json!({
@@ -318,7 +345,10 @@ impl SymbolManager {
             }
         });
 
-        let response = self.client.send_request("textDocument/hover", params).await?;
+        let response = self
+            .client
+            .send_request("textDocument/hover", params)
+            .await?;
 
         // If no hover information is available, we might get null
         if response.is_null() {
@@ -326,7 +356,9 @@ impl SymbolManager {
         }
 
         // Extract the contents from the hover response
-        let contents = response.get("contents").ok_or_else(|| anyhow::anyhow!("Missing 'contents' in hover response"))?;
+        let contents = response
+            .get("contents")
+            .ok_or_else(|| anyhow::anyhow!("Missing 'contents' in hover response"))?;
 
         // The contents can be in different formats
         let hover_text = if contents.is_string() {
@@ -420,10 +452,16 @@ impl SymbolManager {
         });
 
         // Apply the edit
-        let response = self.client.send_request("workspace/applyEdit", edit).await?;
+        let response = self
+            .client
+            .send_request("workspace/applyEdit", edit)
+            .await?;
 
         // Check if the edit was applied successfully
-        let applied = response.get("applied").and_then(|v| v.as_bool()).unwrap_or(false);
+        let applied = response
+            .get("applied")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
 
         if !applied {
             let failure_reason = response

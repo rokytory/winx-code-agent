@@ -68,21 +68,21 @@ impl LSPServer {
                 info!("LSP server started successfully");
 
                 Ok(())
-            },
+            }
             Err(e) => {
                 // Enhanced error reporting
                 error!("Failed to create LSP client: {}", e);
-                
+
                 // Provide more context about the error for debugging
                 if let Some(source) = e.source() {
                     error!("Caused by: {}", source);
-                    
+
                     // Extract more error details if available
                     if let Some(deeper_source) = source.source() {
                         error!("Root cause: {}", deeper_source);
                     }
                 }
-                
+
                 // Return the error with context
                 Err(anyhow::anyhow!("Failed to create LSP client: {}", e))
             }
