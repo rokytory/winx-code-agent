@@ -25,11 +25,15 @@ pub struct WinxTools {
 /// Verifica se a inicialização foi realizada e lança erro se não
 fn check_initialized() -> Result<(), McpError> {
     if !INITIALIZED.load(Ordering::SeqCst) {
-        warn!("Tentativa de usar ferramenta sem inicialização prévia");
+        warn!("Attempt to use tool without prior initialization");
         return Err(McpError::internal_error(
             "initialize_error",
             Some(serde_json::json!({
-                "error": "GOT EXCEPTION while calling tool. Error: Initialize tool not called yet."
+                "error": crate::t!(
+                    "Tool initialization required. Please call init_vibe_code first.",
+                    "Inicialização da ferramenta necessária. Por favor, chame init_vibe_code primeiro.",
+                    "Se requiere inicialización de herramienta. Por favor, llame a init_vibe_code primero."
+                )
             })),
         ));
     }
