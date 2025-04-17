@@ -12,7 +12,7 @@ pub mod thinking;
 pub mod utils;
 
 use anyhow::Result;
-use tracing::{info, debug};
+use tracing::info;
 
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
@@ -24,30 +24,67 @@ pub fn debug_json_bytes(data: &[u8], prefix: &str) {
         return;
     }
     
-    // Log bytes in hexadecimal format
+    // Log bytes in hexadecimal format - show up to 100 bytes
+    let display_limit = std::cmp::min(data.len(), 100);
     let hex_data = data.iter()
+        .take(display_limit)
         .map(|b| format!("{:02x}", b))
         .collect::<Vec<_>>()
         .join(" ");
     
     // Log the first bytes for detailed analysis
-    info!("{} - Raw bytes (hex): {}", prefix, hex_data);
+    info!("{} - Raw bytes (hex, first {}): {}", prefix, display_limit, hex_data);
     
     // Try to decode as UTF-8
     match std::str::from_utf8(data) {
         Ok(text) => {
-            info!("{} - UTF-8 text: {}", prefix, text);
+            // Show a preview of the text (limited to avoid log overflow)
+            let preview_len = std::cmp::min(text.len(), 200);
+            let preview = if text.len() > preview_len {
+                format!("{}... (truncated, total length: {})", &text[..preview_len], text.len())
+            } else {
+                text.to_string()
+            };
             
-            // If it's JSON, examine more details
+            info!("{} - UTF-8 text: {}", prefix, preview);
+            
+            // If it's JSON, try to parse and examine structure
             if text.contains("jsonrpc") {
-                // Check each character in the first bytes (where the error occurs)
-                for (i, &b) in data.iter().take(10).enumerate() {
+                // Check each character in the first bytes (where parsing errors often occur)
+                for (i, &b) in data.iter().take(20).enumerate() {
                     let char_desc = if b < 32 || b > 126 {
                         format!("\\x{:02x} (control)", b)
                     } else {
                         format!("'{}' ({})", b as char, b)
                     };
                     info!("{} - Byte {}: {}", prefix, i, char_desc);
+                }
+                
+                // Try to parse as JSON to identify parsing issues
+                match serde_json::from_str::<serde_json::Value>(text) {
+                    Ok(json) => {
+                        // Check for important JSON-RPC fields
+                        if let Some(obj) = json.as_object() {
+                            info!("{} - JSON-RPC detected. Fields present: id={}, method={}, params={}",
+                                prefix,
+                                obj.contains_key("id"),
+                                obj.contains_key("method"),
+                                obj.contains_key("params")
+                            );
+                            
+                            // Log the structure of params if present
+                            if let Some(params) = obj.get("params") {
+                                info!("{} - Params type: {}", prefix, 
+                                    if params.is_object() { "object" } 
+                                    else if params.is_array() { "array" } 
+                                    else { "other" }
+                                );
+                            }
+                        }
+                    },
+                    Err(e) => {
+                        info!("{} - JSON parsing failed: {}", prefix, e);
+                    }
                 }
             }
         },
