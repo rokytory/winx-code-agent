@@ -11,29 +11,60 @@ use crate::core::types::{
 pub async fn execute_bash_command(state: &SharedState, command_json: &str) -> Result<String> {
     debug!("Executing bash command: {}", command_json);
 
-    // Parse the command JSON
-    let bash_command: BashCommand =
-        serde_json::from_str(command_json).context("Failed to parse bash command JSON")?;
+    // Try to parse as JSON first
+    let command_str = if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(command_json) {
+        if json_value.is_string() {
+            // The value is a simple string
+            json_value.as_str().unwrap_or("").to_string()
+        } else if let Some(obj) = json_value.as_object() {
+            // It's a JSON object
+            if let Some(cmd) = obj.get("command") {
+                if cmd.is_string() {
+                    cmd.as_str().unwrap_or("").to_string()
+                } else {
+                    return Err(anyhow::anyhow!("Command property must be a string"));
+                }
+            } else if let Some(action_json) = obj.get("action_json") {
+                // Encapsulated format
+                if action_json.is_string() {
+                    // action_json is a string
+                    action_json.as_str().unwrap_or("").to_string()
+                } else if let Some(action_obj) = action_json.as_object() {
+                    // action_json is an object
+                    if let Some(cmd) = action_obj.get("command") {
+                        if cmd.is_string() {
+                            cmd.as_str().unwrap_or("").to_string()
+                        } else {
+                            return Err(anyhow::anyhow!("Command property in action_json must be a string"));
+                        }
+                    } else {
+                        return Err(anyhow::anyhow!("Missing command property in action_json object"));
+                    }
+                } else {
+                    return Err(anyhow::anyhow!("Invalid action_json format"));
+                }
+            } else {
+                return Err(anyhow::anyhow!("Invalid command object format"));
+            }
+        } else {
+            // Neither string nor object
+            return Err(anyhow::anyhow!("Invalid command format, must be string or object"));
+        }
+    } else {
+        // Not valid JSON, try to use as direct string
+        command_json.to_string()
+    };
 
-    // Execute according to the action type
-    match bash_command.action_json {
-        BashAction::Command(CommandType { command }) => execute_command(state, &command).await,
-        BashAction::StatusCheck(_) => check_status(state).await,
-        BashAction::SendText(SendText { send_text }) => send_text_input(state, &send_text).await,
-        BashAction::SendSpecials(SendSpecials { send_specials }) => {
-            send_special_keys(state, &send_specials).await
-        }
-        BashAction::SendAscii(SendAscii { send_ascii }) => {
-            send_ascii_chars(state, &send_ascii).await
-        }
-    }
+    // Execute the command
+    debug!("Parsed command: {}", command_str);
+    execute_command(state, &command_str).await
 }
 
 /// Execute a bash command
-async fn execute_command(state: &SharedState, command: &str) -> Result<String> {
+pub async fn execute_command(state: &SharedState, command: &str) -> Result<String> {
     debug!("Executing command: {}", command);
 
-    // Verificar permissão e obter o workspace path
+    // Check permission and get workspace path
     let workspace_path = {
         let state_guard = state.lock().unwrap();
 

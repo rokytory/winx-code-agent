@@ -4,14 +4,14 @@ use std::path::PathBuf;
 use crate::core::state::SharedState;
 pub use crate::lsp::types::Language;
 
-/// Contexto compartilhado para ferramentas MCP
+/// Shared context for MCP tools
 #[derive(Clone)]
 pub struct WinxContext {
     pub state: SharedState,
 }
 
 impl WinxContext {
-    /// Criar novo contexto com o estado compartilhado
+    /// Create a new context with the shared state
     pub fn new(state: SharedState) -> Self {
         Self { state }
     }
@@ -139,7 +139,9 @@ pub struct SendAscii {
 /// Bash command execution model
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BashCommand {
+    #[serde(flatten)]
     pub action_json: BashAction,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub wait_for_seconds: Option<f32>,
 }
 

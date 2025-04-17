@@ -29,32 +29,50 @@ impl WinxTools {
         #[tool(param)] action_json: serde_json::Value,
         #[tool(param)] wait_for_seconds: Option<f32>,
     ) -> Result<CallToolResult, McpError> {
-        // Claude can send action_json in two ways:
-        // 1. As a simple string: "ls -la"
-        // 2. As a JSON object: {"command": "ls -la"}
+        // We simplify the logic to handle the input in the most common formats:
+        // 1. JSON Object: {"command": "ls -la"}
+        // 2. Simple String: "ls -la"
         
-        // We check the received format and adapt accordingly
-        let command_json = if action_json.is_string() {
-            // If it's a simple string, we convert it to the expected format
-            let cmd_string = action_json.as_str().unwrap_or("");
-            let bash_cmd = crate::core::types::BashCommand {
-                action_json: crate::core::types::BashAction::Command(
-                    crate::core::types::Command {
-                        command: cmd_string.to_string(),
-                    }
-                ),
-                wait_for_seconds,
-            };
-            serde_json::to_string(&bash_cmd).unwrap_or_default()
+        info!("Bash command received: {:?}", action_json);
+        
+        let command = if action_json.is_string() {
+            // If it's a simple string, use it as a command
+            action_json.as_str().unwrap_or("").to_string()
+        } else if let Some(obj) = action_json.as_object() {
+            // If it's a JSON object with a "command" property
+            if let Some(cmd) = obj.get("command") {
+                if cmd.is_string() {
+                    cmd.as_str().unwrap_or("").to_string()
+                } else {
+                    return Err(McpError::invalid_params(
+                        "command_format_error",
+                        Some(serde_json::json!({
+                            "error": "command property must be a string"
+                        })),
+                    ));
+                }
+            } else {
+                return Err(McpError::invalid_params(
+                    "command_format_error", 
+                    Some(serde_json::json!({
+                        "error": "command property is required in action_json object"
+                    })),
+                ));
+            }
         } else {
-            // If it's already a JSON object, we use it as is
-            serde_json::to_string(&action_json).unwrap_or_default()
+            return Err(McpError::invalid_params(
+                "command_format_error",
+                Some(serde_json::json!({
+                    "error": "action_json must be a string or an object with a command property"
+                })),
+            ));
         };
         
-        info!("Executing bash command: {}", command_json);
+        // Execute the command directly
+        info!("Executing bash command: {}", command);
         
-        // Execute the command using the correct format
-        let result = bash::execute_bash_command(&self.state, &command_json)
+        // Execute the command
+        let result = bash::execute_command(&self.state, &command)
             .await
             .map_err(|e| {
                 McpError::internal_error(
