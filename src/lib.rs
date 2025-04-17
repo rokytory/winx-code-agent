@@ -21,12 +21,20 @@ use once_cell::sync::Lazy;
 /// Regex for stripping ANSI color codes - very comprehensive
 static ANSI_REGEX: Lazy<Regex> = Lazy::new(|| {
     // This matches all ANSI escape sequences used for colors and formatting
-    Regex::new(r"\x1b(?:[@-Z\\-_]|\[[0-9?;]*[0-9A-Za-z])").unwrap_or_else(|_| Regex::new(r"").unwrap())
+    // Enhanced pattern to catch more edge cases
+    Regex::new(r"\x1b(?:[@-Z\\-_]|\[[0-9:;<=>?]*[ -/]*[@-~])").unwrap_or_else(|_| Regex::new(r"").unwrap())
 });
 
 /// Strip ANSI color codes from a string
 pub fn strip_ansi_codes(input: &str) -> String {
-    ANSI_REGEX.replace_all(input, "").to_string()
+    // First, replace standard escape sequences with regex
+    let result = ANSI_REGEX.replace_all(input, "").to_string();
+    
+    // Then manually filter out any remaining control characters
+    // This catches any non-standard or broken ANSI sequences
+    result.chars()
+        .filter(|&c| c >= ' ' || c == '\n' || c == '\r' || c == '\t')
+        .collect()
 }
 
 pub fn version() -> &'static str {

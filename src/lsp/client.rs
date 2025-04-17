@@ -422,8 +422,27 @@ impl LSPClient {
                                                     let _ = response_tx.send(Err(anyhow::anyhow!("Failed to read response body: {}", e)));
                                                     return;
                                                 }
+                                                
+                                                // Log raw data for debugging if there might be ANSI codes
+                                                crate::debug_json_bytes(&buffer, "LSP-RESPONSE-RAW");
 
-                                                match serde_json::from_slice::<Value>(&buffer) {
+                                                // Strip ANSI codes before trying JSON parsing
+                                                let text = String::from_utf8_lossy(&buffer);
+                                                // Always log raw data for debugging
+                                                crate::debug_json_bytes(&buffer, "LSP-RESPONSE-RAW");
+                                                
+                                                // More aggressive ANSI stripping - double sanitize to ensure all codes are removed
+                                                let text_no_ansi = crate::strip_ansi_codes(&text);
+                                                let text_double_sanitized = crate::strip_ansi_codes(&text_no_ansi);
+                                                
+                                                // Log when ANSI codes are detected and stripped
+                                                if text != text_no_ansi {
+                                                    info!("ANSI codes detected and stripped from LSP server response");
+                                                    crate::debug_json_bytes(text_no_ansi.as_bytes(), "LSP-RESPONSE-SANITIZED");
+                                                }
+                                                
+                                                // Use the sanitized text for JSON parsing
+                                                match serde_json::from_str::<Value>(&text_double_sanitized) {
                                                     Ok(response) => {
                                                         // Check for success
                                                         if response.get("error").is_some() {
@@ -440,9 +459,13 @@ impl LSPClient {
                                                             });
 
                                                             let notification_str = initialized_notification.to_string();
-                                                            let content_length = notification_str.len();
-
-                                                            if let Err(e) = writer.write_all(format!("Content-Length: {}\r\n\r\n{}", content_length, notification_str).as_bytes()).await {
+                                                            // Strip ANSI codes before sending
+                                                            // Double sanitize to ensure all ANSI codes are removed
+                                                            let clean_notification_str = crate::strip_ansi_codes(&notification_str);
+                                                            let double_clean_str = crate::strip_ansi_codes(&clean_notification_str);
+                                                            let content_length = double_clean_str.len();
+                
+                                                            if let Err(e) = writer.write_all(format!("Content-Length: {}\r\n\r\n{}", content_length, double_clean_str).as_bytes()).await {
                                                                 error!("Failed to send initialized notification: {}", e);
                                                             }
 

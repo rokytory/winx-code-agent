@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 use crate::lsp::client::LSPClient;
 use crate::lsp::types::{LSPConfig, Language, Symbol, SymbolLocation};
@@ -56,20 +56,37 @@ impl LSPServer {
             self.config.language
         );
 
-        // Create a new LSP client
-        let client = LSPClient::new(self.config.clone(), &self.root_path)
-            .await
-            .context("Failed to create LSP client")?;
+        // Create a new LSP client with improved error handling
+        match LSPClient::new(self.config.clone(), &self.root_path).await {
+            Ok(client) => {
+                // Store the client
+                let mut client_guard = self.client.lock().unwrap();
+                *client_guard = Some(client);
+                drop(client_guard);
 
-        // Store the client
-        let mut client_guard = self.client.lock().unwrap();
-        *client_guard = Some(client);
-        drop(client_guard);
+                self.is_running = true;
+                info!("LSP server started successfully");
 
-        self.is_running = true;
-        info!("LSP server started successfully");
-
-        Ok(())
+                Ok(())
+            },
+            Err(e) => {
+                // Enhanced error reporting
+                error!("Failed to create LSP client: {}", e);
+                
+                // Provide more context about the error for debugging
+                if let Some(source) = e.source() {
+                    error!("Caused by: {}", source);
+                    
+                    // Extract more error details if available
+                    if let Some(deeper_source) = source.source() {
+                        error!("Root cause: {}", deeper_source);
+                    }
+                }
+                
+                // Return the error with context
+                Err(anyhow::anyhow!("Failed to create LSP client: {}", e))
+            }
+        }
     }
 
     /// Stop the LSP server
