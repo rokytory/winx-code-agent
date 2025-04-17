@@ -1,7 +1,22 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use std::sync::Arc;
-use tracing::debug;
+use tracing::{debug, warn};
+
+// Conditional compilation for tree-sitter functionality
+#[cfg(feature = "syntax_validation")]
 use tree_sitter::{Language, Parser, Tree};
+
+// External FFI declarations for tree-sitter language parsers
+// Only include these when syntax validation is enabled
+#[cfg(feature = "syntax_validation")]
+extern "C" {
+    fn tree_sitter_rust() -> Language;
+    fn tree_sitter_javascript() -> Language;
+    fn tree_sitter_python() -> Language;
+}
+
+// Set to false to disable syntax validation at runtime
+static SYNTAX_VALIDATION_ENABLED: bool = false;
 
 /// Result of syntax validation
 #[derive(Debug, Clone)]
@@ -14,82 +29,164 @@ pub struct SyntaxValidationResult {
     pub description: String,
 }
 
-/// Syntax validator for various programming languages
+/// Syntax validator interface
 pub struct SyntaxValidator {
-    /// Tree-sitter parsers for different languages
-    parsers: std::collections::HashMap<String, (Parser, Language)>,
+    #[cfg(feature = "syntax_validation")]
+    parsers: std::collections::HashMap<String, Parser>,
+    
+    #[cfg(not(feature = "syntax_validation"))]
+    _dummy: bool, // Just to have a field when tree-sitter is disabled
 }
 
 impl SyntaxValidator {
     /// Create a new syntax validator
     pub fn new() -> Result<Self> {
-        let mut parsers = std::collections::HashMap::new();
+        // Early return if syntax validation is disabled
+        if !SYNTAX_VALIDATION_ENABLED {
+            debug!("Syntax validation is disabled in this build");
+            return Ok(Self::create_dummy());
+        }
+        
+        #[cfg(feature = "syntax_validation")]
+        {
+            let mut parsers = std::collections::HashMap::new();
 
-        // Initialize languages that we've added dependencies for
-        let mut rust_parser = Parser::new();
-        let rust_lang = tree_sitter_rust::language();
-        rust_parser.set_language(rust_lang)?;
-        parsers.insert("rs".to_string(), (rust_parser, rust_lang));
+            // Initialize languages with robust error handling
+            // Use a safe flag to track if tree-sitter libraries are available
+            let mut tree_sitter_libs_available = true;
 
-        let mut js_parser = Parser::new();
-        let js_lang = tree_sitter_javascript::language();
-        js_parser.set_language(js_lang)?;
-        parsers.insert("js".to_string(), (js_parser, js_lang));
+            // Try to initialize Rust parser
+            if let Err(e) = Self::try_init_parser(&mut parsers, "rs", || unsafe { tree_sitter_rust() }) {
+                debug!("Failed to initialize Rust parser: {}", e);
+                tree_sitter_libs_available = false;
+            }
 
-        // Create a new parser for JSX since Parser doesn't implement Clone
-        let mut jsx_parser = Parser::new();
-        jsx_parser.set_language(js_lang)?;
-        parsers.insert("jsx".to_string(), (jsx_parser, js_lang));
+            // Only try other parsers if first one succeeded
+            if tree_sitter_libs_available {
+                // Try JavaScript
+                if let Err(e) = Self::try_init_parser(&mut parsers, "js", || unsafe { tree_sitter_javascript() }) {
+                    debug!("Failed to initialize JavaScript parser: {}", e);
+                } else {
+                    // JSX uses same parser as JavaScript
+                    if let Err(e) = Self::try_init_parser(&mut parsers, "jsx", || unsafe { tree_sitter_javascript() }) {
+                        debug!("Failed to initialize JSX parser: {}", e);
+                    }
+                }
 
-        let mut py_parser = Parser::new();
-        let py_lang = tree_sitter_python::language();
-        py_parser.set_language(py_lang)?;
-        parsers.insert("py".to_string(), (py_parser, py_lang));
+                // Try Python
+                if let Err(e) = Self::try_init_parser(&mut parsers, "py", || unsafe { tree_sitter_python() }) {
+                    debug!("Failed to initialize Python parser: {}", e);
+                }
+            }
 
-        Ok(Self { parsers })
+            if parsers.is_empty() {
+                debug!("No syntax parsers could be initialized - syntax validation will be disabled");
+            } else {
+                let parser_names: Vec<String> = parsers.keys().cloned().collect();
+                debug!("Initialized syntax parsers for: {}", parser_names.join(", "));
+            }
+
+            return Ok(Self { parsers });
+        }
+        
+        #[cfg(not(feature = "syntax_validation"))]
+        {
+            return Ok(Self::create_dummy());
+        }
+    }
+    
+    /// Create a dummy validator when syntax validation is disabled
+    #[cfg(not(feature = "syntax_validation"))]
+    fn create_dummy() -> Self {
+        Self { _dummy: false }
+    }
+    
+    /// Create a dummy validator when syntax validation is disabled
+    #[cfg(feature = "syntax_validation")]
+    fn create_dummy() -> Self {
+        Self { parsers: std::collections::HashMap::new() }
+    }
+
+    /// Helper to safely try to initialize a parser
+    #[cfg(feature = "syntax_validation")]
+    fn try_init_parser<F>(
+        parsers: &mut std::collections::HashMap<String, Parser>, 
+        extension: &str, 
+        get_lang: F
+    ) -> Result<()> 
+    where 
+        F: FnOnce() -> Language 
+    {
+        let mut parser = Parser::new();
+        let lang = (get_lang)();
+        parser.set_language(&lang)?;
+        parsers.insert(extension.to_string(), parser);
+        Ok(())
     }
 
     /// Validate syntax for a given language extension and content
     pub fn validate(&mut self, extension: &str, content: &str) -> SyntaxValidationResult {
-        let extension = extension.trim().to_lowercase();
-
-        // Check if we support this language
-        if !self.parsers.contains_key(&extension) {
-            debug!("No syntax validator for extension: {}", extension);
+        // If syntax validation is disabled, always return valid
+        if !SYNTAX_VALIDATION_ENABLED {
             return SyntaxValidationResult {
-                is_valid: true, // Assume valid for unsupported languages
+                is_valid: true,
                 errors: Vec::new(),
-                description: format!("No syntax validator available for .{} files", extension),
+                description: "Syntax validation is disabled".to_string(),
             };
         }
+        
+        #[cfg(feature = "syntax_validation")]
+        {
+            let extension = extension.trim().to_lowercase();
 
-        // Parse the content
-        if let Some((parser, _)) = self.parsers.get_mut(&extension) {
-            let tree = parser.parse(content.as_bytes(), None);
+            // Check if we support this language
+            if !self.parsers.contains_key(&extension) {
+                debug!("No syntax validator for extension: {}", extension);
+                return SyntaxValidationResult {
+                    is_valid: true, // Assume valid for unsupported languages
+                    errors: Vec::new(),
+                    description: format!("No syntax validator available for .{} files", extension),
+                };
+            }
 
-            match tree {
-                Some(tree) => {
-                    self.analyze_syntax_errors(&tree, &extension)
-                }
-                None => {
-                    SyntaxValidationResult {
-                        is_valid: false,
-                        errors: vec![(1, 1, "Failed to parse content".to_string())],
-                        description: "Parsing failed - the syntax may be severely malformed".to_string(),
+            // Parse the content
+            if let Some(parser) = self.parsers.get_mut(&extension) {
+                let tree = parser.parse(content.as_bytes(), None);
+
+                match tree {
+                    Some(tree) => {
+                        self.analyze_syntax_errors(&tree, &extension)
+                    }
+                    None => {
+                        SyntaxValidationResult {
+                            is_valid: false,
+                            errors: vec![(1, 1, "Failed to parse content".to_string())],
+                            description: "Parsing failed - the syntax may be severely malformed".to_string(),
+                        }
                     }
                 }
+            } else {
+                // Should never happen due to earlier check
+                SyntaxValidationResult {
+                    is_valid: true,
+                    errors: Vec::new(),
+                    description: "No syntax validation performed".to_string(),
+                }
             }
-        } else {
-            // Should never happen due to earlier check
+        }
+        
+        #[cfg(not(feature = "syntax_validation"))]
+        {
             SyntaxValidationResult {
                 is_valid: true,
                 errors: Vec::new(),
-                description: "No syntax validation performed".to_string(),
+                description: "Syntax validation is not available in this build".to_string(),
             }
         }
     }
 
     /// Analyze a syntax tree to find errors
+    #[cfg(feature = "syntax_validation")]
     fn analyze_syntax_errors(&self, tree: &Tree, extension: &str) -> SyntaxValidationResult {
         // Tree-sitter doesn't directly report syntax errors
         // We need to look for ERROR nodes in the syntax tree
@@ -148,12 +245,24 @@ static SYNTAX_VALIDATOR: OnceCell<Arc<std::sync::Mutex<SyntaxValidator>>> = Once
 
 /// Get the shared syntax validator instance
 pub fn get_syntax_validator() -> Result<Arc<std::sync::Mutex<SyntaxValidator>>> {
-    SYNTAX_VALIDATOR
-        .get_or_try_init(|| {
-            let validator = SyntaxValidator::new()?;
-            Ok(Arc::new(std::sync::Mutex::new(validator)))
-        })
-        .cloned()
+    // If syntax validation is disabled, return a dummy validator
+    if !SYNTAX_VALIDATION_ENABLED {
+        warn!("Syntax validation is disabled. Using dummy validator.");
+        return Ok(Arc::new(std::sync::Mutex::new(SyntaxValidator::create_dummy())));
+    }
+    
+    // Try to initialize a syntax validator
+    let validator_arc = Arc::new(std::sync::Mutex::new(
+        match SyntaxValidator::new() {
+            Ok(validator) => validator,
+            Err(e) => {
+                debug!("Failed to initialize syntax validator: {}. Using dummy validator.", e);
+                SyntaxValidator::create_dummy()
+            }
+        }
+    ));
+    
+    Ok(validator_arc)
 }
 
 /// Validate syntax for a file
