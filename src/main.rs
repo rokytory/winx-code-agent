@@ -36,11 +36,11 @@ async fn main() -> Result<()> {
     // Register tools
     register_tools(state.clone()).context("Failed to register tools")?;
     
-    // Start the MCP server
+    // Start the MCP server - as tools já são registradas pelo register_tools
     info!("Starting MCP server");
-    let client = ().serve(
-        TokioChildProcess::new(Command::new("npx").arg("-y").arg("@modelcontextprotocol/server-everything"))?
-    ).await.context("Failed to start MCP server")?;
+    
+    // Ao invés de iniciar um MCP client, vamos esperar conexões
+    info!("Waiting for MCP connections...");
     
     info!("Winx agent started successfully");
     
