@@ -23,7 +23,9 @@ async fn main() -> Result<()> {
     }
 
     // Initialize with ANSI colors explicitly disabled for MCP compatibility
-    winx::init_with_logger(false).context("Failed to initialize Winx agent")?;
+    // and provide workspace path for terminal and memory components
+    winx::init_with_workspace(&workspace_path.to_string_lossy())
+        .context("Failed to initialize Winx agent")?;
 
     // Log version and environment information
     info!(
@@ -42,10 +44,16 @@ async fn main() -> Result<()> {
 
     info!("Using workspace path: {}", workspace_path.display());
 
-    // Initialize state with wcgw mode
+    // Initialize state with wcgw mode and any stored task information
     let state = match create_shared_state(workspace_path.clone(), ModeType::Wcgw, None, None) {
         Ok(state) => {
             info!("Agent state created successfully");
+            
+            // Initialize syntax validator
+            if let Err(e) = winx::code::get_syntax_validator() {
+                info!("Warning: Syntax validator initialization failed: {}", e);
+            }
+            
             state
         }
         Err(e) => {
