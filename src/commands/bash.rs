@@ -49,6 +49,7 @@ async fn execute_command(state: &SharedState, command: &str) -> Result<String> {
         .arg(command)
         .current_dir(&state_guard.workspace_path)
         .output()
+        .await
         .context("Failed to execute command")?;
     
     let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
