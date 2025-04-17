@@ -489,8 +489,30 @@ pub fn find_best_match_line(content_lines: &[String], search_line: &str) -> Opti
     let mut best_score = f64::MAX;
     let mut best_idx = 0;
 
+    // Preprocess the search line - remove leading/trailing whitespace
+    let search_line_trimmed = search_line.trim();
+    let search_line_nospace = search_line_trimmed.split_whitespace().collect::<String>();
+    
     for (i, line) in content_lines.iter().enumerate() {
-        // Create a string from the line for TextDiff
+        // Try different matching strategies for better results
+        
+        // 1. Direct string comparison (fastest)
+        if line.trim() == search_line_trimmed {
+            return Some((i, 0.0)); // Perfect match
+        }
+        
+        // 2. Case-insensitive comparison
+        if line.trim().to_lowercase() == search_line_trimmed.to_lowercase() {
+            return Some((i, 0.1)); // Almost perfect match
+        }
+        
+        // 3. Whitespace-insensitive comparison
+        let line_nospace = line.split_whitespace().collect::<String>();
+        if line_nospace == search_line_nospace {
+            return Some((i, 0.2)); // Good match ignoring whitespace
+        }
+        
+        // 4. Only if the above approaches fail, fall back to edit distance
         let line_str = line.to_string();
         let search_str = search_line.to_string();
         let diff = TextDiff::from_chars(&line_str, &search_str);
@@ -514,6 +536,28 @@ pub fn find_best_match_line(content_lines: &[String], search_line: &str) -> Opti
     Some((best_idx, best_score))
 }
 
+/// Calculate similarity score between two strings (0-1, higher is better)
+fn similarity_score(s1: &str, s2: &str) -> f64 {
+    let diff = TextDiff::from_chars(s1, s2);
+
+    let mut unchanged = 0;
+    let mut changed = 0;
+
+    for change in diff.iter_all_changes() {
+        match change.tag() {
+            ChangeTag::Equal => unchanged += change.value().chars().count(),
+            _ => changed += change.value().chars().count(),
+        }
+    }
+
+    let total = s1.chars().count() + s2.chars().count();
+    if total == 0 {
+        return 1.0; // Both strings empty = perfect match
+    }
+
+    (2.0 * unchanged as f64) / total as f64
+}
+
 /// Finds the context with lines that best match a search block
 pub fn find_context_for_search_block(
     content: &str,
@@ -529,7 +573,60 @@ pub fn find_context_for_search_block(
         return None;
     }
 
-    // Try to find the line with the best match for the first line of the block
+    // Try to find multiple potential matches
+    let mut potential_matches = Vec::new();
+    
+    // Try exact block matching first
+    'outer: for i in 0..=content_lines.len().saturating_sub(search_block.len()) {
+        let mut match_score = 0.0;
+        
+        for (j, search_line) in search_block.iter().enumerate() {
+            if i + j >= content_lines.len() {
+                continue 'outer;
+            }
+            
+            let content_line = &content_lines[i + j];
+            
+            // Direct equality check for exact matches
+            if content_line.trim() == search_line.trim() {
+                continue; // Perfect match for this line
+            }
+            
+            // Calculate similarity score
+            let line_score = similarity_score(content_line, search_line);
+            
+            // If any line is too dissimilar, this isn't a good block match
+            if line_score < 0.7 {
+                continue 'outer;
+            }
+            
+            match_score += 1.0 - line_score; // Lower is better
+        }
+        
+        // Record this potential match with its score
+        match_score /= search_block.len() as f64;
+        potential_matches.push((i, match_score));
+    }
+    
+    // If we found potential whole-block matches, use the best one
+    if !potential_matches.is_empty() {
+        // Sort by score (lower is better)
+        potential_matches.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+        let (best_idx, best_score) = potential_matches[0];
+        
+        // If the match is good enough
+        if best_score < 0.3 {
+            // Calculate line range for context
+            let start_idx = best_idx.saturating_sub(context_lines);
+            let end_idx = (best_idx + search_block.len() + context_lines).min(content_lines.len());
+            
+            // Extract context lines
+            let context = content_lines[start_idx..end_idx].join("\n");
+            return Some(context);
+        }
+    }
+    
+    // Fall back to finding the best match for just the first line
     let (best_idx, score) = match find_best_match_line(&content_lines, &search_block[0]) {
         Some(result) => result,
         None => return None,
