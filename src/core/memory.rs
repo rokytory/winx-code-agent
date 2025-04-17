@@ -76,7 +76,8 @@ impl MemoryStore {
     pub fn new(storage_dir: PathBuf) -> Result<Self> {
         // Create the directory if it doesn't exist
         if !storage_dir.exists() {
-            fs::create_dir_all(&storage_dir).context("Failed to create memory storage directory")?;
+            fs::create_dir_all(&storage_dir)
+                .context("Failed to create memory storage directory")?;
         }
 
         let mut store = Self {

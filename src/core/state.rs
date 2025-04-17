@@ -195,7 +195,8 @@ impl AgentState {
             ModeType::Wcgw => Mode::Wcgw,
             ModeType::Architect => Mode::Architect,
             ModeType::CodeWriter => {
-                let config = config.ok_or_else(|| anyhow::anyhow!("CodeWriter mode requires configuration"))?;
+                let config = config
+                    .ok_or_else(|| anyhow::anyhow!("CodeWriter mode requires configuration"))?;
                 Mode::CodeWriter(config)
             }
         };
@@ -249,7 +250,11 @@ impl AgentState {
     }
 
     /// Record file read with line ranges
-    pub fn record_file_read(&mut self, path: impl AsRef<Path>, ranges: &[(usize, usize)]) -> Result<()> {
+    pub fn record_file_read(
+        &mut self,
+        path: impl AsRef<Path>,
+        ranges: &[(usize, usize)],
+    ) -> Result<()> {
         let path = path.as_ref();
 
         // Ensure it's an absolute path
@@ -260,7 +265,8 @@ impl AgentState {
         };
 
         // Get or create file info
-        let file_info = self.read_files
+        let file_info = self
+            .read_files
             .entry(path.clone())
             .or_insert_with(|| FileReadInfo::new(&path));
 
@@ -320,9 +326,7 @@ impl AgentState {
         } else {
             // If file exists, return the entire file as unread
             if path.exists() {
-                let total_lines = std::fs::read_to_string(&path)?
-                    .lines()
-                    .count();
+                let total_lines = std::fs::read_to_string(&path)?.lines().count();
 
                 if total_lines > 0 {
                     Ok(vec![(1, total_lines)])
