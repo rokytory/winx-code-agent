@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use tokio::process::Command;
 use tracing::{debug, info, warn};
 
@@ -120,22 +120,63 @@ pub async fn execute_bash_command(state: &SharedState, command_json: &str) -> Re
     execute_command(state, &command_str).await
 }
 
-/// Execute a bash command
+/// Execute a bash command with terminal session support
 pub async fn execute_command(state: &SharedState, command: &str) -> Result<String> {
     debug!("Executing command: {}", command);
 
-    // Check permission and get workspace path
-    let workspace_path = {
+    // Check permission and get workspace path, also check for active terminal session
+    let (workspace_path, terminal_session) = {
         let state_guard = state.lock().unwrap();
 
         if !state_guard.is_command_allowed(command) {
             return Err(anyhow::anyhow!("Command not allowed: {}", command));
         }
 
-        state_guard.workspace_path.clone()
+        (
+            state_guard.workspace_path.clone(),
+            state_guard.get_terminal_session(),
+        )
     };
 
-    // Execute the command with the workspace path
+    // If we have an active terminal session, use it
+    if let Some(session_id) = terminal_session {
+        match crate::commands::terminal::get_terminal_manager() {
+            Ok(manager) => {
+                debug!("Using existing terminal session {} for command", session_id);
+                return manager.execute_command(&session_id, command).await;
+            }
+            Err(_) => {
+                debug!("Terminal manager not initialized, falling back to simple command execution");
+            }
+        }
+    } else {
+        // Check if we should create a terminal session for interactive commands
+        if is_interactive_command(command) {
+            debug!("Command appears interactive, creating terminal session");
+            match crate::commands::terminal::get_terminal_manager() {
+                Ok(manager) => {
+                    // Create a new session
+                    let session_id = manager.create_session().await?;
+                    
+                    // Register the session with the state
+                    {
+                        let mut state_guard = state.lock().unwrap();
+                        state_guard.set_terminal_session(session_id.clone());
+                    }
+                    
+                    debug!("Created terminal session {} for interactive command", session_id);
+                    return manager.execute_command(&session_id, command).await;
+                }
+                Err(e) => {
+                    debug!("Failed to initialize terminal manager: {}", e);
+                    debug!("Falling back to simple command execution");
+                }
+            }
+        }
+    }
+
+    // Simple non-interactive command execution
+    debug!("Using simple command execution for: {}", command);
     let output = Command::new("sh")
         .arg("-c")
         .arg(command)
@@ -146,6 +187,12 @@ pub async fn execute_command(state: &SharedState, command: &str) -> Result<Strin
 
     let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
     let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+
+    // Update state with exit code
+    {
+        let mut state_guard = state.lock().unwrap();
+        state_guard.set_process_status(false, output.status.code());
+    }
 
     if !output.status.success() {
         debug!("Command failed with status: {}", output.status);
@@ -166,30 +213,196 @@ pub async fn execute_command(state: &SharedState, command: &str) -> Result<Strin
     Ok(result)
 }
 
+/// Check if a command is likely to be interactive
+fn is_interactive_command(command: &str) -> bool {
+    // List of common interactive commands
+    let interactive_commands = [
+        "vim", "vi", "nano", "emacs", "less", "more", "top", "htop", 
+        "mysql", "psql", "sqlite3", "python", "python3", "node", "ruby", "irb",
+        "bash", "sh", "zsh", "fish", "screen", "tmux", "ssh", "telnet"
+    ];
+    
+    // Check if the command starts with any of these
+    for &cmd in &interactive_commands {
+        if command.starts_with(cmd) && (command.len() == cmd.len() || command.chars().nth(cmd.len()) == Some(' ')) {
+            return true;
+        }
+    }
+    
+    // Check for specific patterns
+    if command.contains("| less") || command.contains("| more") {
+        return true;
+    }
+    
+    false
+}
+
 /// Check status of previous command
-async fn check_status(_state: &SharedState) -> Result<String> {
-    // In a real implementation, we would check the status of any running command
-    // This is a simplified implementation
-    Ok("No command currently running.".to_string())
+async fn check_status(state: &SharedState) -> Result<String> {
+    // First check if we have an active terminal session
+    let terminal_session = {
+        let state_guard = state.lock().unwrap();
+        state_guard.get_terminal_session()
+    };
+    
+    if let Some(session_id) = terminal_session {
+        match crate::commands::terminal::get_terminal_manager() {
+            Ok(manager) => {
+                debug!("Checking status of terminal session {}", session_id);
+                let status = manager.check_status(&session_id).await?;
+                
+                return Ok(format!(
+                    "Terminal session {}:\nState: {}\nWorking directory: {}\nProcess running: {}\nLast exit status: {:?}",
+                    session_id,
+                    status.state,
+                    status.cwd,
+                    status.process_running,
+                    status.last_exit_status,
+                ));
+            }
+            Err(_) => {
+                debug!("Terminal manager not initialized");
+            }
+        }
+    }
+    
+    // Fall back to simple state check
+    let state_info = {
+        let state_guard = state.lock().unwrap();
+        (
+            state_guard.process_running,
+            state_guard.last_exit_code,
+            state_guard.get_background_processes(),
+        )
+    };
+    
+    Ok(format!(
+        "Process running: {}\nLast exit status: {:?}\nBackground processes: {:?}",
+        state_info.0,
+        state_info.1,
+        state_info.2,
+    ))
 }
 
 /// Send text input to a running process
-async fn send_text_input(_state: &SharedState, _text: &str) -> Result<String> {
-    // In a real implementation, we would send the text to the stdin of a running process
-    // This is a simplified implementation
-    warn!("Text input not implemented yet");
-    Ok("Text input sent".to_string())
+pub async fn send_text_input(state: &SharedState, text: &str) -> Result<String> {
+    // Check if we have an active terminal session
+    let terminal_session = {
+        let state_guard = state.lock().unwrap();
+        state_guard.get_terminal_session()
+    };
+    
+    if let Some(session_id) = terminal_session {
+        match crate::commands::terminal::get_terminal_manager() {
+            Ok(manager) => {
+                debug!("Sending text to terminal session {}: {}", session_id, text);
+                return manager.send_text(&session_id, text).await;
+            }
+            Err(e) => {
+                return Err(anyhow!("Terminal manager not initialized: {}", e));
+            }
+        }
+    }
+    
+    Err(anyhow!("No active terminal session to send text to"))
 }
 
 /// Send special keys to a running process
-async fn send_special_keys(
-    _state: &SharedState,
-    _specials: &Vec<crate::core::types::Special>,
+pub async fn send_special_keys(
+    state: &SharedState,
+    specials: &Vec<crate::core::types::Special>,
 ) -> Result<String> {
-    // In a real implementation, we would send special key codes to a running process
-    // This is a simplified implementation
-    warn!("Special keys input not implemented yet");
-    Ok("Special keys sent".to_string())
+    // Check if we have an active terminal session
+    let terminal_session = {
+        let state_guard = state.lock().unwrap();
+        state_guard.get_terminal_session()
+    };
+    
+    if let Some(session_id) = terminal_session {
+        match crate::commands::terminal::get_terminal_manager() {
+            Ok(manager) => {
+                debug!("Sending special keys to terminal session {}: {:?}", session_id, specials);
+                return manager.send_special_keys(&session_id, specials).await;
+            }
+            Err(e) => {
+                return Err(anyhow!("Terminal manager not initialized: {}", e));
+            }
+        }
+    }
+    
+    Err(anyhow!("No active terminal session to send keys to"))
+}
+
+/// Start a background process using screen
+pub async fn start_background_process(state: &SharedState, command: &str) -> Result<String> {
+    // First check if we have an active terminal session
+    let terminal_session = {
+        let state_guard = state.lock().unwrap();
+        state_guard.get_terminal_session()
+    };
+    
+    if let Some(session_id) = terminal_session {
+        match crate::commands::terminal::get_terminal_manager() {
+            Ok(manager) => {
+                debug!("Starting background process in terminal session {}: {}", session_id, command);
+                let process_id = manager.start_background_process(&session_id, command).await?;
+                
+                // Register the process with the state
+                {
+                    let mut state_guard = state.lock().unwrap();
+                    state_guard.add_background_process(process_id.clone());
+                }
+                
+                return Ok(format!("Background process started: {}", process_id));
+            }
+            Err(e) => {
+                debug!("Terminal manager not initialized: {}", e);
+            }
+        }
+    }
+    
+    // Fall back to direct screen command
+    let workspace_path = {
+        let state_guard = state.lock().unwrap();
+        state_guard.workspace_path.clone()
+    };
+    
+    // Generate a unique session ID
+    let session_id = format!("winx-{}", uuid::Uuid::new_v4().to_string());
+    
+    // Check if screen is installed
+    let which_output = Command::new("which")
+        .arg("screen")
+        .output()
+        .await?;
+        
+    if !which_output.status.success() {
+        return Err(anyhow!("screen command not available - please install it to use background processes"));
+    }
+    
+    // Start the screen session
+    let screen_cmd = format!("screen -dmS {} bash -c '{} ; echo \"[Process completed with status $?]\"'", 
+                          session_id, command);
+    
+    let output = Command::new("sh")
+        .arg("-c")
+        .arg(&screen_cmd)
+        .current_dir(workspace_path)
+        .output()
+        .await?;
+        
+    if !output.status.success() {
+        return Err(anyhow!("Failed to start background process: {}", 
+                          String::from_utf8_lossy(&output.stderr)));
+    }
+    
+    // Register the process with the state
+    {
+        let mut state_guard = state.lock().unwrap();
+        state_guard.add_background_process(session_id.clone());
+    }
+    
+    Ok(format!("Background process started: {}", session_id))
 }
 
 /// Send ASCII characters to a running process
