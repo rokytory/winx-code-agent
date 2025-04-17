@@ -15,6 +15,19 @@ use anyhow::{Context, Result};
 use std::env;
 use std::path::PathBuf;
 use tracing::{debug, info};
+use regex::Regex;
+use once_cell::sync::Lazy;
+
+/// Regex for stripping ANSI color codes - very comprehensive
+static ANSI_REGEX: Lazy<Regex> = Lazy::new(|| {
+    // This matches all ANSI escape sequences used for colors and formatting
+    Regex::new(r"\x1b(?:[@-Z\\-_]|\[[0-9?;]*[0-9A-Za-z])").unwrap_or_else(|_| Regex::new(r"").unwrap())
+});
+
+/// Strip ANSI color codes from a string
+pub fn strip_ansi_codes(input: &str) -> String {
+    ANSI_REGEX.replace_all(input, "").to_string()
+}
 
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
@@ -125,22 +138,28 @@ pub fn init_with_workspace(workspace_path: &str) -> Result<()> {
 pub fn init_with_logger(ansi_colors: bool) -> Result<()> {
     use tracing_subscriber::fmt;
     use tracing_subscriber::EnvFilter;
-
-    // Configure extremely simple format if ansi_colors is false (MCP mode)
+    
+    // Extremely simplified minimal approach to avoid type errors
     if !ansi_colors {
-        // Minimal configuration without formatting that could interfere with JSON
-        fmt::Subscriber::builder()
-            .with_ansi(false)
-            .with_writer(std::io::stderr) // Write logs to stderr instead of stdout
+        // We'll use a simple writer - the bash.rs AnsiStrippingWriter will handle output separately
+        fmt::fmt()
             .with_env_filter(EnvFilter::from_default_env())
-            .with_target(false)
-            .without_time()
+            .with_ansi(false) // Disable ANSI explicitly
+            .with_target(false) // Minimum formatting
+            .without_time() // No timestamp formatting 
             .init();
-
-        info!("Initializing Winx agent v{} (minimal log format for MCP)", version());
+            
+        // Set panic hook to avoid ANSI codes in panics
+        std::panic::set_hook(Box::new(|panic_info| {
+            let text = format!("PANIC: {}", panic_info);
+            let stripped = strip_ansi_codes(&text);
+            eprintln!("{}", stripped);
+        }));
+        
+        info!("Initializing Winx agent v{} (ANSI-free for MCP)", version());
     } else {
         // Default configuration for CLI usage
-        fmt::Subscriber::builder()
+        fmt::fmt()
             .with_ansi(true)
             .with_env_filter(EnvFilter::from_default_env())
             .with_target(true)
