@@ -1,7 +1,8 @@
 use anyhow::Result;
 use std::fs;
+use std::env;
 use std::path::{Path, PathBuf};
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 use crate::core::state::SharedState;
 use crate::core::types::{FileWriteOrEdit as FileWriteOrEditType, ReadFiles as ReadFilesType};
@@ -91,7 +92,7 @@ pub async fn write_or_edit_file_internal(
         );
 
         // Read the current content if the file exists
-        let _current_content = match fs::read_to_string(&path) {
+        let current_content = match fs::read_to_string(&path) {
             Ok(content) => content,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                 // If file doesn't exist, create it with the full content
@@ -107,10 +108,56 @@ pub async fn write_or_edit_file_internal(
             }
         };
 
-        // Here we would parse the search/replace blocks and apply them
-        // For now, just do a full replacement since we haven't implemented the parser
-        fs::write(&path, content)?;
-        "edited"
+        // Apply search/replace blocks
+        match crate::diff::search_replace::apply_search_replace_from_text(&current_content, content) {
+            Ok(result) => {
+                // Write the updated content
+                fs::write(&path, &result.content)?;
+                
+                // Handle warnings
+                if !result.warnings.is_empty() {
+                    debug!("Search/replace warnings: {:?}", result.warnings);
+                    for warning in &result.warnings {
+                        info!("Warning: {}", warning);
+                    }
+                }
+                
+                if result.changes_made {
+                    "edited with search/replace blocks"
+                } else {
+                    "no changes required"
+                }
+            },
+            Err(e) => {
+                // If search/replace fails, try to provide helpful error message
+                warn!("Search/replace failed: {}", e);
+                
+                // Try to find context for failing search blocks
+                if let Ok(blocks) = crate::diff::search_replace::parse_search_replace_blocks(content) {
+                    for (i, block) in blocks.iter().enumerate() {
+                        if let Some(context) = crate::diff::search_replace::find_context_for_search_block(
+                            &current_content, 
+                            &block.search_lines, 
+                            3
+                        ) {
+                            debug!("Context for search block #{}: {}", i+1, context);
+                        }
+                    }
+                }
+                
+                // Fall back to full replacement if required
+                if env::var("WINX_FALLBACK_ON_SEARCH_REPLACE_ERROR").unwrap_or_default() == "1" {
+                    warn!("Falling back to full replacement due to search/replace error");
+                    fs::write(&path, content)?;
+                    "replaced (fallback from search/replace error)"
+                } else {
+                    return Err(anyhow::anyhow!(
+                        "Failed to apply search/replace blocks: {}",
+                        e
+                    ));
+                }
+            }
+        }
     };
 
     info!("Successfully {} file: {}", mode, path.display());
