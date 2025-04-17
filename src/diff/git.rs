@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
 use tokio::process::Command;
-use tracing::{debug, error, info, warn};
+use tracing::{info, warn};
 
 /// Integration with Git for version control
 pub struct GitIntegration {
