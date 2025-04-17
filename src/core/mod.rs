@@ -1,6 +1,7 @@
 pub mod agent;
 pub mod contextual_memory;
 pub mod i18n;
+pub mod macros;
 pub mod memory;
 pub mod state;
 pub mod types;

@@ -96,6 +96,11 @@ impl LocalizedDescription {
             Language::Spanish => self.es,
         }
     }
+    
+    /// Obtém a descrição no idioma atual
+    pub fn current(&self) -> &'static str {
+        self.get(get_language())
+    }
 }
 
 // Variável global para armazenar o idioma atual
