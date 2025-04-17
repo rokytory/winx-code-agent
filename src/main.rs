@@ -22,6 +22,14 @@ async fn main() -> Result<()> {
         env::set_var("NO_COLOR", "1");
     }
 
+    // Parse command-line arguments
+    let args: Vec<String> = std::env::args().collect();
+    let workspace_path = if args.len() > 1 {
+        PathBuf::from(&args[1])
+    } else {
+        std::env::current_dir()?
+    };
+
     // Initialize with ANSI colors explicitly disabled for MCP compatibility
     // and provide workspace path for terminal and memory components
     winx::init_with_workspace(&workspace_path.to_string_lossy())
@@ -33,14 +41,6 @@ async fn main() -> Result<()> {
         winx::version(),
         std::env::consts::OS
     );
-
-    // Parse command-line arguments
-    let args: Vec<String> = std::env::args().collect();
-    let workspace_path = if args.len() > 1 {
-        PathBuf::from(&args[1])
-    } else {
-        std::env::current_dir()?
-    };
 
     info!("Using workspace path: {}", workspace_path.display());
 
