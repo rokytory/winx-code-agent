@@ -24,7 +24,9 @@ impl ToleranceLevel {
             ToleranceLevel::Exact => |s| s.to_string(),
             ToleranceLevel::IgnoreTrailingWhitespace => |s| s.trim_end().to_string(),
             ToleranceLevel::IgnoreLeadingWhitespace => |s| s.trim_start().to_string(),
-            ToleranceLevel::IgnoreAllWhitespace => |s| s.split_whitespace().collect::<Vec<_>>().join(""),
+            ToleranceLevel::IgnoreAllWhitespace => {
+                |s| s.split_whitespace().collect::<Vec<_>>().join("")
+            }
         }
     }
 
@@ -270,20 +272,22 @@ pub fn find_matches(
         let processor = level.processor();
 
         // Apply processor to all search lines
-        let processed_search_lines: Vec<String> = search_lines.iter()
-            .map(|line| processor(line))
-            .collect();
+        let processed_search_lines: Vec<String> =
+            search_lines.iter().map(|line| processor(line)).collect();
 
         // Apply processor to all content lines
-        let processed_content_lines: Vec<String> = content_lines.iter()
+        let processed_content_lines: Vec<String> = content_lines
+            .iter()
             .skip(start_line)
             .map(|line| processor(line))
             .collect();
 
         // Can't find matches if content or search is empty
         // or if content is smaller than search
-        if processed_search_lines.is_empty() || processed_content_lines.is_empty() ||
-            processed_search_lines.len() > processed_content_lines.len() {
+        if processed_search_lines.is_empty()
+            || processed_content_lines.is_empty()
+            || processed_search_lines.len() > processed_content_lines.len()
+        {
             continue;
         }
 
@@ -298,7 +302,10 @@ pub fn find_matches(
             // Match found! Add the result
             matches.push(ToleranceMatch::new(
                 level,
-                (start_line + i, start_line + i + processed_search_lines.len() - 1),
+                (
+                    start_line + i,
+                    start_line + i + processed_search_lines.len() - 1,
+                ),
             ));
         }
 
@@ -312,10 +319,7 @@ pub fn find_matches(
 }
 
 /// Applies a list of search/replace blocks to content
-pub fn apply_search_replace(
-    content: &str,
-    blocks: &[SearchReplaceBlock],
-) -> Result<EditResult> {
+pub fn apply_search_replace(content: &str, blocks: &[SearchReplaceBlock]) -> Result<EditResult> {
     let content_lines: Vec<String> = content.lines().map(ToString::to_string).collect();
     let mut result_lines = content_lines.clone();
     let mut warnings = Vec::new();
@@ -325,7 +329,9 @@ pub fn apply_search_replace(
     for (block_idx, block) in blocks.iter().enumerate() {
         // Start searching from the beginning of content for the first block
         // or from after the previous block for subsequent blocks
-        let start_line = if block_idx == 0 { 0 } else {
+        let start_line = if block_idx == 0 {
+            0
+        } else {
             // Here we should use the position after the last applied block, but for simplicity,
             // we're just starting from the beginning for each block
             0
@@ -373,7 +379,11 @@ pub fn apply_search_replace(
 
         // Fix indentation of the replacement block if needed
         let replace_lines = if best_match.level == ToleranceLevel::IgnoreLeadingWhitespace {
-            adjust_indentation(&result_lines[start..end + 1], &block.search_lines, &block.replace_lines)
+            adjust_indentation(
+                &result_lines[start..end + 1],
+                &block.search_lines,
+                &block.replace_lines,
+            )
         } else {
             block.replace_lines.clone()
         };
@@ -448,7 +458,8 @@ fn adjust_indentation(
     };
 
     // Apply indentation to replacement lines
-    replace_lines.iter()
+    replace_lines
+        .iter()
         .map(|line| {
             if line.trim().is_empty() {
                 line.clone()
@@ -483,7 +494,10 @@ pub fn find_best_match_line(content_lines: &[String], search_line: &str) -> Opti
         let line_str = line.to_string();
         let search_str = search_line.to_string();
         let diff = TextDiff::from_chars(&line_str, &search_str);
-        let ops_count = diff.iter_all_changes().filter(|c| c.tag() != ChangeTag::Equal).count();
+        let ops_count = diff
+            .iter_all_changes()
+            .filter(|c| c.tag() != ChangeTag::Equal)
+            .count();
         let max_len = line.len().max(search_line.len());
         let score = if max_len > 0 {
             ops_count as f64 / max_len as f64

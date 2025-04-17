@@ -25,10 +25,7 @@ pub enum FileOperation {
 }
 
 /// Process a large file with line-by-line operations
-pub fn process_large_file<P: AsRef<Path>>(
-    path: P,
-    operations: &[EditOperation],
-) -> Result<()> {
+pub fn process_large_file<P: AsRef<Path>>(path: P, operations: &[EditOperation]) -> Result<()> {
     let path = path.as_ref();
     debug!("Processing large file: {}", path.display());
 
@@ -39,12 +36,13 @@ pub fn process_large_file<P: AsRef<Path>>(
 
     // Create a temporary file
     let temp_path = path.with_extension("tmp");
-    let mut temp_file = fs::File::create(&temp_path)
-        .context(format!("Failed to create temp file: {}", temp_path.display()))?;
+    let mut temp_file = fs::File::create(&temp_path).context(format!(
+        "Failed to create temp file: {}",
+        temp_path.display()
+    ))?;
 
     // Open the input file for reading
-    let file = fs::File::open(path)
-        .context(format!("Failed to open file: {}", path.display()))?;
+    let file = fs::File::open(path).context(format!("Failed to open file: {}", path.display()))?;
     let reader = BufReader::new(file);
 
     // Sort operations by starting line
@@ -64,10 +62,15 @@ pub fn process_large_file<P: AsRef<Path>>(
         // Check if we need to perform an operation at this line
         if next_op_index < sorted_ops.len() {
             match &sorted_ops[next_op_index] {
-                EditOperation::ReplaceLines { start_line, end_line, new_content } => {
+                EditOperation::ReplaceLines {
+                    start_line,
+                    end_line,
+                    new_content,
+                } => {
                     if current_line == *start_line {
                         // Write the replacement content instead of the original lines
-                        temp_file.write_all(new_content.as_bytes())
+                        temp_file
+                            .write_all(new_content.as_bytes())
                             .context("Failed to write replacement content")?;
 
                         // Skip lines until we reach the end of the replacement
@@ -81,9 +84,11 @@ pub fn process_large_file<P: AsRef<Path>>(
 
         // Write the current line if not skipped by an operation
         if current_line < operations.len() as u64 {
-            temp_file.write_all(line.as_bytes())
+            temp_file
+                .write_all(line.as_bytes())
                 .context("Failed to write line")?;
-            temp_file.write_all(b"\n")
+            temp_file
+                .write_all(b"\n")
                 .context("Failed to write newline")?;
         }
 
@@ -93,10 +98,15 @@ pub fn process_large_file<P: AsRef<Path>>(
     // Finalize any operations that weren't applied (e.g., appending to the end of the file)
     while next_op_index < sorted_ops.len() {
         match &sorted_ops[next_op_index] {
-            EditOperation::ReplaceLines { start_line, new_content, .. } => {
+            EditOperation::ReplaceLines {
+                start_line,
+                new_content,
+                ..
+            } => {
                 if *start_line >= current_line {
                     // This operation is beyond the end of the file, append it
-                    temp_file.write_all(new_content.as_bytes())
+                    temp_file
+                        .write_all(new_content.as_bytes())
                         .context("Failed to write appended content")?;
                 }
             }
@@ -105,22 +115,23 @@ pub fn process_large_file<P: AsRef<Path>>(
     }
 
     // Flush and close the temporary file
-    temp_file.flush().context("Failed to flush temporary file")?;
+    temp_file
+        .flush()
+        .context("Failed to flush temporary file")?;
     drop(temp_file);
 
     // Replace the original file with the temporary file
-    fs::rename(&temp_path, path)
-        .context(format!("Failed to replace original file with temp file: {}", path.display()))?;
+    fs::rename(&temp_path, path).context(format!(
+        "Failed to replace original file with temp file: {}",
+        path.display()
+    ))?;
 
     debug!("Large file processed successfully: {}", path.display());
     Ok(())
 }
 
 /// Apply a set of operations to a large file
-pub fn apply_operations<P: AsRef<Path>>(
-    path: P,
-    operations: &[FileOperation],
-) -> Result<()> {
+pub fn apply_operations<P: AsRef<Path>>(path: P, operations: &[FileOperation]) -> Result<()> {
     let path = path.as_ref();
 
     // Collect all edit operations
@@ -159,13 +170,11 @@ mod tests {
         writeln!(file, "Line 5").unwrap();
 
         // Create some edit operations
-        let operations = vec![
-            EditOperation::ReplaceLines {
-                start_line: 1,
-                end_line: 2,
-                new_content: "New Line 2\nNew Line 3\n".to_string(),
-            },
-        ];
+        let operations = vec![EditOperation::ReplaceLines {
+            start_line: 1,
+            end_line: 2,
+            new_content: "New Line 2\nNew Line 3\n".to_string(),
+        }];
 
         // Process the file
         let path = file.path().to_path_buf();
