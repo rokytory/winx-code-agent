@@ -161,22 +161,25 @@ impl PluginManager {
         }
 
         info!("Initializing {} plugins", self.plugins.len());
-
+        let mut initialization_errors = Vec::new();
+    
         for (name, plugin) in &self.plugins {
             info!("Initializing plugin: {}", name);
-
+    
             if let Err(e) = plugin.initialize().await {
-                error!("Failed to initialize plugin '{}': {}", name, e);
-                return Err(anyhow::anyhow!(
-                    "Failed to initialize plugin '{}': {}",
-                    name,
-                    e
-                ));
+                // Instead of failing completely, just log the error and continue
+                warn!("Failed to initialize plugin '{}': {} - continuing without it", name, e);
+                initialization_errors.push(format!("Plugin '{}': {}", name, e));
             }
         }
-
+    
         self.initialized = true;
-        info!("All plugins initialized successfully");
+        
+        if initialization_errors.is_empty() {
+            info!("All plugins initialized successfully");
+        } else {
+            info!("Plugins initialized with some failures: {}", initialization_errors.join(", "));
+        }
 
         Ok(())
     }
@@ -285,28 +288,41 @@ impl Plugin for GitPlugin {
 
     async fn initialize(&self) -> Result<()> {
         // Check if git is installed
-        let output = tokio::process::Command::new("git")
+        let git_cmd_result = tokio::process::Command::new("git")
             .arg("--version")
             .output()
-            .await
-            .context("Failed to execute git command")?;
-
+            .await;
+            
+        if let Err(e) = git_cmd_result {
+            warn!("Git command check failed: {} - Git functionality will be limited", e);
+            return Ok(());  // Continue without Git functionality
+        }
+        
+        let output = git_cmd_result.unwrap();
         if !output.status.success() {
-            return Err(anyhow::anyhow!("Git is not installed"));
+            warn!("Git is not installed - Git functionality will be limited");
+            return Ok(());  // Continue without Git functionality
         }
 
         // Check if the workspace is a git repository
-        let output = tokio::process::Command::new("git")
+        let repo_check = tokio::process::Command::new("git")
             .current_dir(&self.workspace_dir)
             .args(["rev-parse", "--is-inside-work-tree"])
             .output()
-            .await
-            .context("Failed to execute git command")?;
-
+            .await;
+            
+        if let Err(e) = repo_check {
+            warn!("Git repository check failed: {} - Git functionality will be limited", e);
+            return Ok(());  // Continue without Git functionality
+        }
+        
+        let output = repo_check.unwrap();
         if !output.status.success() {
-            return Err(anyhow::anyhow!("Workspace is not a git repository"));
+            warn!("Workspace is not a git repository - Git functionality will be limited");
+            return Ok(());  // Continue without Git functionality
         }
 
+        info!("Git plugin initialized successfully with full functionality");
         Ok(())
     }
 
@@ -316,6 +332,22 @@ impl Plugin for GitPlugin {
     }
 
     async fn execute_command(&self, command: &str, args: &[String]) -> Result<String> {
+        // Check if git is available first
+        let git_check = tokio::process::Command::new("git")
+            .arg("--version")
+            .output()
+            .await;
+            
+        if let Err(e) = git_check {
+            return Err(anyhow::anyhow!("Git is not available: {}", e));
+        }
+        
+        let output = git_check.unwrap();
+        if !output.status.success() {
+            return Err(anyhow::anyhow!("Git is not installed or not functioning"));
+        }
+        
+        // Now execute the requested command
         match command {
             "status" => self.git_status().await,
             "branch" => self.git_branch().await,
@@ -579,11 +611,23 @@ pub async fn initialize_plugins(workspace_dir: impl AsRef<Path>) -> Result<()> {
     let mut manager = PLUGIN_MANAGER.lock().unwrap();
 
     // Register built-in plugins
-    manager.register_git_plugin(GitPlugin::new(workspace_dir))?;
-    manager.register_code_quality_plugin(CodeQualityPlugin::new())?;
+    // Use if-let for each plugin registration to continue even if one fails
+    if let Err(e) = manager.register_git_plugin(GitPlugin::new(workspace_dir)) {
+        warn!("Failed to register git plugin: {} - continuing without it", e);
+    } else {
+        info!("Git plugin registered successfully");
+    }
+    
+    if let Err(e) = manager.register_code_quality_plugin(CodeQualityPlugin::new()) {
+        warn!("Failed to register code quality plugin: {} - continuing without it", e);
+    } else {
+        info!("Code quality plugin registered successfully");
+    }
 
-    // Initialize all plugins
-    manager.initialize_all().await?;
+    // Initialize all plugins, but don't fail if initialization has issues
+    if let Err(e) = manager.initialize_all().await {
+        warn!("Plugin initialization encountered issues: {} - continuing with partial functionality", e);
+    }
 
     info!(
         "Plugin system initialized with {} plugins",
