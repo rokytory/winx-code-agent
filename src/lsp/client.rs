@@ -281,6 +281,17 @@ impl LSPClient {
             .context("Failed to receive get document symbols response")??;
         Ok(vec![]) // Placeholder until implementation
     }
+    
+    /// Send a request to the language server using JSON-RPC
+    pub async fn send_request(&self, method: &str, params: serde_json::Value) -> Result<serde_json::Value> {
+        // This is a placeholder implementation for now
+        // In a real implementation, this would send the request to the language server
+        // and wait for a response
+        debug!("Sending request: {} with params: {:?}", method, params);
+        
+        // For now, we'll return an empty object as a placeholder
+        Ok(serde_json::json!({}))
+    }
 
     /// Run the client loop that communicates with the language server
     async fn run_client_loop(
