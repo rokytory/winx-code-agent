@@ -341,6 +341,63 @@ pub async fn init_plugins_async(workspace_path: &str) -> Result<()> {
     Ok(())
 }
 
+/// Initialize file tracking for initial files
+pub async fn init_file_tracking(state: &core::state::SharedState, files: &[&str]) -> Result<()> {
+    use crate::commands::files;
+    use std::path::Path;
+    
+    // Filter for existing files within the workspace
+    let state_guard = state.lock().unwrap();
+    let workspace_path = state_guard.workspace_path.clone();
+    drop(state_guard);
+    
+    let mut existing_files = Vec::new();
+    for file in files {
+        let path = Path::new(file);
+        let full_path = if path.is_absolute() {
+            path.to_path_buf()
+        } else {
+            workspace_path.join(path)
+        };
+        
+        if full_path.exists() && full_path.is_file() {
+            existing_files.push(full_path.to_string_lossy().to_string());
+        }
+    }
+    
+    // Auto-read important project files
+    let important_patterns = [
+        "*.md",
+        "*.toml",
+        "*.json",
+        "Cargo.lock",
+        "README*",
+        "CONTRIBUTING*",
+        "LICENSE*",
+        ".gitignore",
+    ];
+    
+    for pattern in &important_patterns {
+        if let Ok(glob_paths) = glob::glob(&workspace_path.join(pattern).to_string_lossy()) {
+            for entry in glob_paths {
+                if let Ok(path) = entry {
+                    if path.is_file() {
+                        existing_files.push(path.to_string_lossy().to_string());
+                    }
+                }
+            }
+        }
+    }
+    
+    // Read files if any exist
+    if !existing_files.is_empty() {
+        info!("Auto-reading {} initial project files", existing_files.len());
+        let _ = files::read_files_internal(state, &existing_files, None).await;
+    }
+    
+    Ok(())
+}
+
 /// Initialize the Winx agent with custom logger configuration
 ///
 /// @param ansi_colors - Whether to enable ANSI color codes in logs
