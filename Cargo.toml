@@ -33,7 +33,8 @@ thiserror = "1.0"
 
 # Logging
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter", "registry"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "registry", "fmt"] }
+tracing-appender = "0.2"
 
 # For SQL support
 rusqlite = { version = "0.30", features = ["bundled"] }
