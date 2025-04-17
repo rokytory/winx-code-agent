@@ -162,23 +162,29 @@ impl PluginManager {
 
         info!("Initializing {} plugins", self.plugins.len());
         let mut initialization_errors = Vec::new();
-    
+
         for (name, plugin) in &self.plugins {
             info!("Initializing plugin: {}", name);
-    
+
             if let Err(e) = plugin.initialize().await {
                 // Instead of failing completely, just log the error and continue
-                warn!("Failed to initialize plugin '{}': {} - continuing without it", name, e);
+                warn!(
+                    "Failed to initialize plugin '{}': {} - continuing without it",
+                    name, e
+                );
                 initialization_errors.push(format!("Plugin '{}': {}", name, e));
             }
         }
-    
+
         self.initialized = true;
-        
+
         if initialization_errors.is_empty() {
             info!("All plugins initialized successfully");
         } else {
-            info!("Plugins initialized with some failures: {}", initialization_errors.join(", "));
+            info!(
+                "Plugins initialized with some failures: {}",
+                initialization_errors.join(", ")
+            );
         }
 
         Ok(())
@@ -292,16 +298,19 @@ impl Plugin for GitPlugin {
             .arg("--version")
             .output()
             .await;
-            
+
         if let Err(e) = git_cmd_result {
-            warn!("Git command check failed: {} - Git functionality will be limited", e);
-            return Ok(());  // Continue without Git functionality
+            warn!(
+                "Git command check failed: {} - Git functionality will be limited",
+                e
+            );
+            return Ok(()); // Continue without Git functionality
         }
-        
+
         let output = git_cmd_result.unwrap();
         if !output.status.success() {
             warn!("Git is not installed - Git functionality will be limited");
-            return Ok(());  // Continue without Git functionality
+            return Ok(()); // Continue without Git functionality
         }
 
         // Check if the workspace is a git repository
@@ -310,16 +319,19 @@ impl Plugin for GitPlugin {
             .args(["rev-parse", "--is-inside-work-tree"])
             .output()
             .await;
-            
+
         if let Err(e) = repo_check {
-            warn!("Git repository check failed: {} - Git functionality will be limited", e);
-            return Ok(());  // Continue without Git functionality
+            warn!(
+                "Git repository check failed: {} - Git functionality will be limited",
+                e
+            );
+            return Ok(()); // Continue without Git functionality
         }
-        
+
         let output = repo_check.unwrap();
         if !output.status.success() {
             warn!("Workspace is not a git repository - Git functionality will be limited");
-            return Ok(());  // Continue without Git functionality
+            return Ok(()); // Continue without Git functionality
         }
 
         info!("Git plugin initialized successfully with full functionality");
@@ -337,16 +349,16 @@ impl Plugin for GitPlugin {
             .arg("--version")
             .output()
             .await;
-            
+
         if let Err(e) = git_check {
             return Err(anyhow::anyhow!("Git is not available: {}", e));
         }
-        
+
         let output = git_check.unwrap();
         if !output.status.success() {
             return Err(anyhow::anyhow!("Git is not installed or not functioning"));
         }
-        
+
         // Now execute the requested command
         match command {
             "status" => self.git_status().await,
@@ -613,20 +625,29 @@ pub async fn initialize_plugins(workspace_dir: impl AsRef<Path>) -> Result<()> {
     // Register built-in plugins
     // Use if-let for each plugin registration to continue even if one fails
     if let Err(e) = manager.register_git_plugin(GitPlugin::new(workspace_dir)) {
-        warn!("Failed to register git plugin: {} - continuing without it", e);
+        warn!(
+            "Failed to register git plugin: {} - continuing without it",
+            e
+        );
     } else {
         info!("Git plugin registered successfully");
     }
-    
+
     if let Err(e) = manager.register_code_quality_plugin(CodeQualityPlugin::new()) {
-        warn!("Failed to register code quality plugin: {} - continuing without it", e);
+        warn!(
+            "Failed to register code quality plugin: {} - continuing without it",
+            e
+        );
     } else {
         info!("Code quality plugin registered successfully");
     }
 
     // Initialize all plugins, but don't fail if initialization has issues
     if let Err(e) = manager.initialize_all().await {
-        warn!("Plugin initialization encountered issues: {} - continuing with partial functionality", e);
+        warn!(
+            "Plugin initialization encountered issues: {} - continuing with partial functionality",
+            e
+        );
     }
 
     info!(

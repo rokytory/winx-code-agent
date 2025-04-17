@@ -89,7 +89,7 @@ async fn main() -> Result<()> {
     winx::init_with_logger(false)?;
     winx::init_with_workspace(&workspace_path.to_string_lossy())
         .context("Failed to initialize Winx agent")?;
-    
+
     // Initialize plugins in the existing async context
     winx::init_plugins_async(&workspace_path.to_string_lossy())
         .await
