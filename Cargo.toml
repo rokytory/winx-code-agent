@@ -13,6 +13,12 @@ tokio = { version = "1.32", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
+# HTTP client and date/time handling
+reqwest = { version = "0.11", features = ["json"] }
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4.4", features = ["derive"] }
+dotenv = "0.15"
+
 # For file operations and diff/edit
 diff = "0.1"
 similar = "2.2"
@@ -30,6 +36,9 @@ tracing-subscriber = "0.3"
 
 # For SQL support
 rusqlite = { version = "0.30", features = ["bundled"] }
+
+# OpenAI API integration
+async-openai = "0.17.1"
 
 # System utilities
 dirs = "5.0"
