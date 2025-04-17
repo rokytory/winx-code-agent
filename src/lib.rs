@@ -18,29 +18,29 @@ pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
 
-/// Função para analisar e depurar mensagens JSON para encontrar problemas de parsing
+/// Function to analyze and debug JSON messages to find parsing problems
 pub fn debug_json_bytes(data: &[u8], prefix: &str) {
     if data.is_empty() {
         return;
     }
     
-    // Log dos bytes em formato hexadecimal
+    // Log bytes in hexadecimal format
     let hex_data = data.iter()
         .map(|b| format!("{:02x}", b))
         .collect::<Vec<_>>()
         .join(" ");
     
-    // Log dos primeiros bytes para análise detalhada
+    // Log the first bytes for detailed analysis
     info!("{} - Raw bytes (hex): {}", prefix, hex_data);
     
-    // Tentar decodificar como UTF-8
+    // Try to decode as UTF-8
     match std::str::from_utf8(data) {
         Ok(text) => {
             info!("{} - UTF-8 text: {}", prefix, text);
             
-            // Se for JSON, vamos examinar mais detalhes
+            // If it's JSON, examine more details
             if text.contains("jsonrpc") {
-                // Verificar cada caractere nos primeiros bytes (onde ocorre o erro)
+                // Check each character in the first bytes (where the error occurs)
                 for (i, &b) in data.iter().take(10).enumerate() {
                     let char_desc = if b < 32 || b > 126 {
                         format!("\\x{:02x} (control)", b)
@@ -72,12 +72,12 @@ pub fn init_with_logger(ansi_colors: bool) -> Result<()> {
     use tracing_subscriber::fmt;
     use tracing_subscriber::EnvFilter;
     
-    // Configurar formato extremamente simples se ansi_colors for false (modo MCP)
+    // Configure extremely simple format if ansi_colors is false (MCP mode)
     if !ansi_colors {
-        // Configuração mínima sem formatação que poderia interferir com JSON
+        // Minimal configuration without formatting that could interfere with JSON
         fmt::Subscriber::builder()
             .with_ansi(false)
-            .with_writer(std::io::stderr) // Escreve logs para stderr em vez de stdout
+            .with_writer(std::io::stderr) // Write logs to stderr instead of stdout
             .with_env_filter(EnvFilter::from_default_env())
             .with_target(false)
             .without_time()
@@ -85,7 +85,7 @@ pub fn init_with_logger(ansi_colors: bool) -> Result<()> {
         
         info!("Initializing Winx agent v{} (minimal log format for MCP)", version());
     } else {
-        // Configuração padrão para uso em CLI
+        // Default configuration for CLI usage
         fmt::Subscriber::builder()
             .with_ansi(true) 
             .with_env_filter(EnvFilter::from_default_env())
