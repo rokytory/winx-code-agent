@@ -290,10 +290,10 @@ impl LSPClient {
         let mut stdin_writer = None;
         let mut stdout_reader = None;
         let mut request_id = 0;
-        
+
         // Track pending requests and their response channels
         let mut pending_requests: HashMap<usize, oneshot::Sender<Result<Value>>> = HashMap::new();
-        
+
         while let Some(message) = rx.recv().await {
             match message {
                 ClientMessage::Initialize {
@@ -308,7 +308,7 @@ impl LSPClient {
                                 .context("Failed to capture language server stdin");
                             let process_stdout = process.stdout.take()
                                 .context("Failed to capture language server stdout");
-                            
+
                             match (process_stdin, process_stdout) {
                                 (Ok(stdin), Ok(stdout)) => {
                                     // Store the server process ID first
@@ -319,11 +319,11 @@ impl LSPClient {
                                         }
                                     }
                                     server_process = Some(process);
-                                    
+
                                     // Create async writers and readers - Tokio já fornece streams assíncronos
                                     stdin_writer = Some(BufWriter::new(stdin));
                                     stdout_reader = Some(BufReader::new(stdout));
-                                    
+
                                     // Send initialize request
                                     let initialize_params = json!({
                                         "processId": std::process::id(),
@@ -362,7 +362,7 @@ impl LSPClient {
                                             }
                                         }
                                     });
-                                    
+
                                     request_id += 1;
                                     let init_request = json!({
                                         "jsonrpc": "2.0",
@@ -370,28 +370,28 @@ impl LSPClient {
                                         "method": "initialize",
                                         "params": initialize_params
                                     });
-                                    
+
                                     if let Some(writer) = stdin_writer.as_mut() {
                                         let request_str = init_request.to_string();
                                         let content_length = request_str.len();
-                                        
+
                                         if let Err(e) = writer.write_all(format!("Content-Length: {}\r\n\r\n{}", content_length, request_str).as_bytes()).await {
                                             error!("Failed to send initialize request: {}", e);
                                             let _ = response_tx.send(Err(anyhow::anyhow!("Failed to send initialize request: {}", e)));
                                             return;
                                         }
-                                        
+
                                         if let Err(e) = writer.flush().await {
                                             error!("Failed to flush stdin after initialize request: {}", e);
                                             let _ = response_tx.send(Err(anyhow::anyhow!("Failed to flush stdin: {}", e)));
                                             return;
                                         }
-                                        
+
                                         // Now read the response from stdout
                                         if let Some(reader) = stdout_reader.as_mut() {
                                             let mut content_length = 0;
                                             let mut line = String::new();
-                                            
+
                                             // Parse headers
                                             loop {
                                                 line.clear();
@@ -400,11 +400,11 @@ impl LSPClient {
                                                     let _ = response_tx.send(Err(anyhow::anyhow!("Failed to read response: {}", e)));
                                                     return;
                                                 }
-                                                
+
                                                 if line.trim().is_empty() {
                                                     break; // End of headers
                                                 }
-                                                
+
                                                 if line.starts_with("Content-Length:") {
                                                     if let Some(len_str) = line.strip_prefix("Content-Length:") {
                                                         if let Ok(len) = len_str.trim().parse::<usize>() {
@@ -413,7 +413,7 @@ impl LSPClient {
                                                     }
                                                 }
                                             }
-                                            
+
                                             // Read the response body
                                             if content_length > 0 {
                                                 let mut buffer = vec![0; content_length];
@@ -422,7 +422,7 @@ impl LSPClient {
                                                     let _ = response_tx.send(Err(anyhow::anyhow!("Failed to read response body: {}", e)));
                                                     return;
                                                 }
-                                                
+
                                                 match serde_json::from_slice::<Value>(&buffer) {
                                                     Ok(response) => {
                                                         // Check for success
@@ -431,28 +431,28 @@ impl LSPClient {
                                                             let _ = response_tx.send(Err(anyhow::anyhow!("Language server initialization error: {:?}", response)));
                                                         } else {
                                                             debug!("Language server initialized successfully");
-                                                            
+
                                                             // Send initialized notification
                                                             let initialized_notification = json!({
                                                                 "jsonrpc": "2.0",
                                                                 "method": "initialized",
                                                                 "params": {}
                                                             });
-                                                            
+
                                                             let notification_str = initialized_notification.to_string();
                                                             let content_length = notification_str.len();
-                                                            
+
                                                             if let Err(e) = writer.write_all(format!("Content-Length: {}\r\n\r\n{}", content_length, notification_str).as_bytes()).await {
                                                                 error!("Failed to send initialized notification: {}", e);
                                                             }
-                                                            
+
                                                             if let Err(e) = writer.flush().await {
                                                                 error!("Failed to flush stdin after initialized notification: {}", e);
                                                             }
-                                                            
+
                                                             let _ = response_tx.send(Ok(()));
                                                         }
-                                                    },
+                                                    }
                                                     Err(e) => {
                                                         error!("Failed to parse initialization response: {}", e);
                                                         let _ = response_tx.send(Err(anyhow::anyhow!("Failed to parse initialization response: {}", e)));
@@ -470,23 +470,23 @@ impl LSPClient {
                                         error!("No stdin writer available");
                                         let _ = response_tx.send(Err(anyhow::anyhow!("No stdin writer available")));
                                     }
-                                },
+                                }
                                 (Err(e), _) => {
                                     error!("Failed to capture language server stdin: {}", e);
                                     let _ = response_tx.send(Err(e));
-                                },
+                                }
                                 (_, Err(e)) => {
                                     error!("Failed to capture language server stdout: {}", e);
                                     let _ = response_tx.send(Err(e));
                                 }
                             }
-                        },
+                        }
                         Err(e) => {
                             error!("Failed to start language server: {}", e);
                             let _ = response_tx.send(Err(e));
                         }
                     }
-                },
+                }
                 ClientMessage::Shutdown { response_tx } => {
                     // Send shutdown request to the server
                     if let (Some(writer), Some(reader)) = (stdin_writer.as_mut(), stdout_reader.as_mut()) {
@@ -497,47 +497,47 @@ impl LSPClient {
                             "method": "shutdown",
                             "params": null
                         });
-                        
+
                         let request_str = shutdown_request.to_string();
                         let content_length = request_str.len();
-                        
+
                         if let Err(e) = writer.write_all(format!("Content-Length: {}\r\n\r\n{}", content_length, request_str).as_bytes()).await {
                             error!("Failed to send shutdown request: {}", e);
                             let _ = response_tx.send(Err(anyhow::anyhow!("Failed to send shutdown request: {}", e)));
                             break;
                         }
-                        
+
                         if let Err(e) = writer.flush().await {
                             error!("Failed to flush stdin after shutdown request: {}", e);
                             let _ = response_tx.send(Err(anyhow::anyhow!("Failed to flush stdin: {}", e)));
                             break;
                         }
-                        
+
                         // Read the response
                         // ... (similar to reading initialize response)
-                        
+
                         // Send exit notification
                         let exit_notification = json!({
                             "jsonrpc": "2.0",
                             "method": "exit",
                             "params": null
                         });
-                        
+
                         let notification_str = exit_notification.to_string();
                         let content_length = notification_str.len();
-                        
+
                         if let Err(e) = writer.write_all(format!("Content-Length: {}\r\n\r\n{}", content_length, notification_str).as_bytes()).await {
                             error!("Failed to send exit notification: {}", e);
                         }
-                        
+
                         if let Err(e) = writer.flush().await {
                             error!("Failed to flush stdin after exit notification: {}", e);
                         }
                     }
-                    
+
                     let _ = response_tx.send(Ok(()));
                     break;
-                },
+                }
                 ClientMessage::OpenFile { file_path, response_tx } => {
                     if let (Some(writer), Some(_)) = (stdin_writer.as_mut(), stdout_reader.as_mut()) {
                         // Read file content
@@ -556,24 +556,24 @@ impl LSPClient {
                                         }
                                     }
                                 });
-                                
+
                                 let notification_str = open_notification.to_string();
                                 let content_length = notification_str.len();
-                                
+
                                 if let Err(e) = writer.write_all(format!("Content-Length: {}\r\n\r\n{}", content_length, notification_str).as_bytes()).await {
                                     error!("Failed to send didOpen notification: {}", e);
                                     let _ = response_tx.send(Err(anyhow::anyhow!("Failed to send didOpen notification: {}", e)));
                                     continue;
                                 }
-                                
+
                                 if let Err(e) = writer.flush().await {
                                     error!("Failed to flush stdin after didOpen notification: {}", e);
                                     let _ = response_tx.send(Err(anyhow::anyhow!("Failed to flush stdin: {}", e)));
                                     continue;
                                 }
-                                
+
                                 let _ = response_tx.send(Ok(()));
-                            },
+                            }
                             Err(e) => {
                                 error!("Failed to read file content: {}", e);
                                 let _ = response_tx.send(Err(anyhow::anyhow!("Failed to read file content: {}", e)));
@@ -582,14 +582,14 @@ impl LSPClient {
                     } else {
                         let _ = response_tx.send(Err(anyhow::anyhow!("Language server not initialized")));
                     }
-                },
+                }
                 // Other message handlers will be implemented in future PRs
                 _ => {
                     warn!("Message type not yet implemented");
                 }
             }
         }
-        
+
         // Clean up resources here if needed
         info!("LSP client loop terminated");
     }
@@ -666,7 +666,7 @@ impl LSPClient {
 
         Ok(command)
     }
-    
+
     /// Get the language ID string for the given language
     fn get_language_id(language: &Language) -> &'static str {
         match language {
