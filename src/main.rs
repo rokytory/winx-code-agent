@@ -11,17 +11,17 @@ use winx::{
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Configura variáveis de ambiente para debug se não estiverem definidas
+    // Configure environment variables for debugging if not already defined
     if env::var("RUST_LOG").is_err() {
         env::set_var("RUST_LOG", "rmcp=trace,winx=trace");
     }
     
-    // Garante que não há ANSI color codes ativados (por padrão)
+    // Ensure there are no ANSI color codes activated (by default)
     if env::var("NO_COLOR").is_err() {
         env::set_var("NO_COLOR", "1");
     }
     
-    // Inicializa com cores ANSI explicitamente desativadas para compatibilidade MCP
+    // Initialize with ANSI colors explicitly disabled for MCP compatibility
     winx::init_with_logger(false).context("Failed to initialize Winx agent")?;
 
     // Parse command-line arguments
@@ -41,13 +41,13 @@ async fn main() -> Result<()> {
     // Create WinxTools instance
     let tools = WinxTools::new(state.clone());
 
-    // Configura o servidor MCP
+    // Configure MCP server
     info!("Starting MCP server using stdio transport");
     
-    // Usa o transporte padrão stdio para comunicação via MCP
+    // Use standard stdio transport for MCP communication
     let transport = rmcp::transport::stdio();
     
-    // Start the MCP server e mantém ele rodando até o cliente desconectar
+    // Start the MCP server and keep it running until the client disconnects
     info!("Server starting...");
     let client = tools
         .serve(transport)
@@ -56,7 +56,7 @@ async fn main() -> Result<()> {
 
     info!("Winx agent started successfully");
 
-    // Aguarda até o cliente desconectar
+    // Wait until the client disconnects
     client.waiting().await?;
 
     info!("Shutting down Winx agent");
