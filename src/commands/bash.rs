@@ -32,18 +32,18 @@ pub async fn execute_bash_command(state: &SharedState, command_json: &str) -> Re
 /// Execute a bash command
 async fn execute_command(state: &SharedState, command: &str) -> Result<String> {
     debug!("Executing command: {}", command);
-    
+
     // Verificar permissão e obter o workspace path
     let workspace_path = {
         let state_guard = state.lock().unwrap();
-        
+
         if !state_guard.is_command_allowed(command) {
             return Err(anyhow::anyhow!("Command not allowed: {}", command));
         }
-        
+
         state_guard.workspace_path.clone()
     };
-    
+
     // Execute the command with the workspace path
     let output = Command::new("sh")
         .arg("-c")

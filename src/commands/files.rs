@@ -21,20 +21,20 @@ pub async fn read_files_internal(
         // Check permissions and resolve path in a separate scope
         let path = {
             let state_guard = state.lock().unwrap();
-            
+
             let resolved_path = if Path::new(file_path).is_absolute() {
                 PathBuf::from(file_path)
             } else {
                 state_guard.workspace_path.join(file_path)
             };
-            
+
             if !state_guard.is_path_allowed(&resolved_path) {
                 return Err(anyhow::anyhow!("Path not allowed: {}", resolved_path.display()));
             }
-            
+
             resolved_path
         };
-        
+
         // Now read the file without holding the mutex
         match fs_utils::read_file(&path).await {
             Ok(content) => {
@@ -63,17 +63,17 @@ pub async fn write_or_edit_file_internal(
     // Check permissions and resolve path in a separate scope
     let path = {
         let state_guard = state.lock().unwrap();
-        
+
         let resolved_path = if Path::new(file_path).is_absolute() {
             PathBuf::from(file_path)
         } else {
             state_guard.workspace_path.join(file_path)
         };
-        
+
         if !state_guard.is_path_allowed(&resolved_path) {
             return Err(anyhow::anyhow!("Path not allowed: {}", resolved_path.display()));
         }
-        
+
         resolved_path
     };
 
@@ -150,7 +150,7 @@ pub async fn write_or_edit_file(state: &SharedState, json_str: &str) -> Result<S
         request.percentage_to_change,
         &request.file_content_or_search_replace_blocks,
     )
-    .await
+        .await
 }
 
 #[cfg(test)]
@@ -187,8 +187,8 @@ mod tests {
                 100,
                 "Hello, universe!",
             )
-            .await
-            .unwrap();
+                .await
+                .unwrap();
 
             assert!(result.contains("Successfully"));
 
