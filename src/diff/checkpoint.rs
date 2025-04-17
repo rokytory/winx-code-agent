@@ -150,12 +150,16 @@ impl CheckpointManager {
     }
     
     /// Restore a checkpoint by ID
-    pub async fn restore_checkpoint(&self, id: &str) -> Result<()> {
+    pub async fn restore_checkpoint(&mut self, id: &str) -> Result<()> {
         let checkpoint = if let Some(checkpoint) = self.checkpoints.get(id) {
             checkpoint
         } else {
             // Try to load it if not in memory
-            self.load_checkpoint(id).await?
+            // Carregar o checkpoint e armazenar em self.checkpoints
+            let loaded = self.load_checkpoint(id).await?;
+            self.checkpoints.insert(id.to_string(), loaded);
+            // Agora que está armazenado, podemos pegá-lo novamente
+            self.checkpoints.get(id).unwrap()
         };
         
         info!("Restoring checkpoint {} - {}", id, checkpoint.description);
