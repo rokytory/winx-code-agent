@@ -7,9 +7,10 @@ use serde_json;
 use tracing::info;
 
 use crate::commands::{bash, files};
-use crate::core::state::SharedState;
+use crate::core::{memory, state::SharedState};
 use crate::sql;
 use crate::thinking;
+use crate::code;
 
 /// Tool implementations to be registered with MCP
 #[derive(Clone)]
@@ -21,6 +22,156 @@ pub struct WinxTools {
 impl WinxTools {
     pub fn new(state: SharedState) -> Self {
         Self { state }
+    }
+    
+    #[tool(description = "Create a new task session that can be resumed later")]
+    async fn create_task(
+        &self,
+        #[tool(param)] name: Option<String>,
+    ) -> Result<CallToolResult, McpError> {
+        let task_id = name.unwrap_or_else(|| memory::create_task_id());
+        
+        // Save current state to task
+        let result = {
+            let state_guard = self.state.lock().unwrap();
+            match state_guard.save_to_task(&task_id) {
+                Ok(_) => format!("Task created with ID: {}", task_id),
+                Err(e) => format!("Failed to create task: {}", e),
+            }
+        };
+        
+        Ok(CallToolResult::success(vec![Content::text(result)]))
+    }
+    
+    #[tool(description = "List available tasks")]
+    async fn list_tasks(&self) -> Result<CallToolResult, McpError> {
+        let memory_dir = match memory::get_memory_dir() {
+            Ok(dir) => dir,
+            Err(e) => {
+                return Err(McpError::internal_error(
+                    "memory_dir_error",
+                    Some(serde_json::Value::String(e.to_string())),
+                ))
+            }
+        };
+        
+        let store = match memory::create_shared_memory_store(memory_dir) {
+            Ok(store) => store,
+            Err(e) => {
+                return Err(McpError::internal_error(
+                    "memory_store_error",
+                    Some(serde_json::Value::String(e.to_string())),
+                ))
+            }
+        };
+        
+        // Use a temp variable to avoid releasing the lock before calling list_tasks
+        let tasks = {
+            let mut store_guard = store.lock().unwrap();
+            // Call the method directly on the MemoryStore struct
+            let task_list = store_guard.list_tasks();
+            // Clone task_list to a new variable so we can release the lock
+            task_list
+        };
+        
+        if tasks.is_empty() {
+            Ok(CallToolResult::success(vec![Content::text("No tasks available.")]))
+        } else {
+            let task_list = tasks.iter()
+                .map(|task| format!("- {}", task))
+                .collect::<Vec<_>>()
+                .join("\n");
+                
+            Ok(CallToolResult::success(vec![Content::text(format!("Available tasks:\n{}", task_list))]))
+        }
+    }
+    
+    #[tool(description = "Start or resume a background process")]
+    async fn start_background_process(
+        &self,
+        #[tool(param)] command: String,
+    ) -> Result<CallToolResult, McpError> {
+        let result = bash::start_background_process(&self.state, &command)
+            .await
+            .map_err(|e| {
+                McpError::internal_error(
+                    "background_process_error",
+                    Some(serde_json::Value::String(e.to_string())),
+                )
+            })?;
+            
+        Ok(CallToolResult::success(vec![Content::text(result)]))
+    }
+    
+    #[tool(description = "Validate syntax of code")]
+    async fn validate_syntax(
+        &self,
+        #[tool(param)] extension: String,
+        #[tool(param)] content: String,
+    ) -> Result<CallToolResult, McpError> {
+        let result = code::validate_syntax(&extension, &content)
+            .map_err(|e| {
+                McpError::internal_error(
+                    "syntax_validator_error",
+                    Some(serde_json::Value::String(e.to_string())),
+                )
+            })?;
+            
+        let is_valid = result.is_valid;
+        let description = result.description;
+        
+        let response = if is_valid {
+            format!("Syntax validation passed for .{} file.", extension)
+        } else {
+            format!("Syntax validation failed for .{} file:\n{}", extension, description)
+        };
+        
+        Ok(CallToolResult::success(vec![Content::text(response)]))
+    }
+    
+    #[tool(description = "Send text to a running interactive process")]
+    async fn send_text_input(
+        &self,
+        #[tool(param)] text: String,
+    ) -> Result<CallToolResult, McpError> {
+        let result = bash::send_text_input(&self.state, &text)
+            .await
+            .map_err(|e| {
+                McpError::internal_error(
+                    "send_text_error",
+                    Some(serde_json::Value::String(e.to_string())),
+                )
+            })?;
+            
+        Ok(CallToolResult::success(vec![Content::text(result)]))
+    }
+    
+    #[tool(description = "Send special keys to a running interactive process")]
+    async fn send_special_keys(
+        &self,
+        #[tool(param)] keys: Vec<String>,
+    ) -> Result<CallToolResult, McpError> {
+        // Convert string keys to Special enum
+        let special_keys = keys.iter()
+            .map(|k| k.parse::<crate::core::types::Special>())
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| {
+                McpError::invalid_params(
+                    "invalid_special_key", 
+                    Some(serde_json::Value::String(e.to_string())),
+                )
+            })?;
+            
+        let result = bash::send_special_keys(&self.state, &special_keys)
+            .await
+            .map_err(|e| {
+                McpError::internal_error(
+                    "send_keys_error",
+                    Some(serde_json::Value::String(e.to_string())),
+                )
+            })?;
+            
+        Ok(CallToolResult::success(vec![Content::text(result)]))
     }
 
     #[tool(description = "Execute a bash command")]
@@ -125,6 +276,7 @@ impl WinxTools {
         &self,
         #[tool(param)] file_paths: Vec<String>,
         #[tool(param)] show_line_numbers_reason: Option<String>,
+        #[tool(param)] line_ranges: Option<Vec<Option<(usize, usize)>>>,
     ) -> Result<CallToolResult, McpError> {
         // Here we also ensure compatibility with different formats
         info!("Reading files: {:?}", file_paths);
@@ -132,6 +284,7 @@ impl WinxTools {
         let request = ReadFiles {
             file_paths,
             show_line_numbers_reason,
+            line_ranges,
         };
 
         let json = match serde_json::to_string(&request) {
@@ -366,6 +519,8 @@ pub struct BashCommand {
 pub struct ReadFiles {
     pub file_paths: Vec<String>,
     pub show_line_numbers_reason: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub line_ranges: Option<Vec<Option<(usize, usize)>>>,
 }
 
 /// Basic file write/edit tool definition
