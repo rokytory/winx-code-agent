@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
+use rmcp::ServiceExt;
 use std::env;
 use std::path::PathBuf;
-use tracing::{info, error, debug};
-use rmcp::ServiceExt;
+use tracing::{debug, error, info};
 
 use winx::{
     commands::tools::WinxTools,
@@ -22,39 +22,39 @@ async fn main() -> Result<()> {
     // ANSI COLOR DISABLING SECTION
     // ---------------------------
     // Be extremely aggressive about disabling all color codes in all output
-    
+
     // General color disabling env vars - highest priority
-    env::set_var("NO_COLOR", "1");                  // Respected by many modern CLI tools
-    env::set_var("CLICOLOR", "0");                  // Used by BSD/macOS tools
-    env::set_var("CLICOLOR_FORCE", "0");            // Override forced colors
-    env::set_var("TERM", "dumb");                   // Old-school way to disable colors
-    env::set_var("COLORTERM", "0");                 // Another terminal color control
-    
+    env::set_var("NO_COLOR", "1"); // Respected by many modern CLI tools
+    env::set_var("CLICOLOR", "0"); // Used by BSD/macOS tools
+    env::set_var("CLICOLOR_FORCE", "0"); // Override forced colors
+    env::set_var("TERM", "dumb"); // Old-school way to disable colors
+    env::set_var("COLORTERM", "0"); // Another terminal color control
+
     // Rust-specific color controls
-    env::set_var("RUST_LOG_STYLE", "never");        // Controls tracing crate style
-    env::set_var("RUST_LOG_COLOR", "never");        // Another tracing control
-    env::set_var("RUST_LOG_FORMAT", "json");        // Prevent colored formatter
-    env::set_var("RUST_BACKTRACE_COLOR", "never");  // Disable colored backtraces
-    env::set_var("RUST_TEST_COLOR", "never");       // Disable test colors
-    env::set_var("CARGO_TERM_COLOR", "never");      // Disable cargo colors
-    
+    env::set_var("RUST_LOG_STYLE", "never"); // Controls tracing crate style
+    env::set_var("RUST_LOG_COLOR", "never"); // Another tracing control
+    env::set_var("RUST_LOG_FORMAT", "json"); // Prevent colored formatter
+    env::set_var("RUST_BACKTRACE_COLOR", "never"); // Disable colored backtraces
+    env::set_var("RUST_TEST_COLOR", "never"); // Disable test colors
+    env::set_var("CARGO_TERM_COLOR", "never"); // Disable cargo colors
+
     // LSP-specific environment variables
-    env::set_var("TS_NODE_PRETTY", "false");        // TypeScript LSP
-    env::set_var("RUST_ANALYZER_LOG", "error");     // Reduce rust-analyzer output
-    env::set_var("RUST_ANALYZER_COLOR", "never");   // Disable rust-analyzer colors
-    env::set_var("PYRIGHT_PYTHON_DEBUG", "0");      // Turn off pyright debug
-    env::set_var("PYRIGHT_NO_COLOR", "1");          // Turn off pyright colors
-    
+    env::set_var("TS_NODE_PRETTY", "false"); // TypeScript LSP
+    env::set_var("RUST_ANALYZER_LOG", "error"); // Reduce rust-analyzer output
+    env::set_var("RUST_ANALYZER_COLOR", "never"); // Disable rust-analyzer colors
+    env::set_var("PYRIGHT_PYTHON_DEBUG", "0"); // Turn off pyright debug
+    env::set_var("PYRIGHT_NO_COLOR", "1"); // Turn off pyright colors
+
     // Node.js color controls (for JavaScript/TypeScript LSP)
-    env::set_var("NODE_DISABLE_COLORS", "1");       // Disable Node.js colors
-    env::set_var("FORCE_COLOR", "0");               // Another Node.js color control
-    
+    env::set_var("NODE_DISABLE_COLORS", "1"); // Disable Node.js colors
+    env::set_var("FORCE_COLOR", "0"); // Another Node.js color control
+
     // Force plain output for all child processes
-    env::set_var("FORCE_PLAIN_OUTPUT", "1");        // Custom var for our own usage
-    
+    env::set_var("FORCE_PLAIN_OUTPUT", "1"); // Custom var for our own usage
+
     info!("All color codes disabled via environment variables");
 
-// Parse command-line arguments using a simple approach that handles flags
+    // Parse command-line arguments using a simple approach that handles flags
     let args: Vec<String> = std::env::args().collect();
     let workspace_path = if args.len() > 1 {
         // Check if the argument is a flag (starts with -)
@@ -77,7 +77,7 @@ async fn main() -> Result<()> {
                 std::process::exit(1);
             }
         }
-        
+
         // Not a flag, treat as workspace path
         PathBuf::from(&args[1])
     } else {
@@ -89,6 +89,11 @@ async fn main() -> Result<()> {
     winx::init_with_logger(false)?;
     winx::init_with_workspace(&workspace_path.to_string_lossy())
         .context("Failed to initialize Winx agent")?;
+    
+    // Initialize plugins in the existing async context
+    winx::init_plugins_async(&workspace_path.to_string_lossy())
+        .await
+        .context("Failed to initialize plugins")?;
 
     // Log version and environment information
     info!(
@@ -98,14 +103,23 @@ async fn main() -> Result<()> {
     );
 
     info!("Using workspace path: {}", workspace_path.display());
-    
+
     // Test ANSI stripping and JSON sanitization
     let test_string = "\u{001B}[2m2025-04-17T08:08:46.729Z [winx] [info] Server started and connected successfully\u{001B}[0m";
     let sanitized = winx::strip_ansi_codes(test_string);
     let json_safe = winx::sanitize_json_text(&sanitized);
-    info!("ANSI stripping test - Original contains escape codes: {}", test_string.contains('\u{001B}'));
-    info!("ANSI stripping test - Sanitized contains escape codes: {}", sanitized.contains('\u{001B}'));
-    info!("ANSI stripping test - JSON-safe contains escape codes: {}", json_safe.contains('\u{001B}'));
+    info!(
+        "ANSI stripping test - Original contains escape codes: {}",
+        test_string.contains('\u{001B}')
+    );
+    info!(
+        "ANSI stripping test - Sanitized contains escape codes: {}",
+        sanitized.contains('\u{001B}')
+    );
+    info!(
+        "ANSI stripping test - JSON-safe contains escape codes: {}",
+        json_safe.contains('\u{001B}')
+    );
 
     // Initialize state with wcgw mode and any stored task information
     let state = match create_shared_state(workspace_path.clone(), ModeType::Wcgw, None, None) {
@@ -118,7 +132,7 @@ async fn main() -> Result<()> {
                 match winx::code::get_syntax_validator() {
                     Ok(_) => {
                         info!("Syntax validator initialized successfully");
-                    },
+                    }
                     Err(e) => {
                         info!("Syntax validator initialization failed: {}", e);
                         info!("Continuing without syntax validation");
@@ -150,10 +164,10 @@ async fn main() -> Result<()> {
 
     // Use standard stdio transport
     info!("Starting MCP server using stdio transport with ANSI protection");
-    
+
     // Start the MCP server and keep it running until the client disconnects
     info!("Server starting...");
-    
+
     // Use standard transport - with our environment variables set to disable ANSI codes
     let std_transport = rmcp::transport::stdio();
 
@@ -192,5 +206,4 @@ async fn main() -> Result<()> {
     info!("Shutting down Winx agent");
 
     Ok(())
-            }
-            
+}
