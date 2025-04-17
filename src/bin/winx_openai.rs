@@ -110,8 +110,7 @@ async fn run_cli() -> Result<()> {
         temperature: Some(cli.temperature),
     };
 
-    let client = OpenAIClient::new(Some(config))
-        .context("Failed to create OpenAI client")?;
+    let client = OpenAIClient::new(Some(config)).context("Failed to create OpenAI client")?;
 
     // Execute command
     match &cli.command {
@@ -126,12 +125,14 @@ async fn run_cli() -> Result<()> {
             revisions,
             max_revisions,
             system_prompt,
-            output
+            output,
         } => {
             let mut thinking = OpenAIThinking::new(client, system_prompt.clone());
 
             let result = if *revisions {
-                thinking.process_query_with_revisions(query, *steps, *max_revisions).await?
+                thinking
+                    .process_query_with_revisions(query, *steps, *max_revisions)
+                    .await?
             } else {
                 thinking.process_query(query, *steps).await?
             };
@@ -141,13 +142,16 @@ async fn run_cli() -> Result<()> {
 
             // Save to file if requested
             if let Some(path) = output {
-                std::fs::write(path, &result)
-                    .context("Failed to write output to file")?;
+                std::fs::write(path, &result).context("Failed to write output to file")?;
                 info!("Results saved to {:?}", path);
             }
         }
 
-        Commands::SqlThink { query, steps, database } => {
+        Commands::SqlThink {
+            query,
+            steps,
+            database,
+        } => {
             // Create system prompt for SQL thinking
             let system_prompt = format!(
                 "You are an expert SQL analyst that thinks step by step to solve database problems. {}",
