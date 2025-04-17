@@ -13,28 +13,75 @@ pub mod utils;
 
 use anyhow::{Context, Result};
 use std::env;
-use std::path::PathBuf;
 use tracing::{debug, info};
 use regex::Regex;
 use once_cell::sync::Lazy;
 
-/// Regex for stripping ANSI color codes - very comprehensive
+/// Regex for stripping ANSI color codes - ultra comprehensive and robust
 static ANSI_REGEX: Lazy<Regex> = Lazy::new(|| {
     // This matches all ANSI escape sequences used for colors and formatting
-    // Enhanced pattern to catch more edge cases
-    Regex::new(r"\x1b(?:[@-Z\\-_]|\[[0-9:;<=>?]*[ -/]*[@-~])").unwrap_or_else(|_| Regex::new(r"").unwrap())
+    // Ultra comprehensive pattern to catch all documented and undocumented ANSI sequences
+    Regex::new(concat!(
+        // Match ESC and CSI followed by any control sequence - main pattern
+        r"[\x1b\x9b][\[\]()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[\dA-PR-TZcf-nq-uy=><~]|",
+        // Match color codes (SGR sequences)
+        r"[\x1b\x9b]\[[\x30-\x3F]*[\x20-\x2F]*[\x40-\x7E]|",
+        // Match older style codes
+        r"[\x1b\x9b][0-9;]*[a-zA-Z]|",
+        // Catch any standalone ESC character
+        r"\x1b|",
+        // Match Unicode console codes (rare but possible)
+        r"\u009b[^A-Za-z]*[A-Za-z]|",
+        // Match CSI window manipulation
+        r"\x1b\][0-9][^\x07]*\x07"
+    )).unwrap_or_else(|_| {
+        debug!("Failed to compile ANSI regex, falling back to simpler pattern");
+        Regex::new(r"\x1b\[[0-9;]*[a-zA-Z]").unwrap()
+    })
 });
 
-/// Strip ANSI color codes from a string
+/// Strip ANSI color codes from a string - ultra enhanced version with JSON safety
 pub fn strip_ansi_codes(input: &str) -> String {
-    // First, replace standard escape sequences with regex
-    let result = ANSI_REGEX.replace_all(input, "").to_string();
+    // Pre-check to see if the input contains any escape sequences
+    let has_ansi = input.contains('\u{001B}') || input.contains('\u{009B}');
     
-    // Then manually filter out any remaining control characters
+    if !has_ansi {
+        // If no ANSI detected, just perform basic control character filtering
+        return input.chars()
+            .filter(|&c| c >= ' ' || c == '\n' || c == '\r' || c == '\t')
+            .collect::<String>();
+    }
+    
+    // First pass: Replace standard escape sequences with regex
+    let mut result = ANSI_REGEX.replace_all(input, "").to_string();
+    
+    // Second pass: Handle any broken or invalid ANSI sequences by filtering out control characters
     // This catches any non-standard or broken ANSI sequences
-    result.chars()
+    let filtered = result.chars()
         .filter(|&c| c >= ' ' || c == '\n' || c == '\r' || c == '\t')
-        .collect()
+        .collect::<String>();
+    
+    // Check if it's JSON content and needs extra sanitization
+    let is_json = filtered.contains("jsonrpc") || 
+                (filtered.contains('{') && filtered.contains('"') && filtered.contains(':'));
+    
+    // Apply JSON sanitization for JSON content
+    let sanitized = if is_json {
+        sanitize_json_text(&filtered)
+    } else {
+        filtered
+    };
+    
+    // Final verification pass - ensure NO escape sequences remain
+    if sanitized.contains('\u{001B}') || sanitized.contains('\u{009B}') {
+        // If any escape sequences still remain, do a brute force character-by-character filtering
+        debug!("ANSI stripping fallback: escape sequences detected after regex pass");
+        sanitized.chars()
+            .filter(|&c| (c >= ' ' && c <= '~') || c == '\n' || c == '\r' || c == '\t')
+            .collect::<String>()
+    } else {
+        sanitized
+    }
 }
 
 pub fn version() -> &'static str {
@@ -58,63 +105,180 @@ pub fn debug_json_bytes(data: &[u8], prefix: &str) {
     // Log the first bytes for detailed analysis
     info!("{} - Raw bytes (hex, first {}): {}", prefix, display_limit, hex_data);
 
-    // Try to decode as UTF-8
-    match std::str::from_utf8(data) {
+    // Detect if bytes might contain ANSI codes
+    let ansi_indicator = data.iter().any(|&b| b == 0x1b);
+    if ansi_indicator {
+        info!("{} - WARNING: ANSI escape codes detected in data", prefix);
+    }
+
+    // Try to decode as UTF-8 with aggressive cleaning
+    let text = match std::str::from_utf8(data) {
         Ok(text) => {
-            // Show a preview of the text (limited to avoid log overflow)
-            let preview_len = std::cmp::min(text.len(), 200);
-            let preview = if text.len() > preview_len {
-                format!("{}... (truncated, total length: {})", &text[..preview_len], text.len())
+            // Pre-emptively clean the text from ANSI and control characters
+            let cleaned_text = strip_ansi_codes(text);
+            cleaned_text
+        },
+        Err(_) => {
+            // Fall back to lossy conversion and then clean it
+            let text = String::from_utf8_lossy(data);
+            let cleaned_text = strip_ansi_codes(&text);
+            cleaned_text
+        }
+    };
+
+    // Show a preview of the cleaned text
+    let preview_len = std::cmp::min(text.len(), 200);
+    let preview = if text.len() > preview_len {
+        format!("{}... (truncated, total length: {})", &text[..preview_len], text.len())
+    } else {
+        text.to_string()
+    };
+
+    info!("{} - Cleaned text: {}", prefix, preview);
+
+    // Extra sanitization for JSON-RPC messages
+    if text.contains("jsonrpc") {
+        // Check each character in the first bytes (where parsing errors often occur)
+        for (i, &b) in data.iter().take(20).enumerate() {
+            let char_desc = if b < 32 || b > 126 {
+                format!("\\x{:02x} (control)", b)
             } else {
-                text.to_string()
+                format!("'{}' ({})", b as char, b)
             };
+            info!("{} - Byte {}: {}", prefix, i, char_desc);
+        }
 
-            info!("{} - UTF-8 text: {}", prefix, preview);
+        // Apply additional JSON-specific sanitization
+        let json_safe_text = sanitize_json_text(&text);
+        
+        // Try to parse the cleaned text as JSON
+        match serde_json::from_str::<serde_json::Value>(&json_safe_text) {
+            Ok(json) => {
+                // Check for important JSON-RPC fields
+                if let Some(obj) = json.as_object() {
+                    info!("{} - JSON-RPC detected. Fields present: id={}, method={}, params={}",
+                        prefix,
+                        obj.contains_key("id"),
+                        obj.contains_key("method"),
+                        obj.contains_key("params")
+                    );
 
-            // If it's JSON, try to parse and examine structure
-            if text.contains("jsonrpc") {
-                // Check each character in the first bytes (where parsing errors often occur)
-                for (i, &b) in data.iter().take(20).enumerate() {
-                    let char_desc = if b < 32 || b > 126 {
-                        format!("\\x{:02x} (control)", b)
-                    } else {
-                        format!("'{}' ({})", b as char, b)
-                    };
-                    info!("{} - Byte {}: {}", prefix, i, char_desc);
+                    // Log the structure of params if present
+                    if let Some(params) = obj.get("params") {
+                        info!("{} - Params type: {}", prefix, 
+                            if params.is_object() { "object" } 
+                            else if params.is_array() { "array" } 
+                            else { "other" }
+                        );
+                    }
                 }
+            }
+            Err(e) => {
+                info!("{} - JSON parsing failed even after sanitization: {}", prefix, e);
+                
+                // If ANSI codes could be causing the issue, log a suggestion
+                if ansi_indicator {
+                    info!("{} - Consider reviewing ANSI stripping logic or adding 'strip_ansi_codes' before JSON parsing", prefix);
+                }
+            }
+        }
+    }
+}
 
-                // Try to parse as JSON to identify parsing issues
-                match serde_json::from_str::<serde_json::Value>(text) {
-                    Ok(json) => {
-                        // Check for important JSON-RPC fields
-                        if let Some(obj) = json.as_object() {
-                            info!("{} - JSON-RPC detected. Fields present: id={}, method={}, params={}",
-                                prefix,
-                                obj.contains_key("id"),
-                                obj.contains_key("method"),
-                                obj.contains_key("params")
-                            );
-
-                            // Log the structure of params if present
-                            if let Some(params) = obj.get("params") {
-                                info!("{} - Params type: {}", prefix, 
-                                    if params.is_object() { "object" } 
-                                    else if params.is_array() { "array" } 
-                                    else { "other" }
-                                );
+/// Comprehensive sanitization for JSON text - enhanced for RMCP compatibility
+pub fn sanitize_json_text(text: &str) -> String {
+    // Remove all control characters (0x00-0x1F except allowed whitespace)
+    let mut sanitized = String::with_capacity(text.len());
+    
+    // First pass: Detect and log if there are ANSI escape codes
+    let has_ansi = text.contains('\u{001B}') || text.contains('\u{009B}');
+    if has_ansi {
+        debug!("sanitize_json_text: ANSI escape codes detected in input");
+    }
+    
+    // Check if this is likely a JSON-RPC message
+    let is_json_rpc = text.contains("jsonrpc") && (text.contains("\"method\"") || text.contains("\"id\""));
+    
+    // Second pass: Remove all known problematic characters
+    for c in text.chars() {
+        match c {
+            // Explicitly allowed whitespace characters
+            '\n' | '\r' | '\t' => sanitized.push(c),
+            
+            // Printable ASCII range and beyond
+            c if c >= ' ' => sanitized.push(c),
+            
+            // Skip all other control characters (including all ANSI escape sequences)
+            _ => {}
+        }
+    }
+    
+    // Fix any malformed JSON structures
+    // Only do this if the string appears to be JSON
+    let looks_like_json = sanitized.contains('{') && 
+                          sanitized.contains('"') && 
+                          (sanitized.contains(':') || is_json_rpc);
+                          
+    if looks_like_json {
+        // Try to fix common JSON issues
+        
+        // Balance quotes if needed (only if not too many)
+        let quote_count = sanitized.chars().filter(|&c| c == '"').count();
+        if quote_count % 2 != 0 && quote_count < 100 {
+            debug!("JSON sanitization: Fixing unbalanced quotes");
+            sanitized.push('"');
+        }
+        
+        // Balance braces and brackets if needed
+        let open_braces = sanitized.chars().filter(|&c| c == '{').count();
+        let close_braces = sanitized.chars().filter(|&c| c == '}').count();
+        let open_brackets = sanitized.chars().filter(|&c| c == '[').count();
+        let close_brackets = sanitized.chars().filter(|&c| c == ']').count();
+        
+        if open_braces > close_braces {
+            debug!("JSON sanitization: Fixing unbalanced braces");
+            for _ in 0..(open_braces - close_braces) {
+                sanitized.push('}');
+            }
+        }
+        
+        if open_brackets > close_brackets {
+            debug!("JSON sanitization: Fixing unbalanced brackets");
+            for _ in 0..(open_brackets - close_brackets) {
+                sanitized.push(']');
+            }
+        }
+        
+        // Validate the JSON if it looks like JSON-RPC
+        if is_json_rpc {
+            match serde_json::from_str::<serde_json::Value>(&sanitized) {
+                Ok(_) => {
+                    debug!("JSON-RPC message successfully validated after sanitization");
+                },
+                Err(e) => {
+                    debug!("JSON-RPC message failed validation after sanitization: {}", e);
+                    
+                    // Last resort: try to repair common issues in JSON-RPC messages
+                    // Look for incomplete method or params structure
+                    if sanitized.contains("\"method\":") && !sanitized.contains("\"params\":") {
+                        debug!("Adding missing params field");
+                        // Find a good position to insert params - after the method field
+                        if let Some(method_pos) = sanitized.find("\"method\":") {
+                            // Find the next quotation mark after method value
+                            if let Some(next_quote) = sanitized[method_pos + 10..].find('"') {
+                                let insert_pos = method_pos + 10 + next_quote + 1;
+                                if insert_pos < sanitized.len() {
+                                    sanitized.insert_str(insert_pos, ",\"params\":{}");
+                                }
                             }
                         }
-                    }
-                    Err(e) => {
-                        info!("{} - JSON parsing failed: {}", prefix, e);
                     }
                 }
             }
         }
-        Err(e) => {
-            info!("{} - Invalid UTF-8: {}", prefix, e);
-        }
     }
+    
+    sanitized
 }
 
 /// Initialize the Winx agent with default settings
@@ -146,33 +310,42 @@ pub fn init_with_workspace(workspace_path: &str) -> Result<()> {
 pub fn init_with_logger(ansi_colors: bool) -> Result<()> {
     use tracing_subscriber::fmt;
     use tracing_subscriber::EnvFilter;
+    use tracing_subscriber::util::SubscriberInitExt;
     
-    // Extremely simplified minimal approach to avoid type errors
-    if !ansi_colors {
+    // Use the try_init() method instead of init() to handle cases where
+    // a global subscriber has already been set
+    let result = if !ansi_colors {
         // We'll use a simple writer - the bash.rs AnsiStrippingWriter will handle output separately
         fmt::fmt()
             .with_env_filter(EnvFilter::from_default_env())
             .with_ansi(false) // Disable ANSI explicitly
             .with_target(false) // Minimum formatting
             .without_time() // No timestamp formatting 
-            .init();
-            
-        // Set panic hook to avoid ANSI codes in panics
-        std::panic::set_hook(Box::new(|panic_info| {
-            let text = format!("PANIC: {}", panic_info);
-            let stripped = strip_ansi_codes(&text);
-            eprintln!("{}", stripped);
-        }));
-        
-        info!("Initializing Winx agent v{} (ANSI-free for MCP)", version());
+            .try_init()
     } else {
         // Default configuration for CLI usage
         fmt::fmt()
             .with_ansi(true)
             .with_env_filter(EnvFilter::from_default_env())
             .with_target(true)
-            .init();
-
+            .try_init()
+    };
+    
+    // If initialization failed, log a warning but don't fail the whole app
+    if let Err(e) = result {
+        eprintln!("Warning: Could not initialize logger: {}. Continuing anyway.", e);
+    }
+    
+    // Set panic hook to avoid ANSI codes in panics
+    std::panic::set_hook(Box::new(|panic_info| {
+        let text = format!("PANIC: {}", panic_info);
+        let stripped = strip_ansi_codes(&text);
+        eprintln!("{}", stripped);
+    }));
+    
+    if !ansi_colors {
+        info!("Initializing Winx agent v{} (ANSI-free for MCP)", version());
+    } else {
         info!("Initializing Winx agent v{}", version());
     }
 
