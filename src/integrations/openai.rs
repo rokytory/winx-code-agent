@@ -1,6 +1,6 @@
 use anyhow::Result;
 use async_openai::{
-    types::{ChatCompletionRequestMessage, CreateChatCompletionRequestArgs, Role},
+    types::{ChatCompletionRequestMessage, CreateChatCompletionRequestArgs},
     Client,
 };
 use serde::{Deserialize, Serialize};
@@ -79,7 +79,6 @@ impl OpenAIClient {
                     prompt.to_string(),
                 ),
                 name: None,
-                role: Role::User,
             },
         );
 
@@ -93,7 +92,7 @@ impl OpenAIClient {
 
         // Adicionar max_tokens se definido
         if let Some(max_tokens) = self.config.max_tokens {
-            request.max_tokens = Some(max_tokens as u16);
+            request.max_tokens = Some(max_tokens as u32);
         }
 
         // Adicionar temperature se definido
@@ -130,7 +129,7 @@ impl OpenAIClient {
 
         // Adicionar max_tokens se definido
         if let Some(max_tokens) = self.config.max_tokens {
-            request.max_tokens = Some(max_tokens as u16);
+            request.max_tokens = Some(max_tokens as u32);
         }
 
         // Adicionar temperature se definido
@@ -180,9 +179,10 @@ Your goal is to reach the best possible solution through careful sequential thin
         let mut messages = vec![
             ChatCompletionRequestMessage::System(
                 async_openai::types::ChatCompletionRequestSystemMessage {
-                    content: self.system_prompt.clone(),
+                    content: async_openai::types::ChatCompletionRequestSystemMessageContent::Text(
+                        self.system_prompt.clone()
+                    ),
                     name: None,
-                    role: Role::System,
                 }
             ),
             ChatCompletionRequestMessage::User(
@@ -191,7 +191,7 @@ Your goal is to reach the best possible solution through careful sequential thin
                         format!("Question: {}\n\nThink step-by-step to solve this problem. Start your first step with 'Step 1:'", query)
                     ),
                     name: None,
-                    role: Role::User,
+                    // Remove role property as it's not in the struct anymore
                 }
             )
         ];
@@ -217,12 +217,12 @@ Your goal is to reach the best possible solution through careful sequential thin
         // Add assistant's first thought to the conversation
         messages.push(ChatCompletionRequestMessage::Assistant(
             async_openai::types::ChatCompletionRequestAssistantMessage {
-                content: Some(response),
+                content: Some(async_openai::types::ChatCompletionRequestAssistantMessageContent::Text(response)),
                 name: None,
-                // Removido campo obsoleto function_call
                 tool_calls: None,
-                role: Role::Assistant,
+                audio: None,
                 function_call: None,
+                refusal: None,
             },
         ));
 
@@ -235,7 +235,7 @@ Your goal is to reach the best possible solution through careful sequential thin
                         format!("Continue your thinking process. What is step {}?", step),
                     ),
                     name: None,
-                    role: Role::User,
+                // Remove role property as it's not in the struct anymore
                 },
             ));
 
@@ -260,12 +260,12 @@ Your goal is to reach the best possible solution through careful sequential thin
             // Add assistant's thought to the conversation
             messages.push(ChatCompletionRequestMessage::Assistant(
                 async_openai::types::ChatCompletionRequestAssistantMessage {
-                    content: Some(response),
+                    content: Some(async_openai::types::ChatCompletionRequestAssistantMessageContent::Text(response)),
                     name: None,
-                    // Removido campo obsoleto function_call
                     tool_calls: None,
-                    role: Role::Assistant,
+                    audio: None,
                     function_call: None,
+                    refusal: None,
                 },
             ));
         }
@@ -278,7 +278,7 @@ Your goal is to reach the best possible solution through careful sequential thin
                         .to_string(),
                 ),
                 name: None,
-                role: Role::User,
+                // Remove role property as it's not in the struct anymore
             },
         ));
 
