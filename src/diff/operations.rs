@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use similar::{ChangeTag, TextDiff};
 use std::fmt;
 use tracing::debug;
@@ -80,17 +80,17 @@ fn optimize_operations(operations: &mut Vec<DiffOp>) {
         if i + 1 < operations.len() {
             match (&operations[i], &operations[i + 1]) {
                 (DiffOp::Delete { start, end }, DiffOp::Insert { position, content })
-                if *end == *position =>
-                    {
-                        // Replace operation (Delete followed by Insert)
-                        operations[i] = DiffOp::Replace {
-                            start: *start,
-                            end: *end,
-                            content: content.clone(),
-                        };
-                        operations.remove(i + 1);
-                        continue;
-                    }
+                    if *end == *position =>
+                {
+                    // Replace operation (Delete followed by Insert)
+                    operations[i] = DiffOp::Replace {
+                        start: *start,
+                        end: *end,
+                        content: content.clone(),
+                    };
+                    operations.remove(i + 1);
+                    continue;
+                }
                 _ => {}
             }
         }
