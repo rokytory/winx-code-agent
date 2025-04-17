@@ -76,13 +76,16 @@ impl OpenAIClient {
     pub async fn execute_prompt(&self, prompt: &str) -> Result<String> {
         debug!("Executing prompt against OpenAI: {}", prompt);
         
-        // Criar vetor de mensagens
-        let messages = vec![
-            serde_json::json!({
-                "role": Role::User.to_string(),
-                "content": prompt
-            })
-        ];
+        // Criar vetor de mensagens usando a API do async-openai
+        let message = ChatCompletionRequestMessage::User(
+            async_openai::types::ChatCompletionRequestUserMessage {
+                content: Some(async_openai::types::ChatCompletionRequestUserMessageContent::Text(prompt.to_string())),
+                name: None,
+                role: Role::User,
+            }
+        );
+            
+        let messages = vec![message];
         
         // Criar request
         let mut request = CreateChatCompletionRequestArgs::default()
@@ -112,7 +115,7 @@ impl OpenAIClient {
     }
     
     /// Execute a chat conversation against the OpenAI API
-    pub async fn execute_chat(&self, messages: Vec<serde_json::Value>) -> Result<String> {
+    pub async fn execute_chat(&self, messages: Vec<ChatCompletionRequestMessage>) -> Result<String> {
         debug!("Executing chat against OpenAI with {} messages", messages.len());
         
         // Criar request
@@ -171,18 +174,22 @@ Your goal is to reach the best possible solution through careful sequential thin
     pub async fn process_query(&mut self, query: &str, total_steps: usize) -> Result<String> {
         // Initialize the conversation with system and user prompts
         let mut messages = vec![
-            ChatCompletionRequestMessage {
-                role: Role::System,
-                content: Some(self.system_prompt.clone()),
-                name: None,
-                function_call: None,
-            },
-            ChatCompletionRequestMessage {
-                role: Role::User,
-                content: Some(format!("Question: {}\n\nThink step-by-step to solve this problem. Start your first step with 'Step 1:'", query)),
-                name: None,
-                function_call: None,
-            },
+            ChatCompletionRequestMessage::System(
+                async_openai::types::ChatCompletionRequestSystemMessage {
+                    content: Some(self.system_prompt.clone()),
+                    name: None,
+                    role: Role::System,
+                }
+            ),
+            ChatCompletionRequestMessage::User(
+                async_openai::types::ChatCompletionRequestUserMessage {
+                    content: Some(async_openai::types::ChatCompletionRequestUserMessageContent::Text(
+                        format!("Question: {}\n\nThink step-by-step to solve this problem. Start your first step with 'Step 1:'", query)
+                    )),
+                    name: None,
+                    role: Role::User,
+                }
+            )
         ];
         
         // First thought
@@ -205,20 +212,30 @@ Your goal is to reach the best possible solution through careful sequential thin
         
         // Add assistant's first thought to the conversation
         messages.push(
-            serde_json::json!({
-                "role": Role::Assistant.to_string(),
-                "content": response
-            })
+            ChatCompletionRequestMessage::Assistant(
+                async_openai::types::ChatCompletionRequestAssistantMessage {
+                    content: Some(response),
+                    name: None,
+                    function_call: None,
+                    tool_calls: None,
+                    role: Role::Assistant,
+                }
+            )
         );
         
         // Process remaining thoughts
         for step in 2..=total_steps {
             // Add user prompt for next step
             messages.push(
-                serde_json::json!({
-                    "role": Role::User.to_string(),
-                    "content": format!("Continue your thinking process. What is step {}?", step)
-                })
+                ChatCompletionRequestMessage::User(
+                    async_openai::types::ChatCompletionRequestUserMessage {
+                        content: Some(async_openai::types::ChatCompletionRequestUserMessageContent::Text(
+                            format!("Continue your thinking process. What is step {}?", step)
+                        )),
+                        name: None,
+                        role: Role::User,
+                    }
+                )
             );
             
             // Get response for this step
@@ -241,19 +258,29 @@ Your goal is to reach the best possible solution through careful sequential thin
             
             // Add assistant's thought to the conversation
             messages.push(
-                serde_json::json!({
-                    "role": Role::Assistant.to_string(),
-                    "content": response
-                })
+                ChatCompletionRequestMessage::Assistant(
+                    async_openai::types::ChatCompletionRequestAssistantMessage {
+                        content: Some(response),
+                        name: None,
+                        function_call: None,
+                        tool_calls: None,
+                        role: Role::Assistant,
+                    }
+                )
             );
         }
         
         // Finally, ask for a conclusion
         messages.push(
-            serde_json::json!({
-                "role": Role::User.to_string(),
-                "content": "Based on your step-by-step thinking, what is your final answer or conclusion?"
-            })
+            ChatCompletionRequestMessage::User(
+                async_openai::types::ChatCompletionRequestUserMessage {
+                    content: Some(async_openai::types::ChatCompletionRequestUserMessageContent::Text(
+                        "Based on your step-by-step thinking, what is your final answer or conclusion?".to_string()
+                    )),
+                    name: None,
+                    role: Role::User,
+                }
+            )
         );
         
         let conclusion = self.client.execute_chat(messages).await?;
