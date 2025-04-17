@@ -1,7 +1,9 @@
 use anyhow::Result;
 use rmcp::model::*;
-use rmcp::{tool, Error as McpError, ServerHandler};
+use rmcp::{tool, Error as McpError, ServerHandler, RoleServer};
+use rmcp::service::RequestContext;
 use serde::{Deserialize, Serialize};
+use serde_json;
 use tracing::info;
 
 use crate::commands::{bash, files};
@@ -188,14 +190,82 @@ impl WinxTools {
 #[tool(tool_box)]
 impl ServerHandler for WinxTools {
     fn get_info(&self) -> ServerInfo {
+        // Garantir que usamos a versão de protocolo correta
+        // e que a configuração de ferramentas está habilitada
         ServerInfo {
-            protocol_version: ProtocolVersion::V_2025_03_26,
+            protocol_version: ProtocolVersion::V_2024_11_05,
             capabilities: ServerCapabilities::builder()
+                .enable_prompts()
+                .enable_resources()
                 .enable_tools()
                 .build(),
             server_info: Implementation::from_build_env(),
             instructions: Some("Winx é um agente de código em Rust que permite executar comandos bash, manipular arquivos e executar consultas SQL.".to_string()),
         }
+    }
+    
+    // Implementação dos métodos adicionais que o Counter de exemplo inclui
+    
+    async fn list_resources(
+        &self,
+        _request: Option<PaginatedRequestParam>,
+        _: RequestContext<RoleServer>,
+    ) -> Result<ListResourcesResult, McpError> {
+        // Retorna uma lista vazia de recursos
+        Ok(ListResourcesResult {
+            resources: Vec::new(),
+            next_cursor: None,
+        })
+    }
+
+    async fn read_resource(
+        &self,
+        ReadResourceRequestParam { uri }: ReadResourceRequestParam,
+        _: RequestContext<RoleServer>,
+    ) -> Result<ReadResourceResult, McpError> {
+        // Sem recursos para ler
+        Err(McpError::resource_not_found(
+            "resource_not_found",
+            Some(serde_json::json!({
+                "uri": uri
+            })),
+        ))
+    }
+
+    async fn list_prompts(
+        &self,
+        _request: Option<PaginatedRequestParam>,
+        _: RequestContext<RoleServer>,
+    ) -> Result<ListPromptsResult, McpError> {
+        // Retorna uma lista vazia de prompts
+        Ok(ListPromptsResult {
+            next_cursor: None,
+            prompts: Vec::new(),
+        })
+    }
+
+    async fn get_prompt(
+        &self,
+        GetPromptRequestParam { name, .. }: GetPromptRequestParam,
+        _: RequestContext<RoleServer>,
+    ) -> Result<GetPromptResult, McpError> {
+        // Sem prompts para obter
+        Err(McpError::invalid_params(
+            "prompt not found", 
+            Some(serde_json::json!({"name": name}))
+        ))
+    }
+
+    async fn list_resource_templates(
+        &self,
+        _request: Option<PaginatedRequestParam>,
+        _: RequestContext<RoleServer>,
+    ) -> Result<ListResourceTemplatesResult, McpError> {
+        // Retorna uma lista vazia de templates de recursos
+        Ok(ListResourceTemplatesResult {
+            next_cursor: None,
+            resource_templates: Vec::new(),
+        })
     }
 }
 
