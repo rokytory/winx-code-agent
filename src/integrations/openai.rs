@@ -75,10 +75,8 @@ impl OpenAIClient {
         // Criar vetor de mensagens usando a API do async-openai
         let message = ChatCompletionRequestMessage::User(
             async_openai::types::ChatCompletionRequestUserMessage {
-                content: Some(
-                    async_openai::types::ChatCompletionRequestUserMessageContent::Text(
-                        prompt.to_string(),
-                    ),
+                content: async_openai::types::ChatCompletionRequestUserMessageContent::Text(
+                    prompt.to_string(),
                 ),
                 name: None,
                 role: Role::User,
@@ -182,16 +180,16 @@ Your goal is to reach the best possible solution through careful sequential thin
         let mut messages = vec![
             ChatCompletionRequestMessage::System(
                 async_openai::types::ChatCompletionRequestSystemMessage {
-                    content: Some(self.system_prompt.clone()),
+                    content: self.system_prompt.clone(),
                     name: None,
                     role: Role::System,
                 }
             ),
             ChatCompletionRequestMessage::User(
                 async_openai::types::ChatCompletionRequestUserMessage {
-                    content: Some(async_openai::types::ChatCompletionRequestUserMessageContent::Text(
+                    content: async_openai::types::ChatCompletionRequestUserMessageContent::Text(
                         format!("Question: {}\n\nThink step-by-step to solve this problem. Start your first step with 'Step 1:'", query)
-                    )),
+                    ),
                     name: None,
                     role: Role::User,
                 }
@@ -221,9 +219,10 @@ Your goal is to reach the best possible solution through careful sequential thin
             async_openai::types::ChatCompletionRequestAssistantMessage {
                 content: Some(response),
                 name: None,
-                function_call: None,
+                // Removido campo obsoleto function_call
                 tool_calls: None,
                 role: Role::Assistant,
+                function_call: None,
             },
         ));
 
@@ -232,10 +231,8 @@ Your goal is to reach the best possible solution through careful sequential thin
             // Add user prompt for next step
             messages.push(ChatCompletionRequestMessage::User(
                 async_openai::types::ChatCompletionRequestUserMessage {
-                    content: Some(
-                        async_openai::types::ChatCompletionRequestUserMessageContent::Text(
-                            format!("Continue your thinking process. What is step {}?", step),
-                        ),
+                    content: async_openai::types::ChatCompletionRequestUserMessageContent::Text(
+                        format!("Continue your thinking process. What is step {}?", step),
                     ),
                     name: None,
                     role: Role::User,
@@ -265,25 +262,25 @@ Your goal is to reach the best possible solution through careful sequential thin
                 async_openai::types::ChatCompletionRequestAssistantMessage {
                     content: Some(response),
                     name: None,
-                    function_call: None,
+                    // Removido campo obsoleto function_call
                     tool_calls: None,
                     role: Role::Assistant,
+                    function_call: None,
                 },
             ));
         }
 
         // Finally, ask for a conclusion
-        messages.push(
-            ChatCompletionRequestMessage::User(
-                async_openai::types::ChatCompletionRequestUserMessage {
-                    content: Some(async_openai::types::ChatCompletionRequestUserMessageContent::Text(
-                        "Based on your step-by-step thinking, what is your final answer or conclusion?".to_string()
-                    )),
-                    name: None,
-                    role: Role::User,
-                }
-            )
-        );
+        messages.push(ChatCompletionRequestMessage::User(
+            async_openai::types::ChatCompletionRequestUserMessage {
+                content: async_openai::types::ChatCompletionRequestUserMessageContent::Text(
+                    "Based on your step-by-step thinking, what is your final answer or conclusion?"
+                        .to_string(),
+                ),
+                name: None,
+                role: Role::User,
+            },
+        ));
 
         let conclusion = self.client.execute_chat(messages).await?;
 
@@ -392,6 +389,7 @@ fn extract_thought_number(text: &str) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::env;
 
     #[tokio::test]
     async fn test_openai_client() {
