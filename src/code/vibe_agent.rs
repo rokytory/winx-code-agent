@@ -503,6 +503,49 @@ impl VibeAgent {
         Ok(knowledge.get_unread_ranges())
     }
 
+    /// Auto-read a file's content and update file knowledge
+    pub async fn auto_read_file(&mut self, file_path: impl AsRef<Path>) -> Result<()> {
+        let file_path = file_path.as_ref();
+        debug!("Auto-reading file: {}", file_path.display());
+        
+        // Read the file content using fs_utils
+        let content = crate::utils::fs::read_file_to_string(file_path)?;
+        
+        // Calculate hash for tracking
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        hasher.update(content.as_bytes());
+        let hash = format!("{:x}", hasher.finalize());
+        
+        // Calculate total lines
+        let total_lines = content.lines().count();
+        
+        // Update file knowledge
+        if let Some(knowledge) = self.file_knowledge.get_mut(file_path) {
+            // Update existing knowledge
+            knowledge.hash = hash;
+            knowledge.total_lines = total_lines;
+            knowledge.fully_read = true;
+            knowledge.read_ranges = vec![(1, total_lines)];
+            
+            // Update last modified time
+            if let Ok(metadata) = std::fs::metadata(file_path) {
+                if let Ok(modified) = metadata.modified() {
+                    knowledge.last_modified = modified;
+                }
+            }
+        } else {
+            // Create new knowledge
+            let mut knowledge = FileKnowledge::new(file_path, self.detect_language(file_path))?;
+            knowledge.fully_read = true;
+            knowledge.read_ranges = vec![(1, total_lines)];
+            self.file_knowledge.insert(file_path.to_path_buf(), knowledge);
+        }
+        
+        debug!("Successfully auto-read file: {}", file_path.display());
+        Ok(())
+    }
+
     /// Apply search/replace edit to a file with enhanced error handling
     pub async fn apply_search_replace(
         &mut self,
@@ -513,26 +556,44 @@ impl VibeAgent {
 
         // Check if we can edit the file
         if !self.can_edit_file(file_path)? {
-            let unread_ranges = self.get_unread_ranges(file_path)?;
+            // If the file can't be edited, auto-read it first
+            debug!("File {} needs to be read before editing, auto-reading...", file_path.display());
+            
+            if let Err(e) = self.auto_read_file(file_path).await {
+                // If auto-read fails, provide detailed error message
+                let unread_ranges = self.get_unread_ranges(file_path)?;
+                
+                if !unread_ranges.is_empty() {
+                    let ranges_str = unread_ranges
+                        .iter()
+                        .map(|(start, end)| format!("{}-{}", start, end))
+                        .collect::<Vec<_>>()
+                        .join(", ");
 
-            if !unread_ranges.is_empty() {
-                let ranges_str = unread_ranges
-                    .iter()
-                    .map(|(start, end)| format!("{}-{}", start, end))
-                    .collect::<Vec<_>>()
-                    .join(", ");
-
+                    return Err(anyhow!(
+                        "Auto-read failed for {}. Please read the following line ranges manually: {}. Error: {}",
+                        file_path.display(),
+                        ranges_str,
+                        e
+                    ));
+                } else {
+                    return Err(anyhow!(
+                        "File {} has changed since it was last read and auto-read failed: {}",
+                        file_path.display(),
+                        e
+                    ));
+                }
+            }
+            
+            // Re-check if the file can be edited after auto-read
+            if !self.can_edit_file(file_path)? {
                 return Err(anyhow!(
-                    "File {} hasn't been fully read. Please read the following line ranges first: {}",
-                    file_path.display(),
-                    ranges_str
-                ));
-            } else {
-                return Err(anyhow!(
-                    "File {} has changed since it was last read. Please read it again before editing.",
+                    "File {} still cannot be edited after auto-read. It may have changed during reading.",
                     file_path.display()
                 ));
             }
+            
+            debug!("Successfully auto-read file, proceeding with edit");
         }
 
         // Read the file content
