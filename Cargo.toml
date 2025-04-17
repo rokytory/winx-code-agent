@@ -23,7 +23,9 @@ async-openai = "0.18"
 # Shell and terminal interaction
 portable-pty = "0.8"
 crossterm = "0.27"
-vte = "0.13"
+vte = "0.15"
+once_cell = "1.8"
+sha2 = "0.10"
 
 # UUID generation
 uuid = { version = "1.6", features = ["v4", "serde"] }
