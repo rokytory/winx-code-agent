@@ -184,12 +184,47 @@ impl WinxTools {
         // 1. JSON Object: {"command": "ls -la"}
         // 2. Simple String: "ls -la"
         // 3. Nested Object: {"action_json": {"command": "ls -la"}}
+        // 4. String JSON: "{\"command\": \"ls -la\"}"
 
         info!("Bash command received: {:?}", action_json);
 
         let command = if action_json.is_string() {
-            // If it's a simple string, use it as a command
-            action_json.as_str().unwrap_or("").to_string()
+            // If it's a simple string, check if it's a JSON string first
+            let action_str = action_json.as_str().unwrap_or("");
+            
+            if action_str.starts_with('{') && action_str.contains("command") {
+                // Try to parse the string as JSON
+                match serde_json::from_str::<serde_json::Value>(action_str) {
+                    Ok(parsed) => {
+                        if let Some(cmd) = parsed.get("command") {
+                            if cmd.is_string() {
+                                cmd.as_str().unwrap_or("").to_string()
+                            } else {
+                                return Err(McpError::invalid_params(
+                                    "command_format_error",
+                                    Some(serde_json::json!({
+                                        "error": "command must be a string in parsed JSON string"
+                                    })),
+                                ));
+                            }
+                        } else {
+                            return Err(McpError::invalid_params(
+                                "command_format_error",
+                                Some(serde_json::json!({
+                                    "error": "command field is required in parsed JSON string"
+                                })),
+                            ));
+                        }
+                    },
+                    Err(_) => {
+                        // If not a valid JSON, use the string as command directly
+                        action_str.to_string()
+                    }
+                }
+            } else {
+                // Regular string command
+                action_str.to_string()
+            }
         } else if let Some(obj) = action_json.as_object() {
             // If it's a JSON object, check for different formats
             if let Some(cmd) = obj.get("command") {
@@ -207,8 +242,42 @@ impl WinxTools {
             } else if let Some(nested_action) = obj.get("action_json") {
                 // Handle nested action_json format
                 if nested_action.is_string() {
-                    // If action_json is a string command
-                    nested_action.as_str().unwrap_or("").to_string()
+                    // If action_json is a string, try to parse it as JSON first
+                    let nested_str = nested_action.as_str().unwrap_or("");
+                    
+                    if nested_str.starts_with('{') && nested_str.contains("command") {
+                        // Try to parse the string as JSON
+                        match serde_json::from_str::<serde_json::Value>(nested_str) {
+                            Ok(parsed) => {
+                                if let Some(cmd) = parsed.get("command") {
+                                    if cmd.is_string() {
+                                        cmd.as_str().unwrap_or("").to_string()
+                                    } else {
+                                        return Err(McpError::invalid_params(
+                                            "command_format_error",
+                                            Some(serde_json::json!({
+                                                "error": "command must be a string in nested JSON string"
+                                            })),
+                                        ));
+                                    }
+                                } else {
+                                    return Err(McpError::invalid_params(
+                                        "command_format_error",
+                                        Some(serde_json::json!({
+                                            "error": "command field is required in nested JSON string"
+                                        })),
+                                    ));
+                                }
+                            },
+                            Err(_) => {
+                                // If not a valid JSON, use the string as command directly
+                                nested_str.to_string()
+                            }
+                        }
+                    } else {
+                        // Regular string command
+                        nested_str.to_string()
+                    }
                 } else if let Some(nested_obj) = nested_action.as_object() {
                     // If action_json is an object with command
                     if let Some(nested_cmd) = nested_obj.get("command") {
