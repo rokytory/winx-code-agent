@@ -1,7 +1,6 @@
 use anyhow::{Context, Result};
 use rmcp::ServiceExt;
 use std::env;
-use std::error::Error;
 use std::path::PathBuf;
 use tracing::info;
 
@@ -10,6 +9,9 @@ use winx::{
     core::{state::create_shared_state, types::ModeType},
 };
 
+// No need to add custom stdio handling at this level
+// We'll rely on environment variables and our ANSI stripping inside bash.rs and terminal.rs
+
 #[tokio::main]
 async fn main() -> Result<()> {
     // Configure environment variables for debugging if not already defined
@@ -17,10 +19,20 @@ async fn main() -> Result<()> {
         env::set_var("RUST_LOG", "rmcp=trace,winx=trace");
     }
 
-    // Ensure there are no ANSI color codes activated (by default)
-    if env::var("NO_COLOR").is_err() {
-        env::set_var("NO_COLOR", "1");
-    }
+    // Aggressively ensure there are no ANSI color codes anywhere
+    // Set all known environment variables that might affect color output
+    env::set_var("NO_COLOR", "1");
+    env::set_var("CLICOLOR", "0");
+    env::set_var("CLICOLOR_FORCE", "0");
+    env::set_var("TERM", "dumb");
+    env::set_var("RUST_LOG_STYLE", "never");
+    env::set_var("RUST_LOG_COLOR", "never");
+    
+    // Explicitly disable colors in all dependencies that might use colors
+    env::set_var("RUST_LOG_FORMAT", "json"); // Some dependencies respect this
+    env::set_var("RUST_BACKTRACE_COLOR", "never");
+    env::set_var("RUST_TEST_COLOR", "never");
+    env::set_var("CARGO_TERM_COLOR", "never");
 
     // Parse command-line arguments
     let args: Vec<String> = std::env::args().collect();
