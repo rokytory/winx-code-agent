@@ -11,8 +11,10 @@ pub mod sql;
 pub mod thinking;
 pub mod utils;
 
-use anyhow::Result;
-use tracing::info;
+use anyhow::{Context, Result};
+use std::env;
+use std::path::PathBuf;
+use tracing::{debug, info};
 
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
@@ -101,6 +103,21 @@ pub fn init() -> Result<()> {
     init_with_logger(true)
 }
 
+/// Initialize the Winx agent with workspace
+pub fn init_with_workspace(workspace_path: &str) -> Result<()> {
+    // Initialize with default logger
+    init_with_logger(true)?;
+    
+    // Initialize terminal manager
+    commands::terminal::init_terminal_manager(workspace_path.to_string());
+    
+    // Initialize memory store
+    let memory_dir = core::memory::get_memory_dir()?;
+    core::memory::create_shared_memory_store(memory_dir)?;
+    
+    Ok(())
+}
+
 /// Initialize the Winx agent with custom logger configuration
 /// 
 /// @param ansi_colors - Whether to enable ANSI color codes in logs
@@ -131,6 +148,24 @@ pub fn init_with_logger(ansi_colors: bool) -> Result<()> {
         
         info!("Initializing Winx agent v{}", version());
     }
+    
+    // Initialize once_cell modules
+    if let Err(e) = initialize_once_cell_modules() {
+        debug!("Warning: Some modules failed to initialize: {}", e);
+    }
+    
+    Ok(())
+}
+
+/// Initialize any once_cell modules that need to be ready at startup
+fn initialize_once_cell_modules() -> Result<()> {
+    // Get current directory or user directory for defaults
+    let default_dir = env::current_dir()
+        .or_else(|_| dirs::home_dir().ok_or_else(|| anyhow::anyhow!("Could not determine home directory")))
+        .context("Failed to determine a default workspace directory")?;
+        
+    // Initialize terminal manager with default directory
+    commands::terminal::init_terminal_manager(default_dir.to_string_lossy().to_string());
     
     Ok(())
 }
