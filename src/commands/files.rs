@@ -222,24 +222,29 @@ pub async fn write_or_edit_file_internal(
         fs::write(&path, content)?;
         "replaced"
     } else {
+        // Check if file exists first
+        if !path.exists() {
+            debug!("File doesn't exist, creating new file with content: {}", path.display());
+            
+            // Ensure parent directories exist
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            
+            // For new files, always use the content directly (not as search/replace blocks)
+            fs::write(&path, content)?;
+            return Ok(format!("Created new file: {}", path.display()));
+        }
+        
         // Parse search/replace blocks and apply them
         debug!(
             "Performing partial edit with search/replace blocks: {}",
             path.display()
         );
 
-        // Read the current content if the file exists
+        // Read the current content from the existing file
         let current_content = match fs::read_to_string(&path) {
             Ok(content) => content,
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                // If file doesn't exist, create it with the full content
-                // Ensure parent directories exist
-                if let Some(parent) = path.parent() {
-                    fs::create_dir_all(parent)?;
-                }
-                fs::write(&path, content)?;
-                return Ok(format!("Created new file: {}", path.display()));
-            }
             Err(e) => {
                 return Err(anyhow::anyhow!(
                     "Failed to read file {}: {}",
@@ -249,7 +254,7 @@ pub async fn write_or_edit_file_internal(
             }
         };
 
-        // Apply search/replace blocks
+        // Try to apply search/replace blocks with enhanced error handling
         match crate::diff::search_replace::apply_search_replace_from_text(&current_content, content)
         {
             Ok(result) => {
@@ -271,7 +276,34 @@ pub async fn write_or_edit_file_internal(
                 }
             }
             Err(e) => {
-                // If search/replace fails, try to provide helpful error message
+                // If syntax error in search/replace blocks, try alternative format
+                if e.to_string().contains("No valid search/replace blocks") {
+                    debug!("Standard format failed, trying to handle content as a complete file or alternative format");
+                    
+                    // Check if it's actually valid content and not search/replace blocks at all
+                    if !content.contains("<<<<<<< SEARCH") && 
+                       !content.contains("search:") &&
+                       !content.contains("replace:") {
+                        // Treat as complete file content
+                        debug!("Content appears to be complete file content, not search/replace blocks");
+                        fs::write(&path, content)?;
+                        return Ok(format!("Created/replaced file: {}", path.display()));
+                    }
+                    
+                    // Try to provide more helpful error message for search/replace format issues
+                    let error_msg = if content.contains("search:") || content.contains("replace:") {
+                        "Invalid search/replace format. For prefix format, each 'search:' must be followed by a 'replace:'"
+                    } else if content.contains("<<<<") || content.contains(">>>>") {
+                        "Invalid marker format. Format must be: <<<<<<< SEARCH, =======, >>>>>>> REPLACE"
+                    } else {
+                        "Invalid search/replace blocks format. Use either marker format or prefix format"
+                    };
+                    
+                    warn!("{}: {}", error_msg, e);
+                    return Err(anyhow::anyhow!("{}", error_msg));
+                }
+                
+                // For other errors, provide detailed debug info
                 warn!("Search/replace failed: {}", e);
 
                 // Try to find context for failing search blocks
@@ -291,14 +323,14 @@ pub async fn write_or_edit_file_internal(
                     }
                 }
 
-                // Fall back to full replacement if required
+                // Fall back to full replacement if required by env var
                 if env::var("WINX_FALLBACK_ON_SEARCH_REPLACE_ERROR").unwrap_or_default() == "1" {
                     warn!("Falling back to full replacement due to search/replace error");
                     fs::write(&path, content)?;
                     "replaced (fallback from search/replace error)"
                 } else {
                     return Err(anyhow::anyhow!(
-                        "Failed to apply search/replace blocks: {}",
+                        "Failed to apply search/replace blocks: {}. Use percentage_to_change > 50 for full replacement.",
                         e
                     ));
                 }
