@@ -29,9 +29,10 @@ impl WinxTools {
         #[tool(param)] action_json: serde_json::Value,
         #[tool(param)] wait_for_seconds: Option<f32>,
     ) -> Result<CallToolResult, McpError> {
-        // We simplify the logic to handle the input in the most common formats:
+        // Enhanced version to handle nested action_json format from different clients
         // 1. JSON Object: {"command": "ls -la"}
         // 2. Simple String: "ls -la"
+        // 3. Nested Object: {"action_json": {"command": "ls -la"}}
         
         info!("Bash command received: {:?}", action_json);
         
@@ -39,8 +40,9 @@ impl WinxTools {
             // If it's a simple string, use it as a command
             action_json.as_str().unwrap_or("").to_string()
         } else if let Some(obj) = action_json.as_object() {
-            // If it's a JSON object with a "command" property
+            // If it's a JSON object, check for different formats
             if let Some(cmd) = obj.get("command") {
+                // Direct command property
                 if cmd.is_string() {
                     cmd.as_str().unwrap_or("").to_string()
                 } else {
@@ -51,11 +53,45 @@ impl WinxTools {
                         })),
                     ));
                 }
+            } else if let Some(nested_action) = obj.get("action_json") {
+                // Handle nested action_json format
+                if nested_action.is_string() {
+                    // If action_json is a string command
+                    nested_action.as_str().unwrap_or("").to_string()
+                } else if let Some(nested_obj) = nested_action.as_object() {
+                    // If action_json is an object with command
+                    if let Some(nested_cmd) = nested_obj.get("command") {
+                        if nested_cmd.is_string() {
+                            nested_cmd.as_str().unwrap_or("").to_string()
+                        } else {
+                            return Err(McpError::invalid_params(
+                                "command_format_error",
+                                Some(serde_json::json!({
+                                    "error": "command property in action_json must be a string"
+                                })),
+                            ));
+                        }
+                    } else {
+                        return Err(McpError::invalid_params(
+                            "command_format_error", 
+                            Some(serde_json::json!({
+                                "error": "command property is required in nested action_json object"
+                            })),
+                        ));
+                    }
+                } else {
+                    return Err(McpError::invalid_params(
+                        "command_format_error",
+                        Some(serde_json::json!({
+                            "error": "nested action_json must be a string or an object with a command property"
+                        })),
+                    ));
+                }
             } else {
                 return Err(McpError::invalid_params(
                     "command_format_error", 
                     Some(serde_json::json!({
-                        "error": "command property is required in action_json object"
+                        "error": "command or action_json property is required"
                     })),
                 ));
             }
@@ -63,7 +99,7 @@ impl WinxTools {
             return Err(McpError::invalid_params(
                 "command_format_error",
                 Some(serde_json::json!({
-                    "error": "action_json must be a string or an object with a command property"
+                    "error": "action_json must be a string, an object with a command property, or an object with a nested action_json"
                 })),
             ));
         };
