@@ -1,27 +1,42 @@
-# Winx
+<table style="width:100%" align="center" border="0">
+  <tr>
+    <td><img src="./.github/assets/fairy.png" alt="Winx" width="300"></td>
+    <td><h1>✨ Ｗｉｎｘ Ａｇｅｎｔ ✨</h1></td>
+  </tr>
+</table>
 
-Uma agente de código de alta performance escrita em Rust, combinando os melhores recursos do WCGW e do Serena para
-máxima eficiência e capacidades semânticas.
+<p align="center">
+  <strong>✨ A high-performance code agent written in Rust, combining the best features of WCGW and Serena for maximum efficiency and semantic capabilities. 🦀</strong>
+</p>
 
-## Funcionalidades
+<p align="center">
+  <img src="https://img.shields.io/badge/language-Rust-orange?style=flat&logo=rust" alt="Language" />
+  <img src="https://img.shields.io/badge/license-MIT-blue?style=flat" alt="License" />
+  <img src="https://img.shields.io/github/last-commit/gabrielmaia/winx?style=flat" alt="Last Commit" >
+  <img src="https://img.shields.io/badge/made%20by-Maia-15c3d6?style=flat" alt="Made by Maia" >  
+</p>
 
-- ⚡ **Alto Desempenho**: Implementada em Rust para garantir velocidade e eficiência
-- ⚡ **Análise Semântica de Código**: Integração com Language Server Protocol (LSP) para compreensão de símbolos de
-  código
-- ⚡ **Edição de arquivos otimizada**: Implementação eficiente de diff, edit e insert com algoritmos otimizados
-- ⚡ **Memória de Projeto**: Sistema de memória inspirado no Serena para manter contexto entre sessões
-- ⚡ **Pensamento Sequencial Avançado**: Ferramentas de raciocínio sobre aderência e conclusão de tarefas
-- ⚡ **Verificação de Sintaxe**: Validação da sintaxe de código antes de aplicar modificações
-- ⚡ **Suporte a SQL**: Interface integrada para executar consultas SQL
-- ⚡ **Integração MCP**: Funciona como servidor MCP para Claude e outros LLMs
-- ⚡ **Terminal Interativo**: Suporte para comandos interativos com feedback em tempo real
-- ⚡ **Múltiplos modos de operação**: Suporte para `wcgw`, `architect` e `code_writer`
-- ⚡ **Manipulação de Arquivos Grandes**: Edição incremental de arquivos grandes para evitar problemas de limites de
-  tokens
+---
 
-## Instalação
+## 🌟 Features
 
-Para compilar o projeto:
+- ⚡ **High Performance**: Implemented in Rust for speed and efficiency
+- ⚡ **Semantic Code Analysis**: Integration with Language Server Protocol (LSP) for code symbol understanding
+- ⚡ **Optimized File Editing**: Efficient diff, edit and insert with optimized algorithms
+- ⚡ **Project Memory**: Memory system inspired by Serena to maintain context between sessions
+- ⚡ **Advanced Sequential Thinking**: Tools for reasoning about task adherence and completion
+- ⚡ **Syntax Validation**: Code syntax validation before applying modifications
+- ⚡ **SQL Support**: Integrated interface for executing SQL queries
+- ⚡ **MCP Integration**: Functions as an MCP server for Claude and other LLMs
+- ⚡ **Interactive Terminal**: Support for interactive commands with real-time feedback
+- ⚡ **Multiple Operation Modes**: Support for `wcgw`, `architect` and `code_writer` modes
+- ⚡ **Large File Handling**: Incremental editing of large files to avoid token limit issues
+
+---
+
+## 🚀 Installation
+
+To compile the project from source:
 
 ```bash
 git clone https://github.com/your-username/winx.git
@@ -29,61 +44,108 @@ cd winx
 cargo build --release
 ```
 
-## Uso
+For basic usage:
 
 ```bash
 ./target/release/winx [workspace_path]
 ```
 
-Se nenhum caminho for fornecido, o diretório atual será usado como workspace.
+If no path is provided, the current directory will be used as the workspace.
 
-## Integração com Claude
+---
 
-Para integrar com Claude Desktop, configure o arquivo `claude_desktop_config.json` (localizado em
-`~/Library/Application Support/Claude/claude_desktop_config.json` no macOS):
+## 🔧 Integration with Claude
+
+Winx is inspired by the [WCGW project](https://github.com/rusiaaman/wcgw) but reimplemented in Rust for enhanced performance. To integrate with Claude Desktop, configure the file `claude_desktop_config.json` (located in `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
 
 ```json
 {
   "mcpServers": {
     "winx": {
-      "command": "/caminho/completo/para/winx",
+      "command": "/path/to/winx",
       "args": []
     }
   }
 }
 ```
 
-## Ferramentas Disponíveis
+Then restart the Claude app. You should be able to see the MCP icon if everything is set up correctly.
 
-Winx oferece as seguintes ferramentas para interação com o sistema:
+---
 
-- **BashCommand**: Execute comandos shell com suporte a interatividade
-- **ReadFiles**: Leia conteúdo de um ou mais arquivos
-- **FileWriteOrEdit**: Escreva ou edite arquivos com suporte a edições parciais
-- **SqlQuery**: Execute consultas SQL interativamente
-- **SequentialThinking**: Processador de pensamento sequencial para resolução de problemas
-- **SymbolTools**: Ferramentas para manipulação de símbolos de código (inspiradas no Serena)
-- **MemoryTools**: Ferramentas para guardar e recuperar memórias de projeto
-- **TaskAdherence**: Ferramentas para avaliar a aderência e conclusão de tarefas
-- **InteractiveTerminal**: Terminal interativo para comandos com entrada/saída em tempo real
+## 🛠️ Available Tools
 
-## Modos de Operação
+Winx offers the following tools for interaction with the system:
 
-- **wcgw**: Modo padrão com todas as permissões
-- **architect**: Modo somente leitura para planejamento
-- **code_writer**: Modo restrito para escrever código em caminhos específicos
+- **BashCommand**: Execute shell commands with support for interactivity
+- **ReadFiles**: Read content from one or more files
+- **FileWriteOrEdit**: Write or edit files with support for partial edits
+- **SqlQuery**: Execute SQL queries interactively
+- **SequentialThinking**: Sequential thought processor for problem solving
+- **SymbolTools**: Tools for code symbol manipulation (inspired by Serena)
+- **MemoryTools**: Tools for storing and retrieving project memories
+- **TaskAdherence**: Tools for evaluating task adherence and completion
+- **InteractiveTerminal**: Interactive terminal for commands with real-time I/O
 
-## Segurança
+---
 
-- O agente verifica permissões de arquivo antes de qualquer operação
-- Restrições configuráveis para comandos e caminhos
-- Verificação de alterações antes de aplicar edições a arquivos
-- Verificação de sintaxe para evitar código mal formado
+## 🔀 Operation Modes
 
-## Contribuição
+- **wcgw**: Default mode with all permissions
+- **architect**: Read-only mode for planning
+- **code_writer**: Restricted mode for writing code in specific paths
 
-Contribuições são bem-vindas! Abra um PR ou issue para começar.
+---
 
-## Licença
+## 👨‍💻 Usage Examples
+
+- Ask Claude to explore and understand your codebase
+- Request code analysis and semantic understanding
+- Have Claude edit files with optimized algorithms
+- Execute SQL queries and analyze results
+- Run commands with real-time feedback
+- Implement the sequential thinking process for complex problems
+- Validate syntax before applying code changes
+- Work with large files incrementally to avoid token limits
+
+---
+
+## 🏷 Need Support or Assistance?
+
+If you need help or have any questions about Winx, feel free to reach out via the following channels:
+
+- [GitHub Issues](https://github.com/yourusername/winx/issues/new): Open a support issue on GitHub.
+- Email: your.email@example.com
+
+---
+
+## ❣️ Support the Project
+
+If you enjoy **Winx Agent** and want to support its development, consider:
+
+- ⭐ Starring the repository on GitHub.
+- 🍴 Forking the repository and contributing improvements.
+- 📝 Sharing your experience with tutorials or articles.
+
+Together, we can make **Winx Agent** even better!
+
+---
+
+## 🔐 Security
+
+- The agent verifies file permissions before operations
+- Configurable restrictions for commands and paths
+- Verification of changes before applying file edits
+- Syntax checking to prevent malformed code
+
+---
+
+## 🙏 Special Thanks
+
+A huge thank you to [rusiaaman](https://github.com/rusiaaman) for the inspiring work on [WCGW](https://github.com/rusiaaman/wcgw), which served as a primary inspiration for this project. Winx reimplements many of WCGW's best features in Rust for enhanced performance while adding additional capabilities for semantic code understanding.
+
+---
+
+## 📜 License
 
 MIT
