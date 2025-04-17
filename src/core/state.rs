@@ -34,7 +34,7 @@ impl AgentState {
             ModeType::Wcgw => Mode::Wcgw,
             ModeType::Architect => Mode::Architect,
             ModeType::CodeWriter => {
-                let config = config.context("CodeWriter mode requires configuration")?;
+                let config = config.ok_or_else(|| anyhow::anyhow!("CodeWriter mode requires configuration"))?;
                 Mode::CodeWriter(config)
             }
         };

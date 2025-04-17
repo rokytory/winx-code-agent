@@ -124,6 +124,23 @@ pub enum Special {
     CtrlD,
 }
 
+impl std::str::FromStr for Special {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "enter" => Ok(Special::Enter),
+            "key-up" => Ok(Special::KeyUp),
+            "key-down" => Ok(Special::KeyDown),
+            "key-left" => Ok(Special::KeyLeft),
+            "key-right" => Ok(Special::KeyRight),
+            "ctrl-c" => Ok(Special::CtrlC),
+            "ctrl-d" => Ok(Special::CtrlD),
+            _ => Err(format!("Unknown special key: {}", s)),
+        }
+    }
+}
+
 /// Special key presses model
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SendSpecials {
