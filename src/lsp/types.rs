@@ -1,6 +1,4 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::path::PathBuf;
 
 /// Language identifiers supported by LSP
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -36,7 +34,9 @@ impl Language {
     pub fn is_relevant_filename(&self, filename: &str) -> bool {
         let extensions = self.get_file_extension();
         let filename_lower = filename.to_lowercase();
-        extensions.iter().any(|ext| filename_lower.ends_with(&format!(".{}", ext)))
+        extensions
+            .iter()
+            .any(|ext| filename_lower.ends_with(&format!(".{}", ext)))
     }
 }
 
