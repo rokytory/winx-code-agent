@@ -7,7 +7,7 @@ pub fn create_task_description() -> &'static str {
         pt: "Criar uma nova sessão de tarefa que pode ser retomada posteriormente",
         es: "Crear una nueva sesión de tarea que se puede reanudar más tarde",
     };
-    
+
     match crate::core::i18n::get_language() {
         Language::English => desc.en,
         Language::Portuguese => desc.pt,
@@ -22,7 +22,7 @@ pub fn list_tasks_description() -> &'static str {
         pt: "Listar tarefas disponíveis",
         es: "Listar tareas disponibles",
     };
-    
+
     match crate::core::i18n::get_language() {
         Language::English => desc.en,
         Language::Portuguese => desc.pt,
@@ -37,7 +37,7 @@ pub fn start_background_process_description() -> &'static str {
         pt: "Iniciar ou retomar um processo em segundo plano",
         es: "Iniciar o reanudar un proceso en segundo plano",
     };
-    
+
     match crate::core::i18n::get_language() {
         Language::English => desc.en,
         Language::Portuguese => desc.pt,
@@ -52,7 +52,7 @@ pub fn validate_syntax_description() -> &'static str {
         pt: "Validar sintaxe do código",
         es: "Validar sintaxis del código",
     };
-    
+
     match crate::core::i18n::get_language() {
         Language::English => desc.en,
         Language::Portuguese => desc.pt,
@@ -67,7 +67,7 @@ pub fn send_text_input_description() -> &'static str {
         pt: "Enviar texto para um processo interativo em execução",
         es: "Enviar texto a un proceso interactivo en ejecución",
     };
-    
+
     match crate::core::i18n::get_language() {
         Language::English => desc.en,
         Language::Portuguese => desc.pt,
@@ -82,7 +82,7 @@ pub fn send_special_keys_description() -> &'static str {
         pt: "Enviar teclas especiais para um processo interativo em execução",
         es: "Enviar teclas especiales a un proceso interactivo en ejecución",
     };
-    
+
     match crate::core::i18n::get_language() {
         Language::English => desc.en,
         Language::Portuguese => desc.pt,
@@ -97,7 +97,7 @@ pub fn bash_command_description() -> &'static str {
         pt: "Executar um comando bash",
         es: "Ejecutar un comando bash",
     };
-    
+
     match crate::core::i18n::get_language() {
         Language::English => desc.en,
         Language::Portuguese => desc.pt,
@@ -112,7 +112,7 @@ pub fn read_files_description() -> &'static str {
         pt: "Ler arquivos do sistema de arquivos",
         es: "Leer archivos del sistema de archivos",
     };
-    
+
     match crate::core::i18n::get_language() {
         Language::English => desc.en,
         Language::Portuguese => desc.pt,
@@ -127,7 +127,7 @@ pub fn file_write_or_edit_description() -> &'static str {
         pt: "Escrever ou editar um arquivo",
         es: "Escribir o editar un archivo",
     };
-    
+
     match crate::core::i18n::get_language() {
         Language::English => desc.en,
         Language::Portuguese => desc.pt,
@@ -142,7 +142,7 @@ pub fn sql_query_description() -> &'static str {
         pt: "Executar uma consulta SQL",
         es: "Ejecutar una consulta SQL",
     };
-    
+
     match crate::core::i18n::get_language() {
         Language::English => desc.en,
         Language::Portuguese => desc.pt,
@@ -157,7 +157,7 @@ pub fn sequential_thinking_description() -> &'static str {
         pt: "Processar pensamento sequencial para resolução de problemas",
         es: "Procesar pensamiento secuencial para resolución de problemas",
     };
-    
+
     match crate::core::i18n::get_language() {
         Language::English => desc.en,
         Language::Portuguese => desc.pt,
@@ -172,7 +172,7 @@ pub fn init_vibe_code_description() -> &'static str {
         pt: "Inicializar o agente VibeCode com entendimento do projeto",
         es: "Inicializar el agente VibeCode con comprensión del proyecto",
     };
-    
+
     match crate::core::i18n::get_language() {
         Language::English => desc.en,
         Language::Portuguese => desc.pt,
@@ -187,7 +187,7 @@ pub fn analyze_file_with_vibe_code_description() -> &'static str {
         pt: "Analisar um arquivo usando o agente VibeCode",
         es: "Analizar un archivo usando el agente VibeCode",
     };
-    
+
     match crate::core::i18n::get_language() {
         Language::English => desc.en,
         Language::Portuguese => desc.pt,
@@ -202,7 +202,7 @@ pub fn smart_search_replace_description() -> &'static str {
         pt: "Aplicar busca/substituição com tratamento inteligente de erros",
         es: "Aplicar búsqueda/reemplazo con manejo inteligente de errores",
     };
-    
+
     match crate::core::i18n::get_language() {
         Language::English => desc.en,
         Language::Portuguese => desc.pt,
@@ -217,7 +217,7 @@ pub fn generate_code_suggestions_description() -> &'static str {
         pt: "Gerar sugestões de código baseadas em padrões do projeto",
         es: "Generar sugerencias de código basadas en patrones del proyecto",
     };
-    
+
     match crate::core::i18n::get_language() {
         Language::English => desc.en,
         Language::Portuguese => desc.pt,

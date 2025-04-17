@@ -140,16 +140,25 @@ impl RefactoringEngine {
             applied_operations: Vec::new(),
         }
     }
-    
+
     /// Initialize the refactoring engine with project analysis
-    pub fn initialize(&mut self, project_analysis: &crate::code::project_analyzer::ProjectAnalysis) -> Result<()> {
+    pub fn initialize(
+        &mut self,
+        project_analysis: &crate::code::project_analyzer::ProjectAnalysis,
+    ) -> Result<()> {
         self.workspace_path = project_analysis.root_dir.clone();
-        info!("Initialized refactoring engine for workspace: {}", self.workspace_path.display());
+        info!(
+            "Initialized refactoring engine for workspace: {}",
+            self.workspace_path.display()
+        );
         Ok(())
     }
-    
+
     /// Create a new refactoring engine with semantic analyzer
-    pub fn new_with_analyzer(semantic_analyzer: Arc<SemanticAnalyzer>, workspace_path: impl AsRef<Path>) -> Self {
+    pub fn new_with_analyzer(
+        semantic_analyzer: Arc<SemanticAnalyzer>,
+        workspace_path: impl AsRef<Path>,
+    ) -> Self {
         Self {
             semantic_analyzer: Some(semantic_analyzer),
             workspace_path: workspace_path.as_ref().to_path_buf(),

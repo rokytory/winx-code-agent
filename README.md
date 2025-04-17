@@ -12,8 +12,9 @@
 <p align="center">
   <img src="https://img.shields.io/badge/language-Rust-orange?style=flat&logo=rust" alt="Language" />
   <img src="https://img.shields.io/badge/license-MIT-blue?style=flat" alt="License" />
-  <img src="https://img.shields.io/github/last-commit/gabrielmaia/winx-code-agent?style=flat" alt="Last Commit" >
-  <img src="https://img.shields.io/badge/made%20by-Maia-15c3d6?style=flat" alt="Made by Maia" >  
+  <img src="https://img.shields.io/github/last-commit/gabrielmaialva33/winx-code-agent?style=flat" alt="Last Commit" >
+  <img src="https://img.shields.io/badge/made%20by-Maia-15c3d6?style=flat" alt="Made by Maia" >
+  <img src="https://github.com/gabrielmaialva33/winx-code-agent/actions/workflows/ci.yml/badge.svg" alt="CI Status" />
 </p>
 
 ---
@@ -39,7 +40,7 @@
 To compile the project from source:
 
 ```bash
-git clone https://github.com/your-username/winx.git
+git clone https://github.com/gabrielmaialva33/winx-code-agent.git
 cd winx
 cargo build --release
 ```
@@ -114,8 +115,8 @@ Winx offers the following tools for interaction with the system:
 
 If you need help or have any questions about Winx, feel free to reach out via the following channels:
 
-- [GitHub Issues](https://github.com/yourusername/winx/issues/new): Open a support issue on GitHub.
-- Email: your.email@example.com
+- [GitHub Issues](https://github.com/gabrielmaialva33/winx-code-agent/issues/new): Open a support issue on GitHub.
+- Email: gabrielmaialva33@gmail.com
 
 ---
 

@@ -33,10 +33,10 @@ pub fn path_to_uri(path: &Path) -> String {
 pub struct SymbolManager {
     /// LSP client for direct protocol operations
     lsp_client: Option<LSPClient>,
-    
+
     /// LSP server for high-level operations
     lsp_server: Option<Arc<Mutex<LSPServer>>>,
-    
+
     /// Root path of the project
     root_path: PathBuf,
 }
@@ -50,7 +50,7 @@ impl SymbolManager {
             root_path: root_path.as_ref().to_path_buf(),
         }
     }
-    
+
     /// Creates a new symbol manager using an LSP server
     pub fn new_with_server(lsp_server: Arc<Mutex<LSPServer>>, root_path: impl AsRef<Path>) -> Self {
         Self {
@@ -59,17 +59,19 @@ impl SymbolManager {
             root_path: root_path.as_ref().to_path_buf(),
         }
     }
-    
+
     /// Gets the LSP client if available
     pub fn get_lsp_client(&self) -> Result<&LSPClient> {
-        self.lsp_client.as_ref().ok_or_else(|| anyhow::anyhow!("LSP client not available"))
+        self.lsp_client
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("LSP client not available"))
     }
-    
+
     /// Gets document symbols for a file
     pub async fn get_document_symbols(
-        &self, 
-        file_path: impl AsRef<Path>, 
-        include_body: bool
+        &self,
+        file_path: impl AsRef<Path>,
+        include_body: bool,
     ) -> Result<Vec<Symbol>> {
         let file_path = file_path.as_ref();
         debug!("Getting document symbols for {}", file_path.display());
@@ -92,11 +94,11 @@ impl SymbolManager {
         } else if let Some(server) = &self.lsp_server {
             let server_guard = server.lock().await;
             let relative_path = self.to_relative_path(file_path)?;
-            
+
             let symbols = server_guard
                 .get_document_symbols(&relative_path.to_string_lossy(), include_body)
                 .await?;
-                
+
             info!("Found {} symbols in {}", symbols.len(), file_path.display());
             Ok(symbols)
         } else {
@@ -121,12 +123,10 @@ impl SymbolManager {
         } else if let Some(server) = &self.lsp_server {
             // Use server to find symbols
             let server_guard = server.lock().await;
-            
+
             // Server API might be slightly different, so we adapt
-            let symbols = server_guard
-                .find_symbol(query, None, false)
-                .await?;
-                
+            let symbols = server_guard.find_symbol(query, None, false).await?;
+
             info!("Found {} symbols matching '{}'", symbols.len(), query);
             Ok(symbols)
         } else {
@@ -158,7 +158,7 @@ impl SymbolManager {
 
         if let Some(server) = &self.lsp_server {
             let server_guard = server.lock().await;
-            
+
             let symbols = server_guard
                 .find_symbol(name, within_path_buf, include_body)
                 .await?;
@@ -194,7 +194,7 @@ impl SymbolManager {
         } else {
             // Fallback to workspace/symbol if LSP client is available
             let symbols = self.find_symbols(name).await?;
-            
+
             // Apply additional filtering
             let filtered_symbols = symbols
                 .into_iter()
@@ -232,7 +232,7 @@ impl SymbolManager {
                     true
                 })
                 .collect();
-                
+
             Ok(filtered_symbols)
         }
     }
@@ -246,7 +246,9 @@ impl SymbolManager {
         let file_path = file_path.as_ref();
         debug!(
             "Getting definition at {}:{} in {}",
-            position.line, position.character, file_path.display()
+            position.line,
+            position.character,
+            file_path.display()
         );
 
         if let Some(lsp_client) = &self.lsp_client {
@@ -286,7 +288,8 @@ impl SymbolManager {
         exclude_kinds: Option<Vec<SymbolKind>>,
     ) -> Result<Vec<Symbol>> {
         // Ensure we have a valid location
-        if location.relative_path.is_none() || location.line.is_none() || location.column.is_none() {
+        if location.relative_path.is_none() || location.line.is_none() || location.column.is_none()
+        {
             return Err(anyhow::anyhow!(
                 "Invalid symbol location - missing path, line, or column"
             ));
@@ -341,7 +344,11 @@ impl SymbolManager {
     }
 
     /// Gets the hover information for a symbol at a specific position
-    pub async fn get_hover(&self, file_path: impl AsRef<Path>, position: Position) -> Result<Option<String>> {
+    pub async fn get_hover(
+        &self,
+        file_path: impl AsRef<Path>,
+        position: Position,
+    ) -> Result<Option<String>> {
         let file_path = file_path.as_ref();
         debug!(
             "Getting hover info at {}:{}",
@@ -460,7 +467,8 @@ impl SymbolManager {
         info!("Replacing symbol body");
 
         // Ensure we have a valid location
-        if location.relative_path.is_none() || location.line.is_none() || location.column.is_none() {
+        if location.relative_path.is_none() || location.line.is_none() || location.column.is_none()
+        {
             return Err(anyhow::anyhow!(
                 "Invalid symbol location - missing path, line, or column"
             ));
@@ -486,7 +494,8 @@ impl SymbolManager {
         info!("Inserting text after symbol");
 
         // Ensure we have a valid location
-        if location.relative_path.is_none() || location.line.is_none() || location.column.is_none() {
+        if location.relative_path.is_none() || location.line.is_none() || location.column.is_none()
+        {
             return Err(anyhow::anyhow!(
                 "Invalid symbol location - missing path, line, or column"
             ));
@@ -512,7 +521,8 @@ impl SymbolManager {
         info!("Inserting text before symbol");
 
         // Ensure we have a valid location
-        if location.relative_path.is_none() || location.line.is_none() || location.column.is_none() {
+        if location.relative_path.is_none() || location.line.is_none() || location.column.is_none()
+        {
             return Err(anyhow::anyhow!(
                 "Invalid symbol location - missing path, line, or column"
             ));
@@ -602,9 +612,7 @@ impl SymbolManager {
             });
 
             // Apply the edit
-            let response = lsp_client
-                .send_request("workspace/applyEdit", edit)
-                .await?;
+            let response = lsp_client.send_request("workspace/applyEdit", edit).await?;
 
             // Check if the edit was applied successfully
             let applied = response
@@ -631,17 +639,17 @@ impl SymbolManager {
                 line: Some(symbol.range.start.line),
                 column: Some(symbol.range.start.character),
             };
-            
+
             self.replace_body(&location, new_source).await
         } else {
             Err(anyhow::anyhow!("No LSP client or server available"))
         }
     }
-    
+
     /// Converts an absolute path to a relative path within the project
     fn to_relative_path(&self, path: impl AsRef<Path>) -> Result<PathBuf> {
         let path = path.as_ref();
-        
+
         if path.is_absolute() {
             // Make path relative to root_path
             if let Ok(rel_path) = path.strip_prefix(&self.root_path) {
@@ -665,9 +673,12 @@ impl Symbol {
     /// Returns the path and range of the symbol
     pub fn path_and_range(&self) -> Result<(PathBuf, Range)> {
         // Convert the symbol location to a path and range
-        let relative_path = self.location.relative_path.clone()
+        let relative_path = self
+            .location
+            .relative_path
+            .clone()
             .ok_or_else(|| anyhow::anyhow!("Symbol location is missing relative_path"))?;
-            
+
         Ok((PathBuf::from(relative_path), self.range.clone()))
     }
 
@@ -701,7 +712,7 @@ impl Symbol {
             SymbolKind::Operator => "Operator",
             SymbolKind::TypeParameter => "TypeParameter",
         };
-        
+
         format!("{} {}", kind_label, self.name)
     }
 }

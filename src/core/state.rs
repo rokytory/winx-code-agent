@@ -382,24 +382,28 @@ impl AgentState {
 
     /// Get context data of a specific type
     pub fn get_context_data<T: 'static + Send>(&self, key: &str) -> Option<&T> {
-        self.context_data.get(key).and_then(|boxed| boxed.downcast_ref::<T>())
+        self.context_data
+            .get(key)
+            .and_then(|boxed| boxed.downcast_ref::<T>())
     }
-    
+
     /// Get mutable context data of a specific type
     pub fn get_context_data_mut<T: 'static + Send>(&mut self, key: &str) -> Option<&mut T> {
-        self.context_data.get_mut(key).and_then(|boxed| boxed.downcast_mut::<T>())
+        self.context_data
+            .get_mut(key)
+            .and_then(|boxed| boxed.downcast_mut::<T>())
     }
-    
+
     /// Set context data
     pub fn set_context_data<T: 'static + Send>(&mut self, key: &str, value: T) {
         self.context_data.insert(key.to_string(), Box::new(value));
     }
-    
+
     /// Remove context data
     pub fn remove_context_data(&mut self, key: &str) -> bool {
         self.context_data.remove(key).is_some()
     }
-    
+
     /// Check if context data exists
     pub fn has_context_data(&self, key: &str) -> bool {
         self.context_data.contains_key(key)

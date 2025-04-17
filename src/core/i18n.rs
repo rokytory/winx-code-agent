@@ -4,12 +4,12 @@ use tracing::info;
 /// Inicializa o suporte a idiomas
 pub fn init_language_support() {
     info!("Initializing language support: EN, PT, ES");
-    
+
     // Define o idioma padrão para inglês
     set_language(Language::English);
-    
+
     info!("Default language set to: {}", get_language().native_name());
-    
+
     // Register tool description mapping for the MCP framework
     register_tool_descriptions();
 }
@@ -104,9 +104,9 @@ static CURRENT_LANGUAGE: AtomicU8 = AtomicU8::new(Language::English as u8);
 /// Define o idioma atual para todas as ferramentas
 pub fn set_language(lang: Language) {
     let old_lang = Language::from_u8(CURRENT_LANGUAGE.load(Ordering::SeqCst));
-    
+
     CURRENT_LANGUAGE.store(lang as u8, Ordering::SeqCst);
-    
+
     info!(
         "Language changed from {} to {}",
         old_lang.name(),

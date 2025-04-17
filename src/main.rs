@@ -1,12 +1,12 @@
 use anyhow::{Context, Result};
-use rmcp::{ServiceExt, transport};
+use rmcp::{transport, ServiceExt};
 use std::env;
 use std::path::PathBuf;
-use tracing::{debug, error, info};
 use std::pin::Pin;
 use std::task::{Context as TaskContext, Poll};
 use tokio::io::AsyncRead;
 use tokio_util::compat::FuturesAsyncReadCompatExt;
+use tracing::{debug, error, info};
 
 use winx::{
     commands::tools::WinxTools,
@@ -98,17 +98,14 @@ async fn main() -> Result<()> {
     winx::init_plugins_async(&workspace_path.to_string_lossy())
         .await
         .context("Failed to initialize plugins")?;
-        
+
     // Get state for auto-initialization of file tracking
-    let state = state::create_shared_state(
-        workspace_path.clone(), 
-        ModeType::Wcgw, 
-        None, 
-        None
-    ).context("Failed to create state for file tracking")?;
-    
+    let state = state::create_shared_state(workspace_path.clone(), ModeType::Wcgw, None, None)
+        .context("Failed to create state for file tracking")?;
+
     // Auto-initialize important project files
-    winx::init_file_tracking(&state, &[]).await
+    winx::init_file_tracking(&state, &[])
+        .await
         .context("Failed to initialize file tracking")?;
 
     // Log version and environment information
@@ -138,7 +135,8 @@ async fn main() -> Result<()> {
     );
 
     // Initialize state with wcgw mode and any stored task information
-    let state = match state::create_shared_state(workspace_path.clone(), ModeType::Wcgw, None, None) {
+    let state = match state::create_shared_state(workspace_path.clone(), ModeType::Wcgw, None, None)
+    {
         Ok(state) => {
             info!("Agent state created successfully");
 
@@ -170,8 +168,7 @@ async fn main() -> Result<()> {
     };
 
     // Registrar ferramentas e marcar como inicializado
-    winx::commands::tools::register_tools(state.clone())
-        .context("Failed to register tools")?;
+    winx::commands::tools::register_tools(state.clone()).context("Failed to register tools")?;
     info!("Tools registered and initialized successfully");
 
     // Create WinxTools instance
@@ -191,10 +188,10 @@ async fn main() -> Result<()> {
 
     // Create a custom transport wrapper that filters log-like messages
     let stdio_transport = transport::stdio();
-    
+
     // Create a filtering transport adapter that wraps the standard stdio transport
     //let filtering_transport = FilteringTransport::new(stdio_transport);
-    
+
     // Use standard transport
     let client_result = tools.serve(stdio_transport).await;
     let client = match client_result {
@@ -246,17 +243,17 @@ impl<T> FilteringTransport<T> {
     fn new(inner: T) -> Self {
         Self { inner }
     }
-    
+
     /// Check if the data looks like a log message rather than JSON
     fn is_log_message(data: &[u8]) -> bool {
         // Skip empty data
         if data.is_empty() {
             return false;
         }
-        
+
         // Check for common log patterns
         let log_indicators = [" INFO ", " DEBUG ", " WARN ", " ERROR ", " TRACE "];
-        
+
         // Convert the first part of the data to a string for comparison
         let max_check_len = std::cmp::min(data.len(), 20);
         if let Ok(start_str) = std::str::from_utf8(&data[..max_check_len]) {
@@ -268,7 +265,7 @@ impl<T> FilteringTransport<T> {
                 }
             }
         }
-        
+
         false
     }
 }
@@ -287,7 +284,7 @@ impl<R: AsyncRead + Unpin> AsyncRead for FilteringReader<R> {
         // Temporary buffer to check the data before passing it on
         let mut temp_buf = vec![0u8; buf.capacity()];
         let mut temp_read_buf = tokio::io::ReadBuf::new(&mut temp_buf);
-        
+
         match Pin::new(&mut self.inner).poll_read(cx, &mut temp_read_buf) {
             Poll::Ready(Ok(())) => {
                 let filled = temp_read_buf.filled();

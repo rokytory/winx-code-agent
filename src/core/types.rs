@@ -209,18 +209,18 @@ impl FileReadState {
             last_read: chrono::Utc::now(),
         }
     }
-    
+
     /// Check if a file has been fully read
     pub fn is_fully_read(&self) -> bool {
         // If there are no ranges, the file hasn't been read at all
         if self.read_ranges.is_empty() {
             return false;
         }
-        
+
         // Sort ranges for easier processing
         let mut sorted_ranges = self.read_ranges.clone();
         sorted_ranges.sort_by_key(|r| r.0);
-        
+
         // Check if there are gaps in the ranges
         let mut current_end = 0;
         for (start, end) in sorted_ranges {
@@ -229,56 +229,56 @@ impl FileReadState {
             }
             current_end = current_end.max(end);
         }
-        
+
         true
     }
-    
+
     /// Get unread ranges in a file
     pub fn get_unread_ranges(&self, total_lines: usize) -> Vec<(usize, usize)> {
         if self.read_ranges.is_empty() {
             return vec![(1, total_lines)];
         }
-        
+
         let mut sorted_ranges = self.read_ranges.clone();
         sorted_ranges.sort_by_key(|r| r.0);
-        
+
         let mut unread_ranges = Vec::new();
         let mut current_pos = 1;
-        
+
         for (start, end) in sorted_ranges {
             if start > current_pos {
                 unread_ranges.push((current_pos, start - 1));
             }
             current_pos = end + 1;
         }
-        
+
         if current_pos <= total_lines {
             unread_ranges.push((current_pos, total_lines));
         }
-        
+
         unread_ranges
     }
-    
+
     /// Add a read range to the file state
     pub fn add_read_range(&mut self, start: usize, end: usize) {
         self.read_ranges.push((start, end));
         self.last_read = chrono::Utc::now();
-        
+
         // Merge overlapping ranges
         self.merge_ranges();
     }
-    
+
     /// Merge overlapping ranges for more efficient storage
     fn merge_ranges(&mut self) {
         if self.read_ranges.len() <= 1 {
             return;
         }
-        
+
         self.read_ranges.sort_by_key(|r| r.0);
-        
+
         let mut merged = Vec::new();
         let mut current = self.read_ranges[0];
-        
+
         for (start, end) in self.read_ranges.iter().skip(1) {
             if *start <= current.1 + 1 {
                 // Ranges overlap or are adjacent, merge them
@@ -289,7 +289,7 @@ impl FileReadState {
                 current = (*start, *end);
             }
         }
-        
+
         merged.push(current);
         self.read_ranges = merged;
     }

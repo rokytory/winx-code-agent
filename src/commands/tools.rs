@@ -46,10 +46,10 @@ pub fn reset_initialization() {
 pub fn register_tools(state: SharedState) -> Result<()> {
     // Marca como inicializado
     INITIALIZED.store(true, Ordering::SeqCst);
-    
+
     // Inicializa o suporte a idiomas
     crate::core::i18n::init_language_support();
-    
+
     info!("Tools registered and initialized successfully");
     Ok(())
 }
@@ -502,7 +502,7 @@ impl WinxTools {
         #[tool(param)] needs_more_thoughts: Option<bool>,
     ) -> Result<CallToolResult, McpError> {
         check_initialized()?;
-        
+
         let request = SequentialThinking {
             thought,
             next_thought_needed,
@@ -536,18 +536,16 @@ impl WinxTools {
 
         Ok(CallToolResult::success(vec![Content::text(result)]))
     }
-    
+
     #[tool(description = "Initialize the VibeCode agent with project understanding")]
     async fn init_vibe_code(
         &self,
         #[tool(param)] project_dir: String,
     ) -> Result<CallToolResult, McpError> {
         check_initialized()?;
-        
-        let request = vibe_code::InitVibeCodeRequest {
-            project_dir,
-        };
-        
+
+        let request = vibe_code::InitVibeCodeRequest { project_dir };
+
         let json = match serde_json::to_string(&request) {
             Ok(j) => j,
             Err(e) => {
@@ -557,7 +555,7 @@ impl WinxTools {
                 ))
             }
         };
-        
+
         let result = vibe_code::init_vibe_code(&self.state, &json)
             .await
             .map_err(|e| {
@@ -566,21 +564,19 @@ impl WinxTools {
                     Some(serde_json::Value::String(e.to_string())),
                 )
             })?;
-            
+
         Ok(CallToolResult::success(vec![Content::text(result)]))
     }
-    
+
     #[tool(description = "Analyze a file using the VibeCode agent")]
     async fn analyze_file_with_vibe_code(
         &self,
         #[tool(param)] file_path: String,
     ) -> Result<CallToolResult, McpError> {
         check_initialized()?;
-        
-        let request = vibe_code::AnalyzeFileRequest {
-            file_path,
-        };
-        
+
+        let request = vibe_code::AnalyzeFileRequest { file_path };
+
         let json = match serde_json::to_string(&request) {
             Ok(j) => j,
             Err(e) => {
@@ -590,7 +586,7 @@ impl WinxTools {
                 ))
             }
         };
-        
+
         let result = vibe_code::analyze_file(&self.state, &json)
             .await
             .map_err(|e| {
@@ -599,10 +595,10 @@ impl WinxTools {
                     Some(serde_json::Value::String(e.to_string())),
                 )
             })?;
-            
+
         Ok(CallToolResult::success(vec![Content::text(result)]))
     }
-    
+
     #[tool(description = "Apply search/replace with intelligent error handling")]
     async fn smart_search_replace(
         &self,
@@ -610,12 +606,12 @@ impl WinxTools {
         #[tool(param)] search_replace_blocks: String,
     ) -> Result<CallToolResult, McpError> {
         check_initialized()?;
-        
+
         let request = vibe_code::SearchReplaceRequest {
             file_path,
             search_replace_blocks,
         };
-        
+
         let json = match serde_json::to_string(&request) {
             Ok(j) => j,
             Err(e) => {
@@ -625,7 +621,7 @@ impl WinxTools {
                 ))
             }
         };
-        
+
         let result = vibe_code::apply_search_replace(&self.state, &json)
             .await
             .map_err(|e| {
@@ -634,21 +630,19 @@ impl WinxTools {
                     Some(serde_json::Value::String(e.to_string())),
                 )
             })?;
-            
+
         Ok(CallToolResult::success(vec![Content::text(result)]))
     }
-    
+
     #[tool(description = "Generate code suggestions based on project patterns")]
     async fn generate_code_suggestions(
         &self,
         #[tool(param)] file_path: String,
     ) -> Result<CallToolResult, McpError> {
         check_initialized()?;
-        
-        let request = vibe_code::CodeSuggestionsRequest {
-            file_path,
-        };
-        
+
+        let request = vibe_code::CodeSuggestionsRequest { file_path };
+
         let json = match serde_json::to_string(&request) {
             Ok(j) => j,
             Err(e) => {
@@ -658,7 +652,7 @@ impl WinxTools {
                 ))
             }
         };
-        
+
         let result = vibe_code::generate_code_suggestions(&self.state, &json)
             .await
             .map_err(|e| {
@@ -667,21 +661,19 @@ impl WinxTools {
                     Some(serde_json::Value::String(e.to_string())),
                 )
             })?;
-            
+
         Ok(CallToolResult::success(vec![Content::text(result)]))
     }
-    
+
     #[tool(description = "Change the interface language (en, pt, es)")]
     async fn change_language(
         &self,
         #[tool(param)] language_code: String,
     ) -> Result<CallToolResult, McpError> {
         check_initialized()?;
-        
-        let request = crate::commands::language::LanguageRequest {
-            language_code,
-        };
-        
+
+        let request = crate::commands::language::LanguageRequest { language_code };
+
         let json = match serde_json::to_string(&request) {
             Ok(j) => j,
             Err(e) => {
@@ -691,30 +683,28 @@ impl WinxTools {
                 ))
             }
         };
-        
-        let result = crate::commands::language::change_language(&json)
-            .map_err(|e| {
-                McpError::internal_error(
-                    "language_error",
-                    Some(serde_json::Value::String(e.to_string())),
-                )
-            })?;
-            
+
+        let result = crate::commands::language::change_language(&json).map_err(|e| {
+            McpError::internal_error(
+                "language_error",
+                Some(serde_json::Value::String(e.to_string())),
+            )
+        })?;
+
         Ok(CallToolResult::success(vec![Content::text(result)]))
     }
-    
+
     #[tool(description = "List available languages and current language")]
     async fn list_languages(&self) -> Result<CallToolResult, McpError> {
         check_initialized()?;
-        
-        let result = crate::commands::language::list_available_languages()
-            .map_err(|e| {
-                McpError::internal_error(
-                    "language_error",
-                    Some(serde_json::Value::String(e.to_string())),
-                )
-            })?;
-            
+
+        let result = crate::commands::language::list_available_languages().map_err(|e| {
+            McpError::internal_error(
+                "language_error",
+                Some(serde_json::Value::String(e.to_string())),
+            )
+        })?;
+
         Ok(CallToolResult::success(vec![Content::text(result)]))
     }
 }
@@ -725,7 +715,7 @@ impl ServerHandler for WinxTools {
         // Ensure we use the correct protocol version
         // and that the tools configuration is enabled
         let current_lang = crate::core::i18n::get_language();
-        
+
         // Customized instructions based on language
         let instructions = match current_lang {
             crate::core::i18n::Language::English => 
@@ -735,7 +725,7 @@ impl ServerHandler for WinxTools {
             crate::core::i18n::Language::Spanish => 
                 "Winx es un agente de código Rust que permite ejecutar comandos bash, manipular archivos y ejecutar consultas SQL.",
         };
-        
+
         ServerInfo {
             protocol_version: ProtocolVersion::V_2024_11_05,
             capabilities: ServerCapabilities::builder()
@@ -816,11 +806,13 @@ impl ServerHandler for WinxTools {
 /// Gets the current internationalized description for the given tool ID
 pub fn get_tool_description(tool_id: &str) -> &'static str {
     use crate::commands::localized_descriptions;
-    
+
     match tool_id {
         "create_task" => localized_descriptions::create_task_description(),
         "list_tasks" => localized_descriptions::list_tasks_description(),
-        "start_background_process" => localized_descriptions::start_background_process_description(),
+        "start_background_process" => {
+            localized_descriptions::start_background_process_description()
+        }
         "validate_syntax" => localized_descriptions::validate_syntax_description(),
         "send_text_input" => localized_descriptions::send_text_input_description(),
         "send_special_keys" => localized_descriptions::send_special_keys_description(),
@@ -830,9 +822,13 @@ pub fn get_tool_description(tool_id: &str) -> &'static str {
         "sql_query" => localized_descriptions::sql_query_description(),
         "sequential_thinking" => localized_descriptions::sequential_thinking_description(),
         "init_vibe_code" => localized_descriptions::init_vibe_code_description(),
-        "analyze_file_with_vibe_code" => localized_descriptions::analyze_file_with_vibe_code_description(),
+        "analyze_file_with_vibe_code" => {
+            localized_descriptions::analyze_file_with_vibe_code_description()
+        }
         "smart_search_replace" => localized_descriptions::smart_search_replace_description(),
-        "generate_code_suggestions" => localized_descriptions::generate_code_suggestions_description(),
+        "generate_code_suggestions" => {
+            localized_descriptions::generate_code_suggestions_description()
+        }
         _ => "Unknown tool",
     }
 }

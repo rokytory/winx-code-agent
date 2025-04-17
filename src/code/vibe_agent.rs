@@ -1,14 +1,14 @@
+use anyhow::{anyhow, Context, Result};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use std::collections::HashMap;
-use anyhow::{Result, anyhow, Context};
-use tracing::{info, debug, warn, error};
+use tracing::{debug, error, info, warn};
 
-use crate::core::state::SharedState;
-use crate::diff::search_replace_enhanced::{EnhancedSearchReplace, EnhancedEditResult};
-use crate::code::project_analyzer::{ProjectAnalyzer, ProjectAnalysis};
-use crate::code::semantic_analyzer::SemanticAnalyzer;
+use crate::code::project_analyzer::{ProjectAnalysis, ProjectAnalyzer};
 use crate::code::refactoring_engine::RefactoringEngine;
+use crate::code::semantic_analyzer::SemanticAnalyzer;
+use crate::core::state::SharedState;
+use crate::diff::search_replace_enhanced::{EnhancedEditResult, EnhancedSearchReplace};
 use crate::utils::fs;
 
 /// Defines the agent's knowledge of a file
@@ -38,25 +38,26 @@ impl FileKnowledge {
     /// Create new file knowledge from a path
     pub fn new(path: impl AsRef<Path>, language: String) -> Result<Self> {
         let path = path.as_ref();
-        
+
         let metadata = std::fs::metadata(path)
             .with_context(|| format!("Failed to read metadata for {}", path.display()))?;
-        
-        let last_modified = metadata.modified()
+
+        let last_modified = metadata
+            .modified()
             .unwrap_or_else(|_| std::time::SystemTime::now());
-            
+
         let content = fs::read_file_to_string(path)
             .with_context(|| format!("Failed to read content of {}", path.display()))?;
-        
+
         // Calculate hash
         use sha2::{Digest, Sha256};
         let mut hasher = Sha256::new();
         hasher.update(content.as_bytes());
         let hash = format!("{:x}", hasher.finalize());
-        
+
         // Count lines
         let total_lines = content.lines().count();
-        
+
         Ok(Self {
             path: path.to_path_buf(),
             last_modified,
@@ -69,17 +70,17 @@ impl FileKnowledge {
             modifications: 0,
         })
     }
-    
+
     /// Update file knowledge after reading
     pub fn mark_read_range(&mut self, start: usize, end: usize) -> Result<()> {
         // Normalize range (1-indexed, inclusive)
         let start = start.max(1);
         let end = end.min(self.total_lines);
-        
+
         if start > end {
             return Ok(());
         }
-        
+
         // Add the range, potentially merging with existing ranges
         let mut merged = false;
         for range in &mut self.read_ranges {
@@ -92,14 +93,14 @@ impl FileKnowledge {
                 break;
             }
         }
-        
+
         if !merged {
             self.read_ranges.push((start, end));
         }
-        
+
         // Sort ranges by start line
         self.read_ranges.sort_by_key(|r| r.0);
-        
+
         // Merge overlapping ranges after sorting
         let mut i = 0;
         while i < self.read_ranges.len() - 1 {
@@ -112,59 +113,62 @@ impl FileKnowledge {
                 i += 1;
             }
         }
-        
+
         // Check if the entire file has been read
-        if self.read_ranges.len() == 1 && 
-           self.read_ranges[0].0 == 1 && 
-           self.read_ranges[0].1 == self.total_lines {
+        if self.read_ranges.len() == 1
+            && self.read_ranges[0].0 == 1
+            && self.read_ranges[0].1 == self.total_lines
+        {
             self.fully_read = true;
         }
-        
+
         Ok(())
     }
-    
+
     /// Check if a file has changed since it was last seen
     pub fn has_changed(&self) -> Result<bool> {
         let path = &self.path;
-        
+
         // Check if file still exists
         if !path.exists() {
             return Ok(true);
         }
-        
+
         // Check modification time
         let metadata = std::fs::metadata(path)?;
-        let current_modified = metadata.modified().unwrap_or_else(|_| std::time::SystemTime::now());
-        
+        let current_modified = metadata
+            .modified()
+            .unwrap_or_else(|_| std::time::SystemTime::now());
+
         if current_modified > self.last_modified {
             // File was modified, check hash to be sure
             let content = fs::read_file_to_string(path)?;
-            
+
             use sha2::{Digest, Sha256};
             let mut hasher = Sha256::new();
             hasher.update(content.as_bytes());
             let current_hash = format!("{:x}", hasher.finalize());
-            
+
             return Ok(current_hash != self.hash);
         }
-        
+
         Ok(false)
     }
-    
+
     /// Calculate the percentage of the file that has been read
     pub fn percentage_read(&self) -> f64 {
         if self.total_lines == 0 {
             return 100.0;
         }
-        
+
         let mut read_lines = 0;
         for &(start, end) in &self.read_ranges {
             read_lines += end - start + 1;
         }
-        
+
         (read_lines as f64 / self.total_lines as f64) * 100.0
     }
-    
+
     /// Get ranges of the file that haven't been read yet
     pub fn get_unread_ranges(&self) -> Vec<(usize, usize)> {
         if self.total_lines == 0 || self.read_ranges.is_empty() {
@@ -174,55 +178,57 @@ impl FileKnowledge {
                 Vec::new()
             };
         }
-        
+
         let mut unread = Vec::new();
         let mut current_line = 1;
-        
+
         for &(start, end) in &self.read_ranges {
             if current_line < start {
                 unread.push((current_line, start - 1));
             }
             current_line = end + 1;
         }
-        
+
         if current_line <= self.total_lines {
             unread.push((current_line, self.total_lines));
         }
-        
+
         unread
     }
-    
+
     /// Check if this file can be safely edited
     pub fn can_edit(&self) -> bool {
         self.fully_read || self.percentage_read() >= 95.0
     }
-    
+
     /// Update file knowledge after modification
     pub fn mark_modified(&mut self) -> Result<()> {
         self.modifications += 1;
-        
+
         // Re-read file to update hash and metadata
         if self.path.exists() {
             let content = fs::read_file_to_string(&self.path)?;
-            
+
             // Update hash
             use sha2::{Digest, Sha256};
             let mut hasher = Sha256::new();
             hasher.update(content.as_bytes());
             self.hash = format!("{:x}", hasher.finalize());
-            
+
             // Update modification time
             let metadata = std::fs::metadata(&self.path)?;
-            self.last_modified = metadata.modified().unwrap_or_else(|_| std::time::SystemTime::now());
-            
+            self.last_modified = metadata
+                .modified()
+                .unwrap_or_else(|_| std::time::SystemTime::now());
+
             // Update total lines
             self.total_lines = content.lines().count();
-            
+
             // Mark as fully read after modification
             self.fully_read = true;
             self.read_ranges = vec![(1, self.total_lines)];
         }
-        
+
         Ok(())
     }
 }
@@ -335,27 +341,32 @@ impl VibeAgent {
             state,
         }
     }
-    
+
     /// Initialize the agent with a project directory
     pub async fn initialize(&mut self, project_dir: impl AsRef<Path>) -> Result<()> {
         let project_dir = project_dir.as_ref();
-        
+
         if !project_dir.exists() || !project_dir.is_dir() {
-            return Err(anyhow!("Project directory does not exist or is not a directory"));
+            return Err(anyhow!(
+                "Project directory does not exist or is not a directory"
+            ));
         }
-        
-        info!("Initializing VibeAgent with project: {}", project_dir.display());
-        
+
+        info!(
+            "Initializing VibeAgent with project: {}",
+            project_dir.display()
+        );
+
         // Set project root
         self.project_root = Some(project_dir.to_path_buf());
-        
+
         // Analyze project structure
         let analyzer = ProjectAnalyzer::new();
         let analysis = analyzer.analyze(project_dir)?;
-        
+
         // Store analysis results
         self.project_analysis = Some(analysis.clone());
-        
+
         // Initialize file knowledge for important files
         for file in &analysis.important_files {
             if file.exists() && file.is_file() {
@@ -365,47 +376,47 @@ impl VibeAgent {
                 }
             }
         }
-        
+
         // Initialize semantic analyzer with project info
         self.semantic_analyzer.initialize(&analysis).await?;
-        
+
         // Initialize refactoring engine with project info
         self.refactoring_engine.initialize(&analysis)?;
-        
+
         info!("VibeAgent initialized successfully");
         Ok(())
     }
-    
+
     /// Get file knowledge for a path, creating it if it doesn't exist
     pub fn get_file_knowledge(&mut self, path: impl AsRef<Path>) -> Result<&FileKnowledge> {
         let path = path.as_ref();
-        
+
         if !self.file_knowledge.contains_key(path) {
             let language = self.detect_language(path);
             let knowledge = FileKnowledge::new(path, language)?;
             self.file_knowledge.insert(path.to_path_buf(), knowledge);
         }
-        
+
         Ok(self.file_knowledge.get(path).unwrap())
     }
-    
+
     /// Get mutable file knowledge for a path
     pub fn get_file_knowledge_mut(&mut self, path: impl AsRef<Path>) -> Result<&mut FileKnowledge> {
         let path = path.as_ref();
-        
+
         if !self.file_knowledge.contains_key(path) {
             let language = self.detect_language(path);
             let knowledge = FileKnowledge::new(path, language)?;
             self.file_knowledge.insert(path.to_path_buf(), knowledge);
         }
-        
+
         Ok(self.file_knowledge.get_mut(path).unwrap())
     }
-    
+
     /// Detect language for a file based on extension and content
     fn detect_language(&self, path: impl AsRef<Path>) -> String {
         let path = path.as_ref();
-        
+
         if let Some(ext) = path.extension() {
             match ext.to_string_lossy().to_lowercase().as_str() {
                 "rs" => "Rust".to_string(),
@@ -438,7 +449,11 @@ impl VibeAgent {
             }
         } else {
             // Try to detect language from filename
-            match path.file_name().map(|n| n.to_string_lossy().to_lowercase()).as_deref() {
+            match path
+                .file_name()
+                .map(|n| n.to_string_lossy().to_lowercase())
+                .as_deref()
+            {
                 Some("makefile") | Some("makefile.in") => "Makefile".to_string(),
                 Some("dockerfile") => "Dockerfile".to_string(),
                 Some(".gitignore") => "GitIgnore".to_string(),
@@ -446,62 +461,67 @@ impl VibeAgent {
             }
         }
     }
-    
+
     /// Mark a file as read with the given range
-    pub fn mark_file_read(&mut self, path: impl AsRef<Path>, start: usize, end: usize) -> Result<()> {
+    pub fn mark_file_read(
+        &mut self,
+        path: impl AsRef<Path>,
+        start: usize,
+        end: usize,
+    ) -> Result<()> {
         let file_path = path.as_ref();
-        
+
         let knowledge = self.get_file_knowledge_mut(file_path)?;
         knowledge.mark_read_range(start, end)?;
-        
+
         Ok(())
     }
-    
+
     /// Check if a file can be safely edited
     pub fn can_edit_file(&mut self, path: impl AsRef<Path>) -> Result<bool> {
         let path = path.as_ref();
-        
+
         if !path.exists() {
             // New file, can be created
             return Ok(true);
         }
-        
+
         let knowledge = self.get_file_knowledge(path)?;
-        
+
         if knowledge.has_changed()? {
             // File has changed since we last saw it
             debug!("File has changed since last seen: {}", path.display());
             return Ok(false);
         }
-        
+
         Ok(knowledge.can_edit())
     }
-    
+
     /// Get unread ranges for a file
     pub fn get_unread_ranges(&mut self, path: impl AsRef<Path>) -> Result<Vec<(usize, usize)>> {
         let knowledge = self.get_file_knowledge(path.as_ref())?;
         Ok(knowledge.get_unread_ranges())
     }
-    
+
     /// Apply search/replace edit to a file with enhanced error handling
     pub async fn apply_search_replace(
-        &mut self, 
+        &mut self,
         file_path: impl AsRef<Path>,
         search_replace_text: &str,
     ) -> Result<EnhancedEditResult> {
         let file_path = file_path.as_ref();
-        
+
         // Check if we can edit the file
         if !self.can_edit_file(file_path)? {
             let unread_ranges = self.get_unread_ranges(file_path)?;
-            
+
             if !unread_ranges.is_empty() {
                 let ranges_str = unread_ranges
                     .iter()
                     .map(|(start, end)| format!("{}-{}", start, end))
                     .collect::<Vec<_>>()
                     .join(", ");
-                
+
                 return Err(anyhow!(
                     "File {} hasn't been fully read. Please read the following line ranges first: {}",
                     file_path.display(),
@@ -514,48 +534,55 @@ impl VibeAgent {
                 ));
             }
         }
-        
+
         // Read the file content
         let content = fs::read_file_to_string(file_path)?;
-        
+
         // Apply the search/replace
-        let result = self.search_replace.apply_from_text(&content, search_replace_text)?;
-        
+        let result = self
+            .search_replace
+            .apply_from_text(&content, search_replace_text)?;
+
         // If changes were made, write back to the file
         if result.standard_result.changes_made {
             fs::write_file_sync(file_path, &result.standard_result.content)?;
-            
+
             // Update file knowledge
             if let Ok(knowledge) = self.get_file_knowledge_mut(file_path) {
                 knowledge.mark_modified()?;
             }
-            
+
             info!("Successfully edited file: {}", file_path.display());
         } else {
             info!("No changes made to file: {}", file_path.display());
         }
-        
+
         Ok(result)
     }
-    
+
     /// Generate code suggestions based on project context
-    pub async fn generate_code_suggestions(&self, file_path: impl AsRef<Path>) -> Result<Vec<String>> {
+    pub async fn generate_code_suggestions(
+        &self,
+        file_path: impl AsRef<Path>,
+    ) -> Result<Vec<String>> {
         let file_path = file_path.as_ref();
-        
+
         // Ensure we have project analysis
         if self.project_analysis.is_none() {
-            return Err(anyhow!("Project analysis not available. Initialize the agent first."));
+            return Err(anyhow!(
+                "Project analysis not available. Initialize the agent first."
+            ));
         }
-        
+
         // Get file language
         let language = self.detect_language(file_path);
-        
+
         // Generate suggestions based on project patterns and language
         let mut suggestions = Vec::new();
-        
+
         if !self.detected_patterns.is_empty() {
             suggestions.push(format!("Consider following these project patterns:"));
-            
+
             for (pattern, _) in &self.detected_patterns {
                 match pattern {
                     CodePattern::DesignPattern(name) => {
@@ -574,7 +601,7 @@ impl VibeAgent {
                 }
             }
         }
-        
+
         // Add language-specific suggestions
         match language.as_str() {
             "Rust" => {
@@ -593,60 +620,69 @@ impl VibeAgent {
                 suggestions.push("Python best practices:".to_string());
                 suggestions.push("- Follow PEP 8 style guide".to_string());
                 suggestions.push("- Use list/dict comprehensions where appropriate".to_string());
-                suggestions.push("- Use context managers (with statement) for resources".to_string());
+                suggestions
+                    .push("- Use context managers (with statement) for resources".to_string());
             }
             _ => {}
         }
-        
+
         Ok(suggestions)
     }
-    
+
     /// Get a project overview report
     pub fn get_project_overview(&self) -> Result<String> {
         if let Some(analysis) = &self.project_analysis {
             Ok(analysis.to_markdown())
         } else {
-            Err(anyhow!("Project analysis not available. Initialize the agent first."))
+            Err(anyhow!(
+                "Project analysis not available. Initialize the agent first."
+            ))
         }
     }
-    
+
     /// Get detailed information about a specific file
     pub fn get_file_info(&mut self, path: impl AsRef<Path>) -> Result<String> {
         let path = path.as_ref();
         let knowledge = self.get_file_knowledge(path)?;
-        
+
         let mut info = String::new();
-        
+
         info.push_str(&format!("# File: {}\n\n", path.display()));
         info.push_str(&format!("- **Language**: {}\n", knowledge.language));
         info.push_str(&format!("- **Size**: {} lines\n", knowledge.total_lines));
-        info.push_str(&format!("- **Read**: {:.1}%\n", knowledge.percentage_read()));
-        info.push_str(&format!("- **Modifications**: {}\n", knowledge.modifications));
-        
+        info.push_str(&format!(
+            "- **Read**: {:.1}%\n",
+            knowledge.percentage_read()
+        ));
+        info.push_str(&format!(
+            "- **Modifications**: {}\n",
+            knowledge.modifications
+        ));
+
         info.push_str("\n## Read Status\n\n");
-        
+
         if knowledge.fully_read {
             info.push_str("This file has been fully read.\n");
         } else {
             info.push_str("### Read Ranges\n\n");
-            
+
             for &(start, end) in &knowledge.read_ranges {
                 info.push_str(&format!("- Lines {}-{}\n", start, end));
             }
-            
+
             info.push_str("\n### Unread Ranges\n\n");
-            
+
             for (start, end) in knowledge.get_unread_ranges() {
                 info.push_str(&format!("- Lines {}-{}\n", start, end));
             }
         }
-        
+
         if let Some(structure) = &knowledge.semantic_structure {
             info.push_str("\n## Semantic Structure\n\n");
-            
+
             info.push_str("### Symbols\n\n");
-            
-            let structure_copy = structure.clone();  // Clone to avoid borrowing issues
+
+            let structure_copy = structure.clone(); // Clone to avoid borrowing issues
             for symbol in &structure_copy.symbols {
                 // Clone symbol to avoid borrowing issues
                 let symbol_clone = symbol.clone();
@@ -654,32 +690,32 @@ impl VibeAgent {
                 let formatted_text = self.format_symbol_to_string(&symbol_clone, 0);
                 info.push_str(&formatted_text);
             }
-            
+
             info.push_str("\n### Imports\n\n");
-            
+
             for import in &structure_copy.imports {
                 info.push_str(&format!("- `{}`\n", import));
             }
-                    
+
             info.push_str("\n### Dependencies\n\n");
-                    
+
             for dependency in &structure_copy.dependencies {
                 info.push_str(&format!("- `{}`\n", dependency));
             }
         }
-        
+
         Ok(info)
     }
-    
+
     /// Get a reference to the search/replace engine
     pub fn get_search_replace(&self) -> &EnhancedSearchReplace {
         &self.search_replace
     }
-    
+
     /// Format a symbol for display
     fn format_symbol(&self, symbol: &Symbol, indent: usize, output: &mut String) {
         let indent_str = "  ".repeat(indent);
-        
+
         output.push_str(&format!(
             "{}* **{}**: {} (lines {}-{})\n",
             indent_str,
@@ -688,22 +724,22 @@ impl VibeAgent {
             symbol.line_range.0,
             symbol.line_range.1
         ));
-        
+
         if let Some(signature) = &symbol.signature {
             output.push_str(&format!("{}  - Signature: `{}`\n", indent_str, signature));
         }
-        
+
         // Format children with increased indentation
         for child in &symbol.children {
             self.format_symbol(child, indent + 1, output);
         }
     }
-    
+
     /// Format a symbol to a string without modifying an existing String
     fn format_symbol_to_string(&self, symbol: &Symbol, indent: usize) -> String {
         let mut output = String::new();
         let indent_str = "  ".repeat(indent);
-        
+
         output.push_str(&format!(
             "{}* **{}**: {} (lines {}-{})\n",
             indent_str,
@@ -712,17 +748,17 @@ impl VibeAgent {
             symbol.line_range.0,
             symbol.line_range.1
         ));
-        
+
         if let Some(signature) = &symbol.signature {
             output.push_str(&format!("{}  - Signature: `{}`\n", indent_str, signature));
         }
-        
+
         // Format children with increased indentation
         for child in &symbol.children {
             let child_str = self.format_symbol_to_string(child, indent + 1);
             output.push_str(&child_str);
         }
-        
+
         output
     }
 }
@@ -765,36 +801,36 @@ impl SymbolKind {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
     use std::fs::File;
     use std::io::Write;
-    
+    use tempfile::tempdir;
+
     #[test]
     fn test_file_knowledge() {
         // Create a temp file
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("test.rs");
-        
+
         let mut file = File::create(&file_path).unwrap();
         writeln!(file, "fn main() {{").unwrap();
         writeln!(file, "    println!(\"Hello, world!\");").unwrap();
         writeln!(file, "}}").unwrap();
-        
+
         // Create file knowledge
         let mut knowledge = FileKnowledge::new(&file_path, "Rust".to_string()).unwrap();
-        
+
         // Test marking ranges as read
         knowledge.mark_read_range(1, 2).unwrap();
         assert_eq!(knowledge.read_ranges, vec![(1, 2)]);
         assert_eq!(knowledge.percentage_read(), 2.0 / 3.0 * 100.0);
         assert!(!knowledge.fully_read);
-        
+
         // Mark the whole file as read
         knowledge.mark_read_range(1, 3).unwrap();
         assert_eq!(knowledge.read_ranges, vec![(1, 3)]);
         assert_eq!(knowledge.percentage_read(), 100.0);
         assert!(knowledge.fully_read);
-        
+
         // Test unread ranges
         let unread = knowledge.get_unread_ranges();
         assert_eq!(unread.len(), 0);

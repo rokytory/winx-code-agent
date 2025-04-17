@@ -104,7 +104,9 @@ pub fn debug_json_bytes(data: &[u8], prefix: &str) {
     let log_indicators = ["INFO ", "DEBUG ", "WARN ", "ERROR ", "TRACE "];
     let is_likely_log = data.len() > 5 && data[0] == b' ' && {
         let first_chars = std::str::from_utf8(&data[1..6]).unwrap_or("");
-        log_indicators.iter().any(|&indicator| first_chars.starts_with(indicator))
+        log_indicators
+            .iter()
+            .any(|&indicator| first_chars.starts_with(indicator))
     };
 
     if is_likely_log {
@@ -362,12 +364,12 @@ pub async fn init_plugins_async(workspace_path: &str) -> Result<()> {
 pub async fn init_file_tracking(state: &core::state::SharedState, files: &[&str]) -> Result<()> {
     use crate::commands::files;
     use std::path::Path;
-    
+
     // Filter for existing files within the workspace
     let state_guard = state.lock().unwrap();
     let workspace_path = state_guard.workspace_path.clone();
     drop(state_guard);
-    
+
     let mut existing_files = Vec::new();
     for file in files {
         let path = Path::new(file);
@@ -376,12 +378,12 @@ pub async fn init_file_tracking(state: &core::state::SharedState, files: &[&str]
         } else {
             workspace_path.join(path)
         };
-        
+
         if full_path.exists() && full_path.is_file() {
             existing_files.push(full_path.to_string_lossy().to_string());
         }
     }
-    
+
     // Auto-read important project files
     let important_patterns = [
         "*.md",
@@ -393,7 +395,7 @@ pub async fn init_file_tracking(state: &core::state::SharedState, files: &[&str]
         "LICENSE*",
         ".gitignore",
     ];
-    
+
     for pattern in &important_patterns {
         if let Ok(glob_paths) = glob::glob(&workspace_path.join(pattern).to_string_lossy()) {
             for entry in glob_paths {
@@ -405,13 +407,16 @@ pub async fn init_file_tracking(state: &core::state::SharedState, files: &[&str]
             }
         }
     }
-    
+
     // Read files if any exist
     if !existing_files.is_empty() {
-        info!("Auto-reading {} initial project files", existing_files.len());
+        info!(
+            "Auto-reading {} initial project files",
+            existing_files.len()
+        );
         let _ = files::read_files_internal(state, &existing_files, None).await;
     }
-    
+
     Ok(())
 }
 
@@ -486,6 +491,6 @@ fn initialize_once_cell_modules() -> Result<()> {
 
     // Reseta o estado de inicialização para garantir que as ferramentas requerem inicialização adequada
     commands::tools::reset_initialization();
-    
+
     Ok(())
 }

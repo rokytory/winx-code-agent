@@ -1,7 +1,6 @@
-
 use crate::lsp::client::LSPClient;
-use anyhow::{anyhow, Context, Result};
 use crate::lsp::types::{Symbol, SymbolKind, SymbolLocation};
+use anyhow::{anyhow, Context, Result};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -131,7 +130,7 @@ impl SemanticAnalyzer {
     pub fn get_lsp_client(&self) -> Option<Arc<LSPClient>> {
         self.lsp_client.clone()
     }
-    
+
     /// Create a new semantic analyzer without LSP client
     pub fn new() -> Self {
         Self {
@@ -140,14 +139,20 @@ impl SemanticAnalyzer {
             dependency_graph: Arc::new(Mutex::new(DependencyGraph::new())),
         }
     }
-    
+
     /// Initialize the semantic analyzer with project analysis
-    pub async fn initialize(&mut self, project_analysis: &crate::code::project_analyzer::ProjectAnalysis) -> Result<()> {
+    pub async fn initialize(
+        &mut self,
+        project_analysis: &crate::code::project_analyzer::ProjectAnalysis,
+    ) -> Result<()> {
         self.workspace_path = project_analysis.root_dir.clone();
-        info!("Initialized semantic analyzer for workspace: {}", self.workspace_path.display());
+        info!(
+            "Initialized semantic analyzer for workspace: {}",
+            self.workspace_path.display()
+        );
         Ok(())
     }
-    
+
     /// Create a new semantic analyzer with LSP client
     pub fn new_with_lsp(lsp_client: Arc<LSPClient>, workspace_path: impl AsRef<Path>) -> Self {
         Self {
@@ -171,7 +176,8 @@ impl SemanticAnalyzer {
 
         // Get document symbols
         let symbols = if let Some(client) = &self.lsp_client {
-            client.get_document_symbols(module_path, true)
+            client
+                .get_document_symbols(module_path, true)
                 .await
                 .context("Failed to get document symbols")?
         } else {
@@ -401,7 +407,8 @@ impl SemanticAnalyzer {
 
         // Use the LSP client to find symbols
         let mut results = if let Some(client) = &self.lsp_client {
-            client.find_symbol(pattern, None::<PathBuf>, true)
+            client
+                .find_symbol(pattern, None::<PathBuf>, true)
                 .await
                 .context("Failed to find symbols")?
         } else {
@@ -439,7 +446,8 @@ impl SemanticAnalyzer {
                 };
 
                 let references = if let Some(client) = &self.lsp_client {
-                    client.find_references(location, false)
+                    client
+                        .find_references(location, false)
                         .await
                         .context("Failed to find references")?
                 } else {
@@ -488,7 +496,8 @@ impl SemanticAnalyzer {
 
         // Get document symbols
         let symbols = if let Some(client) = &self.lsp_client {
-            client.get_document_symbols(module_path, true)
+            client
+                .get_document_symbols(module_path, true)
                 .await
                 .context("Failed to get document symbols")?
         } else {
