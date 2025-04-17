@@ -2,7 +2,7 @@ use crate::code::semantic_analyzer::{
     RefactoringSeverity, RefactoringSuggestion, SemanticAnalyzer,
 };
 use crate::lsp::types::{Position, Range, Symbol, SymbolKind};
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -123,16 +123,37 @@ impl RefactoringType {
 
 /// Engine for suggesting and applying refactorings
 pub struct RefactoringEngine {
-    semantic_analyzer: Arc<SemanticAnalyzer>,
+    semantic_analyzer: Option<Arc<SemanticAnalyzer>>,
     workspace_path: PathBuf,
+    pending_operations: Vec<RefactoringOperation>,
+    applied_operations: Vec<RefactoringOperation>,
 }
 
 impl RefactoringEngine {
     /// Create a new refactoring engine
-    pub fn new(semantic_analyzer: Arc<SemanticAnalyzer>, workspace_path: impl AsRef<Path>) -> Self {
+    pub fn new() -> Self {
         Self {
-            semantic_analyzer,
+            semantic_analyzer: None,
+            workspace_path: PathBuf::new(),
+            pending_operations: Vec::new(),
+            applied_operations: Vec::new(),
+        }
+    }
+    
+    /// Initialize the refactoring engine with project analysis
+    pub fn initialize(&mut self, project_analysis: &crate::code::project_analyzer::ProjectAnalysis) -> Result<()> {
+        self.workspace_path = project_analysis.root_dir.clone();
+        info!("Initialized refactoring engine for workspace: {}", self.workspace_path.display());
+        Ok(())
+    }
+    
+    /// Create a new refactoring engine with semantic analyzer
+    pub fn new_with_analyzer(semantic_analyzer: Arc<SemanticAnalyzer>, workspace_path: impl AsRef<Path>) -> Self {
+        Self {
+            semantic_analyzer: Some(semantic_analyzer),
             workspace_path: workspace_path.as_ref().to_path_buf(),
+            pending_operations: Vec::new(),
+            applied_operations: Vec::new(),
         }
     }
 
@@ -150,7 +171,10 @@ impl RefactoringEngine {
         let mut refactorings = Vec::new();
 
         // Get complexity report
-        let complexity_report = self.semantic_analyzer.analyze_complexity(file_path).await?;
+        let complexity_report = match &self.semantic_analyzer {
+            Some(analyzer) => analyzer.analyze_complexity(file_path).await?,
+            None => return Err(anyhow!("Semantic analyzer not initialized")),
+        };
 
         // Check for long methods
         for func in &complexity_report.function_metrics {
@@ -262,6 +286,8 @@ impl RefactoringEngine {
     async fn find_symbol_by_name(&self, file_path: &Path, name: &str) -> Result<Option<Symbol>> {
         let symbols = self
             .semantic_analyzer
+            .as_ref()
+            .ok_or_else(|| anyhow!("Semantic analyzer not initialized"))?
             .get_lsp_client()
             .get_document_symbols(file_path, true)
             .await

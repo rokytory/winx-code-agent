@@ -1,11 +1,11 @@
+
 use crate::lsp::client::LSPClient;
-use crate::lsp::symbol::SymbolManager;
+use anyhow::{anyhow, Context, Result};
 use crate::lsp::types::{Symbol, SymbolKind, SymbolLocation};
-use anyhow::{Context, Result};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 /// Result of a semantic analysis operation
 #[derive(Debug, Clone)]
@@ -120,20 +120,37 @@ impl DependencyGraph {
 
 /// Semantic analyzer for code analysis
 pub struct SemanticAnalyzer {
-    lsp_client: Arc<LSPClient>,
+    lsp_client: Option<Arc<LSPClient>>,
     workspace_path: PathBuf,
     dependency_graph: Arc<Mutex<DependencyGraph>>,
 }
 
 impl SemanticAnalyzer {
     /// Get access to the LSP client
-    pub fn get_lsp_client(&self) -> Arc<LSPClient> {
+    pub fn get_lsp_client(&self) -> Option<Arc<LSPClient>> {
         self.lsp_client.clone()
     }
-    /// Create a new semantic analyzer
-    pub fn new(lsp_client: Arc<LSPClient>, workspace_path: impl AsRef<Path>) -> Self {
+    
+    /// Create a new semantic analyzer without LSP client
+    pub fn new() -> Self {
         Self {
-            lsp_client,
+            lsp_client: None,
+            workspace_path: PathBuf::new(),
+            dependency_graph: Arc::new(Mutex::new(DependencyGraph::new())),
+        }
+    }
+    
+    /// Initialize the semantic analyzer with project analysis
+    pub async fn initialize(&mut self, project_analysis: &crate::code::project_analyzer::ProjectAnalysis) -> Result<()> {
+        self.workspace_path = project_analysis.root_dir.clone();
+        info!("Initialized semantic analyzer for workspace: {}", self.workspace_path.display());
+        Ok(())
+    }
+    
+    /// Create a new semantic analyzer with LSP client
+    pub fn new_with_lsp(lsp_client: Arc<LSPClient>, workspace_path: impl AsRef<Path>) -> Self {
+        Self {
+            lsp_client: Some(lsp_client),
             workspace_path: workspace_path.as_ref().to_path_buf(),
             dependency_graph: Arc::new(Mutex::new(DependencyGraph::new())),
         }
@@ -145,14 +162,20 @@ impl SemanticAnalyzer {
         info!("Analyzing module: {}", module_path.display());
 
         // Ensure the file is opened in the LSP client
-        self.lsp_client.open_file(module_path).await?;
+        if let Some(client) = &self.lsp_client {
+            client.open_file(module_path).await?;
+        } else {
+            return Err(anyhow!("LSP client not initialized"));
+        }
 
         // Get document symbols
-        let symbols = self
-            .lsp_client
-            .get_document_symbols(module_path, true)
-            .await
-            .context("Failed to get document symbols")?;
+        let symbols = if let Some(client) = &self.lsp_client {
+            client.get_document_symbols(module_path, true)
+                .await
+                .context("Failed to get document symbols")?
+        } else {
+            return Err(anyhow!("LSP client not initialized"));
+        };
 
         // Extract imports - we'll use Variable symbols with special naming patterns to detect imports
         // as the LSP spec doesn't have a specific Import symbol kind
@@ -330,7 +353,7 @@ impl SemanticAnalyzer {
                     }
                 }
                 Err(e) => {
-                    warn!("Failed to analyze module {}: {}", module_path.display(), e);
+                    debug!("Failed to analyze module {}: {}", module_path.display(), e);
                 }
             }
         }
@@ -376,11 +399,13 @@ impl SemanticAnalyzer {
         );
 
         // Use the LSP client to find symbols
-        let mut results = self
-            .lsp_client
-            .find_symbol(pattern, None::<PathBuf>, true)
-            .await
-            .context("Failed to find symbols")?;
+        let mut results = if let Some(client) = &self.lsp_client {
+            client.find_symbol(pattern, None::<PathBuf>, true)
+                .await
+                .context("Failed to find symbols")?
+        } else {
+            return Err(anyhow!("LSP client not initialized"));
+        };
 
         // Filter by requested kinds if provided
         if !symbol_kinds.is_empty() {
@@ -412,11 +437,13 @@ impl SemanticAnalyzer {
                     column: symbol.range.start.character.into(),
                 };
 
-                let references = self
-                    .lsp_client
-                    .find_references(location, false)
-                    .await
-                    .context("Failed to find references")?;
+                let references = if let Some(client) = &self.lsp_client {
+                    client.find_references(location, false)
+                        .await
+                        .context("Failed to find references")?
+                } else {
+                    Vec::new()
+                };
 
                 // Extract locations
                 for ref_symbol in references {
@@ -459,11 +486,13 @@ impl SemanticAnalyzer {
         info!("Analyzing complexity of module: {}", module_path.display());
 
         // Get document symbols
-        let symbols = self
-            .lsp_client
-            .get_document_symbols(module_path, true)
-            .await
-            .context("Failed to get document symbols")?;
+        let symbols = if let Some(client) = &self.lsp_client {
+            client.get_document_symbols(module_path, true)
+                .await
+                .context("Failed to get document symbols")?
+        } else {
+            return Err(anyhow!("LSP client not initialized"));
+        };
 
         let mut function_metrics = Vec::new();
         let mut class_metrics = Vec::new();
@@ -611,7 +640,6 @@ pub struct ClassComplexity {
 }
 
 impl CodeComplexityReport {
-    /// Get summary statistics
     /// Get summary statistics
     pub fn get_summary(&self) -> ComplexitySummary {
         let mut total_lines = 0;
