@@ -65,10 +65,7 @@ pub enum TaskAdherenceCheckType {
 }
 
 /// Process a task adherence check
-pub async fn process_task_adherence_check(
-    state: &SharedState,
-    check_json: &str,
-) -> Result<String> {
+pub async fn process_task_adherence_check(state: &SharedState, check_json: &str) -> Result<String> {
     debug!("Processing task adherence check: {}", check_json);
 
     // Parse the check JSON
@@ -83,12 +80,8 @@ pub async fn process_task_adherence_check(
 
     // Execute the appropriate check
     let evaluation = match check.check_type {
-        TaskAdherenceCheckType::TaskAdherence => {
-            evaluate_task_adherence(state, params).await?
-        }
-        TaskAdherenceCheckType::Completion => {
-            evaluate_task_completion(state, params).await?
-        }
+        TaskAdherenceCheckType::TaskAdherence => evaluate_task_adherence(state, params).await?,
+        TaskAdherenceCheckType::Completion => evaluate_task_completion(state, params).await?,
         TaskAdherenceCheckType::InformationNeeds => {
             evaluate_information_needs(state, params).await?
         }

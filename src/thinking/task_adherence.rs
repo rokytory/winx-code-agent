@@ -50,7 +50,9 @@ pub async fn evaluate_information_needs(
     Ok(TaskAdherenceEvaluation {
         status: TaskAdherenceStatus::OnTrack,
         assessment: format!("Analyzing information needs for: {}", params.original_task),
-        recommendations: Some(String::from("Consider collecting more context about the task requirements.")),
+        recommendations: Some(String::from(
+            "Consider collecting more context about the task requirements.",
+        )),
         needs_redirection: false,
     })
 }
@@ -71,14 +73,22 @@ pub async fn evaluate_task_adherence(
             TaskAdherenceStatus::Deviated
         },
         assessment: if is_on_track {
-            format!("Task execution is aligned with the original goal: {}", params.original_task)
+            format!(
+                "Task execution is aligned with the original goal: {}",
+                params.original_task
+            )
         } else {
-            format!("Task may have deviated from the original goal: {}", params.original_task)
+            format!(
+                "Task may have deviated from the original goal: {}",
+                params.original_task
+            )
         },
         recommendations: if is_on_track {
             None
         } else {
-            Some(String::from("Consider reviewing the original task objectives."))
+            Some(String::from(
+                "Consider reviewing the original task objectives.",
+            ))
         },
         needs_redirection: !is_on_track,
     })
@@ -92,8 +102,9 @@ pub async fn evaluate_task_completion(
     // In a real implementation, this would determine if the task is complete
     // For now, we'll provide a simple implementation
     let completion_keywords = ["completed", "done", "finished", "implemented"];
-    let is_completed = completion_keywords.iter().any(|&keyword|
-        params.current_progress.to_lowercase().contains(keyword));
+    let is_completed = completion_keywords
+        .iter()
+        .any(|&keyword| params.current_progress.to_lowercase().contains(keyword));
 
     Ok(TaskAdherenceEvaluation {
         status: if is_completed {
@@ -107,7 +118,9 @@ pub async fn evaluate_task_completion(
             String::from("Task is still in progress.")
         },
         recommendations: if is_completed {
-            Some(String::from("Verify all requirements have been met and consider any follow-up tasks."))
+            Some(String::from(
+                "Verify all requirements have been met and consider any follow-up tasks.",
+            ))
         } else {
             Some(String::from("Continue with the current approach."))
         },
