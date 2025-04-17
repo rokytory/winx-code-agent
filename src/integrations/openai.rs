@@ -1,11 +1,10 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use async_openai::{
     types::{ChatCompletionRequestMessage, CreateChatCompletionRequestArgs, Role},
     Client,
 };
 use serde::{Deserialize, Serialize};
-use std::env;
-use tracing::{debug, info};
+use tracing::debug;
 
 use crate::thinking::sequential::{SequentialThinking, Thought};
 
