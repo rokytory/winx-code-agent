@@ -4,6 +4,7 @@
 pub mod commands;
 pub mod core;
 pub mod diff;
+pub mod integrations;
 pub mod sql;
 pub mod thinking;
 pub mod utils;
