@@ -1,100 +1,215 @@
 use anyhow::Result;
+use rmcp::model::*;
+use rmcp::{tool, Error as McpError, ServerHandler};
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
+use crate::commands::{bash, files};
 use crate::core::state::SharedState;
+use crate::sql;
+use crate::thinking;
+
+/// Tool implementations to be registered with MCP
+#[derive(Clone)]
+pub struct WinxTools {
+    state: SharedState,
+}
+
+#[tool(tool_box)]
+impl WinxTools {
+    pub fn new(state: SharedState) -> Self {
+        Self { state }
+    }
+
+    #[tool(description = "Execute a bash command")]
+    async fn bash_command(
+        &self,
+        #[tool(param)] action_json: serde_json::Value,
+        #[tool(param)] wait_for_seconds: Option<f32>,
+    ) -> Result<CallToolResult, McpError> {
+        let json = match serde_json::to_string(&action_json) {
+            Ok(j) => j,
+            Err(e) => {
+                return Err(McpError::internal_error(
+                    "serialize_error",
+                    Some(serde_json::Value::String(e.to_string())),
+                ))
+            }
+        };
+
+        let result = bash::execute_bash_command(&self.state, &json)
+            .await
+            .map_err(|e| {
+                McpError::internal_error(
+                    "bash_error",
+                    Some(serde_json::Value::String(e.to_string())),
+                )
+            })?;
+
+        Ok(CallToolResult::success(vec![Content::text(result)]))
+    }
+
+    #[tool(description = "Read files from the filesystem")]
+    async fn read_files(
+        &self,
+        #[tool(param)] file_paths: Vec<String>,
+        #[tool(param)] show_line_numbers_reason: Option<String>,
+    ) -> Result<CallToolResult, McpError> {
+        let request = ReadFiles {
+            file_paths,
+            show_line_numbers_reason,
+        };
+
+        let json = match serde_json::to_string(&request) {
+            Ok(j) => j,
+            Err(e) => {
+                return Err(McpError::internal_error(
+                    "serialize_error",
+                    Some(serde_json::Value::String(e.to_string())),
+                ))
+            }
+        };
+
+        let result = files::read_files(&self.state, &json).await.map_err(|e| {
+            McpError::internal_error("file_error", Some(serde_json::Value::String(e.to_string())))
+        })?;
+
+        Ok(CallToolResult::success(vec![Content::text(result)]))
+    }
+
+    #[tool(description = "Write or edit a file")]
+    async fn file_write_or_edit(
+        &self,
+        #[tool(param)] file_path: String,
+        #[tool(param)] percentage_to_change: u8,
+        #[tool(param)] file_content_or_search_replace_blocks: String,
+    ) -> Result<CallToolResult, McpError> {
+        let request = FileWriteOrEdit {
+            file_path,
+            percentage_to_change,
+            file_content_or_search_replace_blocks,
+        };
+
+        let json = match serde_json::to_string(&request) {
+            Ok(j) => j,
+            Err(e) => {
+                return Err(McpError::internal_error(
+                    "serialize_error",
+                    Some(serde_json::Value::String(e.to_string())),
+                ))
+            }
+        };
+
+        let result = files::write_or_edit_file(&self.state, &json)
+            .await
+            .map_err(|e| {
+                McpError::internal_error(
+                    "file_error",
+                    Some(serde_json::Value::String(e.to_string())),
+                )
+            })?;
+
+        Ok(CallToolResult::success(vec![Content::text(result)]))
+    }
+
+    #[tool(description = "Execute an SQL query")]
+    async fn sql_query(&self, #[tool(param)] query: String) -> Result<CallToolResult, McpError> {
+        let request = SqlQuery { query };
+        let json = match serde_json::to_string(&request) {
+            Ok(j) => j,
+            Err(e) => {
+                return Err(McpError::internal_error(
+                    "serialize_error",
+                    Some(serde_json::Value::String(e.to_string())),
+                ))
+            }
+        };
+
+        let result = sql::execute_sql_query(&self.state, &json)
+            .await
+            .map_err(|e| {
+                McpError::internal_error(
+                    "sql_error",
+                    Some(serde_json::Value::String(e.to_string())),
+                )
+            })?;
+
+        Ok(CallToolResult::success(vec![Content::text(result)]))
+    }
+
+    #[tool(description = "Process sequential thinking for problem solving")]
+    async fn sequential_thinking(
+        &self,
+        #[tool(param)] thought: String,
+        #[tool(param)] next_thought_needed: bool,
+        #[tool(param)] thought_number: usize,
+        #[tool(param)] total_thoughts: usize,
+        #[tool(param)] is_revision: Option<bool>,
+        #[tool(param)] revises_thought: Option<usize>,
+        #[tool(param)] branch_from_thought: Option<usize>,
+        #[tool(param)] branch_id: Option<String>,
+        #[tool(param)] needs_more_thoughts: Option<bool>,
+    ) -> Result<CallToolResult, McpError> {
+        let request = SequentialThinking {
+            thought,
+            next_thought_needed,
+            thought_number,
+            total_thoughts,
+            is_revision,
+            revises_thought,
+            branch_from_thought,
+            branch_id,
+            needs_more_thoughts,
+        };
+
+        let json = match serde_json::to_string(&request) {
+            Ok(j) => j,
+            Err(e) => {
+                return Err(McpError::internal_error(
+                    "serialize_error",
+                    Some(serde_json::Value::String(e.to_string())),
+                ))
+            }
+        };
+
+        let result = thinking::process_sequential_thinking(&self.state, &json)
+            .await
+            .map_err(|e| {
+                McpError::internal_error(
+                    "thinking_error",
+                    Some(serde_json::Value::String(e.to_string())),
+                )
+            })?;
+
+        Ok(CallToolResult::success(vec![Content::text(result)]))
+    }
+}
+
+#[tool(tool_box)]
+impl ServerHandler for WinxTools {
+    fn get_info(&self) -> ServerInfo {
+        ServerInfo {
+            protocol_version: ProtocolVersion::V_2025_03_26,
+            capabilities: ServerCapabilities::builder()
+                .enable_tools()
+                .build(),
+            server_info: Implementation::from_build_env(),
+            instructions: Some("Winx é um agente de código em Rust que permite executar comandos bash, manipular arquivos e executar consultas SQL.".to_string()),
+        }
+    }
+}
 
 /// Initialize tool registration
 pub fn register_tools(state: SharedState) -> Result<()> {
     info!("Registering Winx tools");
-    
-    // Como não temos acesso à documentação completa do RMCP, vamos registrar as ferramentas
-    // de forma simplificada. Em uma implementação real, isso seria conectado ao MCP.
-    
-    // Para este MVP, vamos retornar Ok sem realmente registrar as ferramentas
-    // Em uma versão final, cada ferramenta seria registrada propriamente
-    
-    info!("All Winx tools registered successfully (mock implementation)");
-    Ok(())
-}
 
-/// Register bash commands
-fn register_bash_tools(registry: &ServiceRegistry, context: Arc<WinxContext>) -> Result<()> {
-    registry.add_service(
-        "BashCommand",
-        service::unary(move |req: Request<Value>| {
-            let ctx = context.clone();
-            async move {
-                let params = req.params;
-                let result = bash::execute_bash_command(&ctx.state, &params.to_string()).await?;
-                Ok(Response::new(serde_json::to_value(result)?))
-            }
-        }),
-    );
-    
-    Ok(())
-}
+    // Create a new WinxTools instance with the shared state
+    let _tools = WinxTools::new(state);
 
-/// Register file operations
-fn register_file_tools(registry: &ServiceRegistry, context: Arc<WinxContext>) -> Result<()> {
-    registry.add_service(
-        "ReadFiles",
-        service::unary(move |req: Request<Value>| {
-            let ctx = context.clone();
-            async move {
-                let params = req.params;
-                let result = files::read_files(&ctx.state, &params.to_string()).await?;
-                Ok(Response::new(serde_json::to_value(result)?))
-            }
-        }),
-    );
-    
-    registry.add_service(
-        "FileWriteOrEdit",
-        service::unary(move |req: Request<Value>| {
-            let ctx = context.clone();
-            async move {
-                let params = req.params;
-                let result = files::write_or_edit_file(&ctx.state, &params.to_string()).await?;
-                Ok(Response::new(serde_json::to_value(result)?))
-            }
-        }),
-    );
-    
-    Ok(())
-}
+    // In a full implementation, we would register the tools with the RMCP server
+    // But this is now handled by the tool macros
 
-/// Register SQL tools
-fn register_sql_tools(registry: &ServiceRegistry, context: Arc<WinxContext>) -> Result<()> {
-    registry.add_service(
-        "SqlQuery",
-        service::unary(move |req: Request<Value>| {
-            let ctx = context.clone();
-            async move {
-                let params = req.params;
-                let result = sql::execute_sql_query(&ctx.state, &params.to_string()).await?;
-                Ok(Response::new(serde_json::to_value(result)?))
-            }
-        }),
-    );
-    
-    Ok(())
-}
-
-/// Register sequential thinking tools
-fn register_thinking_tools(registry: &ServiceRegistry, context: Arc<WinxContext>) -> Result<()> {
-    registry.add_service(
-        "SequentialThinking",
-        service::unary(move |req: Request<Value>| {
-            let ctx = context.clone();
-            async move {
-                let params = req.params;
-                let result = thinking::process_sequential_thinking(&ctx.state, &params.to_string()).await?;
-                Ok(Response::new(serde_json::to_value(result)?))
-            }
-        }),
-    );
-    
+    info!("All Winx tools registered successfully");
     Ok(())
 }
 
@@ -108,6 +223,7 @@ pub struct BashCommand {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ReadFiles {
     pub file_paths: Vec<String>,
+    pub show_line_numbers_reason: Option<String>,
 }
 
 /// Basic file write/edit tool definition
@@ -142,24 +258,3 @@ pub struct SequentialThinking {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub needs_more_thoughts: Option<bool>,
 }
-
-// Tool implementations to be registered with MCP
-pub struct WinxTools {
-    // Tool implementations
-}
-
-impl WinxTools {
-    pub fn new(_state: SharedState) -> Self {
-        Self {
-            // Initialize tools with state
-        }
-    }
-    
-    pub fn register_tools(&self) -> Result<()> {
-        info!("Registering Winx tools");
-        // Register tools with MCP
-        Ok(())
-    }
-}
-
-// Tool implementations will be in separate modules
