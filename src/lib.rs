@@ -467,5 +467,8 @@ fn initialize_once_cell_modules() -> Result<()> {
     // Initialize terminal manager with default directory
     commands::terminal::init_terminal_manager(default_dir.to_string_lossy().to_string());
 
+    // Reseta o estado de inicialização para garantir que as ferramentas requerem inicialização adequada
+    commands::tools::reset_initialization();
+    
     Ok(())
 }
