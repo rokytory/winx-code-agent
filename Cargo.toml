@@ -6,6 +6,11 @@ authors = ["Gabriel Maia"]
 description = "A performant code agent written in Rust"
 license = "MIT"
 
+# Feature flags
+[features]
+default = []
+syntax_validation = [] # Habilita validação de sintaxe usando tree-sitter
+
 [dependencies]
 # Error handling
 anyhow = "1.0"
@@ -15,10 +20,10 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # Database
-rusqlite = { version = "0.30", features = ["bundled"] }
+rusqlite = { version = "0.34.0", features = ["bundled"] }
 
 # OpenAI
-async-openai = "0.18"
+async-openai = "0.28.1"
 
 # Shell and terminal interaction
 portable-pty = "0.8"
@@ -49,15 +54,15 @@ diff = "0.1"
 similar = "2.2"
 regex = "1.10"
 glob = "0.3"
-tree-sitter = "0.20"
+tree-sitter = "0.25.3"
 # Add language support as needed
-tree-sitter-rust = "0.20"
-tree-sitter-javascript = "0.20"
-tree-sitter-python = "0.19"
+tree-sitter-rust = "0.24.0"
+tree-sitter-javascript = "0.23.1"
+tree-sitter-python = "0.23.6"
 walkdir = "2.4"
 serde_yaml = "0.9"
 toml = "0.8"
-dirs = "5.0"
+dirs = "6.0.0"
 tempfile = "3.19.1"
 lazy_static = "1.4.0"
 which = "4.4.0"
