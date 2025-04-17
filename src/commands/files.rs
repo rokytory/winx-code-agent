@@ -32,7 +32,10 @@ pub async fn read_files_internal(
             };
 
             if !state_guard.is_path_allowed(&resolved_path) {
-                return Err(anyhow::anyhow!("Path not allowed: {}", resolved_path.display()));
+                return Err(anyhow::anyhow!(
+                    "Path not allowed: {}",
+                    resolved_path.display()
+                ));
             }
 
             resolved_path
@@ -73,7 +76,10 @@ pub async fn read_files_internal(
 }
 
 /// Read a file with optional line range
-async fn read_file_with_range(path: &Path, range: Option<(usize, usize)>) -> Result<(String, (usize, usize))> {
+async fn read_file_with_range(
+    path: &Path,
+    range: Option<(usize, usize)>,
+) -> Result<(String, (usize, usize))> {
     let content = fs_utils::read_file(path).await?;
 
     if let Some((start, end)) = range {
@@ -115,7 +121,10 @@ pub async fn write_or_edit_file_internal(
         };
 
         if !state_guard.is_path_allowed(&resolved_path) {
-            return Err(anyhow::anyhow!("Path not allowed: {}", resolved_path.display()));
+            return Err(anyhow::anyhow!(
+                "Path not allowed: {}",
+                resolved_path.display()
+            ));
         }
 
         resolved_path
@@ -152,7 +161,8 @@ pub async fn write_or_edit_file_internal(
         };
 
         // Apply search/replace blocks
-        match crate::diff::search_replace::apply_search_replace_from_text(&current_content, content) {
+        match crate::diff::search_replace::apply_search_replace_from_text(&current_content, content)
+        {
             Ok(result) => {
                 // Write the updated content
                 fs::write(&path, &result.content)?;
@@ -176,14 +186,18 @@ pub async fn write_or_edit_file_internal(
                 warn!("Search/replace failed: {}", e);
 
                 // Try to find context for failing search blocks
-                if let Ok(blocks) = crate::diff::search_replace::parse_search_replace_blocks(content) {
+                if let Ok(blocks) =
+                    crate::diff::search_replace::parse_search_replace_blocks(content)
+                {
                     for (i, block) in blocks.iter().enumerate() {
-                        if let Some(context) = crate::diff::search_replace::find_context_for_search_block(
-                            &current_content,
-                            &block.search_lines,
-                            3,
-                        ) {
-                            debug!("Context for search block #{}: {}", i+1, context);
+                        if let Some(context) =
+                            crate::diff::search_replace::find_context_for_search_block(
+                                &current_content,
+                                &block.search_lines,
+                                3,
+                            )
+                        {
+                            debug!("Context for search block #{}: {}", i + 1, context);
                         }
                     }
                 }
@@ -245,7 +259,8 @@ pub async fn write_or_edit_file(state: &SharedState, json_str: &str) -> Result<S
 
             if !unread_ranges.is_empty() {
                 // Construct a helpful error message
-                let ranges_str = unread_ranges.iter()
+                let ranges_str = unread_ranges
+                    .iter()
                     .map(|(start, end)| format!("{}-{}", start, end))
                     .collect::<Vec<_>>()
                     .join(", ");
@@ -270,7 +285,7 @@ pub async fn write_or_edit_file(state: &SharedState, json_str: &str) -> Result<S
         request.percentage_to_change,
         &request.file_content_or_search_replace_blocks,
     )
-        .await
+    .await
 }
 
 #[cfg(test)]
@@ -307,8 +322,8 @@ mod tests {
                 100,
                 "Hello, universe!",
             )
-                .await
-                .unwrap();
+            .await
+            .unwrap();
 
             assert!(result.contains("Successfully"));
 

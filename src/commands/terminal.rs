@@ -3,12 +3,12 @@
 // mas permite que o projeto seja compilado e executado
 
 use anyhow::{anyhow, Result};
+use regex::Regex;
 use std::io::{Read, Write};
 use std::process::Command as StdCommand;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use uuid::Uuid;
-use regex::Regex;
 
 use crate::core::state::SharedState;
 use crate::core::types::Special;
@@ -68,11 +68,11 @@ impl TerminalSession {
         // Capturar saída e remover códigos ANSI com dupla proteção
         let stdout_raw = String::from_utf8_lossy(&output.stdout).to_string();
         let stderr_raw = String::from_utf8_lossy(&output.stderr).to_string();
-        
+
         // First use our local function
         let stdout = crate::strip_ansi_codes(&stdout_raw);
         let stderr = crate::strip_ansi_codes(&stderr_raw);
-        
+
         // Then double-check with a comprehensive regex
         let full_pattern = regex::Regex::new(r"\x1b(?:[@-Z\\-_]|\[[0-9?;]*[0-9A-Za-z])").unwrap();
         let stdout = full_pattern.replace_all(&stdout, "").to_string();
@@ -151,7 +151,11 @@ impl TerminalSession {
     /// Send special keys to a running process
     pub async fn send_special_keys(&mut self, keys: &[Special]) -> Result<String> {
         // Simplificação: apenas retorna uma mensagem indicando que as teclas foram enviadas
-        let keys_str = keys.iter().map(|k| format!("{:?}", k)).collect::<Vec<_>>().join(", ");
+        let keys_str = keys
+            .iter()
+            .map(|k| format!("{:?}", k))
+            .collect::<Vec<_>>()
+            .join(", ");
         Ok(format!("Special keys sent: {}", keys_str))
     }
 
@@ -173,8 +177,10 @@ impl TerminalSession {
             let session_id = format!("winx-{}", Uuid::new_v4().to_string());
 
             // Executar o comando em background usando screen
-            let screen_cmd = format!("screen -dmS {} bash -c '{} ; echo \"[Process completed with status $?]\"'",
-                                     session_id, command);
+            let screen_cmd = format!(
+                "screen -dmS {} bash -c '{} ; echo \"[Process completed with status $?]\"'",
+                session_id, command
+            );
 
             // Executar screen_cmd
             let output = StdCommand::new("sh")
@@ -184,13 +190,18 @@ impl TerminalSession {
                 .output()?;
 
             if output.status.success() {
-                Ok(format!("Background process started with ID: {}", session_id))
+                Ok(format!(
+                    "Background process started with ID: {}",
+                    session_id
+                ))
             } else {
                 let error = String::from_utf8_lossy(&output.stderr).to_string();
                 Err(anyhow!("Failed to start background process: {}", error))
             }
         } else {
-            Err(anyhow!("screen command not available - please install it to use background processes"))
+            Err(anyhow!(
+                "screen command not available - please install it to use background processes"
+            ))
         }
     }
 
@@ -266,7 +277,8 @@ impl TerminalManager {
     /// Get a terminal session
     pub async fn get_session(&self, session_id: &str) -> Result<Arc<Mutex<TerminalSession>>> {
         let sessions = self.sessions.lock().await;
-        sessions.get(session_id)
+        sessions
+            .get(session_id)
             .cloned()
             .ok_or_else(|| anyhow!("Session not found: {}", session_id))
     }
@@ -300,7 +312,11 @@ impl TerminalManager {
     }
 
     /// Start a background process
-    pub async fn start_background_process(&self, session_id: &str, command: &str) -> Result<String> {
+    pub async fn start_background_process(
+        &self,
+        session_id: &str,
+        command: &str,
+    ) -> Result<String> {
         let session = self.get_session(session_id).await?;
         let mut session_guard = session.lock().await;
         session_guard.start_background_process(command).await
@@ -326,7 +342,8 @@ impl TerminalManager {
 }
 
 // Terminal manager singleton
-static TERMINAL_MANAGER: once_cell::sync::OnceCell<Arc<TerminalManager>> = once_cell::sync::OnceCell::new();
+static TERMINAL_MANAGER: once_cell::sync::OnceCell<Arc<TerminalManager>> =
+    once_cell::sync::OnceCell::new();
 
 /// Initialize the terminal manager
 pub fn init_terminal_manager(default_workspace: String) -> Arc<TerminalManager> {
@@ -337,7 +354,8 @@ pub fn init_terminal_manager(default_workspace: String) -> Arc<TerminalManager> 
 
 /// Get the terminal manager instance
 pub fn get_terminal_manager() -> Result<Arc<TerminalManager>> {
-    TERMINAL_MANAGER.get()
+    TERMINAL_MANAGER
+        .get()
         .cloned()
         .ok_or_else(|| anyhow!("Terminal manager not initialized"))
 }
@@ -390,7 +408,10 @@ mod tests {
             let session_id = manager.create_session().await.unwrap();
 
             // Execute a simple command
-            let output = manager.execute_command(&session_id, "echo 'Hello, world!'").await.unwrap();
+            let output = manager
+                .execute_command(&session_id, "echo 'Hello, world!'")
+                .await
+                .unwrap();
             assert!(output.contains("Hello, world!"));
 
             // Check status

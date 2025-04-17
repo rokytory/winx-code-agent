@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Context, Result};
+use regex::Regex;
 use tokio::process::Command;
 use tracing::{debug, info, warn};
-use regex::Regex;
 
 use crate::core::state::SharedState;
 use crate::core::types::{
@@ -155,7 +155,9 @@ pub async fn execute_command(state: &SharedState, command: &str) -> Result<Strin
                 return manager.execute_command(&session_id, command).await;
             }
             Err(_) => {
-                debug!("Terminal manager not initialized, falling back to simple command execution");
+                debug!(
+                    "Terminal manager not initialized, falling back to simple command execution"
+                );
             }
         }
     } else {
@@ -173,7 +175,10 @@ pub async fn execute_command(state: &SharedState, command: &str) -> Result<Strin
                         state_guard.set_terminal_session(session_id.clone());
                     }
 
-                    debug!("Created terminal session {} for interactive command", session_id);
+                    debug!(
+                        "Created terminal session {} for interactive command",
+                        session_id
+                    );
                     return manager.execute_command(&session_id, command).await;
                 }
                 Err(e) => {
@@ -231,14 +236,16 @@ pub async fn execute_command(state: &SharedState, command: &str) -> Result<Strin
 fn is_interactive_command(command: &str) -> bool {
     // List of common interactive commands
     let interactive_commands = [
-        "vim", "vi", "nano", "emacs", "less", "more", "top", "htop",
-        "mysql", "psql", "sqlite3", "python", "python3", "node", "ruby", "irb",
-        "bash", "sh", "zsh", "fish", "screen", "tmux", "ssh", "telnet"
+        "vim", "vi", "nano", "emacs", "less", "more", "top", "htop", "mysql", "psql", "sqlite3",
+        "python", "python3", "node", "ruby", "irb", "bash", "sh", "zsh", "fish", "screen", "tmux",
+        "ssh", "telnet",
     ];
 
     // Check if the command starts with any of these
     for &cmd in &interactive_commands {
-        if command.starts_with(cmd) && (command.len() == cmd.len() || command.chars().nth(cmd.len()) == Some(' ')) {
+        if command.starts_with(cmd)
+            && (command.len() == cmd.len() || command.chars().nth(cmd.len()) == Some(' '))
+        {
             return true;
         }
     }
@@ -292,9 +299,7 @@ async fn check_status(state: &SharedState) -> Result<String> {
 
     Ok(format!(
         "Process running: {}\nLast exit status: {:?}\nBackground processes: {:?}",
-        state_info.0,
-        state_info.1,
-        state_info.2,
+        state_info.0, state_info.1, state_info.2,
     ))
 }
 
@@ -335,7 +340,10 @@ pub async fn send_special_keys(
     if let Some(session_id) = terminal_session {
         match crate::commands::terminal::get_terminal_manager() {
             Ok(manager) => {
-                debug!("Sending special keys to terminal session {}: {:?}", session_id, specials);
+                debug!(
+                    "Sending special keys to terminal session {}: {:?}",
+                    session_id, specials
+                );
                 return manager.send_special_keys(&session_id, specials).await;
             }
             Err(e) => {
@@ -358,8 +366,13 @@ pub async fn start_background_process(state: &SharedState, command: &str) -> Res
     if let Some(session_id) = terminal_session {
         match crate::commands::terminal::get_terminal_manager() {
             Ok(manager) => {
-                debug!("Starting background process in terminal session {}: {}", session_id, command);
-                let process_id = manager.start_background_process(&session_id, command).await?;
+                debug!(
+                    "Starting background process in terminal session {}: {}",
+                    session_id, command
+                );
+                let process_id = manager
+                    .start_background_process(&session_id, command)
+                    .await?;
 
                 // Register the process with the state
                 {
@@ -385,18 +398,19 @@ pub async fn start_background_process(state: &SharedState, command: &str) -> Res
     let session_id = format!("winx-{}", uuid::Uuid::new_v4().to_string());
 
     // Check if screen is installed
-    let which_output = Command::new("which")
-        .arg("screen")
-        .output()
-        .await?;
+    let which_output = Command::new("which").arg("screen").output().await?;
 
     if !which_output.status.success() {
-        return Err(anyhow!("screen command not available - please install it to use background processes"));
+        return Err(anyhow!(
+            "screen command not available - please install it to use background processes"
+        ));
     }
 
     // Start the screen session
-    let screen_cmd = format!("screen -dmS {} bash -c '{} ; echo \"[Process completed with status $?]\"'",
-                             session_id, command);
+    let screen_cmd = format!(
+        "screen -dmS {} bash -c '{} ; echo \"[Process completed with status $?]\"'",
+        session_id, command
+    );
 
     let output = Command::new("sh")
         .arg("-c")
@@ -406,8 +420,10 @@ pub async fn start_background_process(state: &SharedState, command: &str) -> Res
         .await?;
 
     if !output.status.success() {
-        return Err(anyhow!("Failed to start background process: {}", 
-                          String::from_utf8_lossy(&output.stderr)));
+        return Err(anyhow!(
+            "Failed to start background process: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ));
     }
 
     // Register the process with the state

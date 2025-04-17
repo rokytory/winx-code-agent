@@ -79,13 +79,10 @@ pub struct MatchOptions {
 }
 
 /// Executes a symbolic edit
-pub async fn execute_symbolic_edit(
-    state: &SharedState,
-    edit: &SymbolicEdit,
-) -> Result<String> {
+pub async fn execute_symbolic_edit(state: &SharedState, edit: &SymbolicEdit) -> Result<String> {
     debug!("Executing symbolic edit: {:?}", edit);
 
-    // For now, we'll just return a placeholder result, until we implement 
+    // For now, we'll just return a placeholder result, until we implement
     // proper LSP integration
 
     // Ensure we have a valid location
@@ -99,26 +96,32 @@ pub async fn execute_symbolic_edit(
         SymbolicEditType::ReplaceBody => {
             info!("Would replace symbol body at {:?}", edit.location);
             // Placeholder implementation
-            Ok(format!("Symbol edit not yet implemented - would replace body in {}", file_path))
+            Ok(format!(
+                "Symbol edit not yet implemented - would replace body in {}",
+                file_path
+            ))
         }
         SymbolicEditType::InsertBefore => {
             info!("Would insert before symbol at {:?}", edit.location);
             // Placeholder implementation
-            Ok(format!("Symbol edit not yet implemented - would insert before symbol in {}", file_path))
+            Ok(format!(
+                "Symbol edit not yet implemented - would insert before symbol in {}",
+                file_path
+            ))
         }
         SymbolicEditType::InsertAfter => {
             info!("Would insert after symbol at {:?}", edit.location);
             // Placeholder implementation
-            Ok(format!("Symbol edit not yet implemented - would insert after symbol in {}", file_path))
+            Ok(format!(
+                "Symbol edit not yet implemented - would insert after symbol in {}",
+                file_path
+            ))
         }
     }
 }
 
 /// Executes a text edit
-pub async fn execute_text_edit(
-    state: &SharedState,
-    edit: &TextEdit,
-) -> Result<String> {
+pub async fn execute_text_edit(state: &SharedState, edit: &TextEdit) -> Result<String> {
     debug!("Executing text edit: {:?}", edit);
 
     // Resolve file path
@@ -142,7 +145,10 @@ pub async fn execute_text_edit(
         TextEditType::Replace => {
             info!("Replacing content in file: {}", path.display());
             fs::write(&path, &edit.content)?;
-            Ok(format!("Successfully replaced content in file: {}", path.display()))
+            Ok(format!(
+                "Successfully replaced content in file: {}",
+                path.display()
+            ))
         }
         TextEditType::SearchReplace => {
             info!("Applying search/replace blocks to file: {}", path.display());
@@ -159,15 +165,17 @@ pub async fn execute_text_edit(
             };
 
             // Apply search/replace
-            let result = search_replace::apply_search_replace_from_text(
-                &current_content,
-                &edit.content,
-            ).context("Failed to apply search/replace blocks")?;
+            let result =
+                search_replace::apply_search_replace_from_text(&current_content, &edit.content)
+                    .context("Failed to apply search/replace blocks")?;
 
             // Write updated content
             fs::write(&path, &result.content)?;
 
-            let mut message = format!("Successfully edited file with search/replace blocks: {}", path.display());
+            let mut message = format!(
+                "Successfully edited file with search/replace blocks: {}",
+                path.display()
+            );
             if !result.warnings.is_empty() {
                 message.push_str("\nWarnings:");
                 for warning in result.warnings {
@@ -188,24 +196,47 @@ pub async fn execute_text_edit(
             // Placeholder implementation
             info!("Would insert at line {} in file: {}", line, path.display());
 
-            Ok(format!("Successfully inserted content at line {} in file: {}", line, path.display()))
+            Ok(format!(
+                "Successfully inserted content at line {} in file: {}",
+                line,
+                path.display()
+            ))
         }
         TextEditType::DeleteLines => {
-            let params = edit.parameters.as_ref()
+            let params = edit
+                .parameters
+                .as_ref()
                 .ok_or_else(|| anyhow!("Parameters are required for DeleteLines edit"))?;
 
-            let start_line = params.line
+            let start_line = params
+                .line
                 .ok_or_else(|| anyhow!("Start line parameter is required for DeleteLines edit"))?;
 
-            let end_line = params.end_line
+            let end_line = params
+                .end_line
                 .ok_or_else(|| anyhow!("End line parameter is required for DeleteLines edit"))?;
 
-            info!("Deleting lines {}-{} in file: {}", start_line, end_line, path.display());
+            info!(
+                "Deleting lines {}-{} in file: {}",
+                start_line,
+                end_line,
+                path.display()
+            );
 
             // Placeholder implementation
-            info!("Would delete lines {}-{} in file: {}", start_line, end_line, path.display());
+            info!(
+                "Would delete lines {}-{} in file: {}",
+                start_line,
+                end_line,
+                path.display()
+            );
 
-            Ok(format!("Successfully deleted lines {}-{} in file: {}", start_line, end_line, path.display()))
+            Ok(format!(
+                "Successfully deleted lines {}-{} in file: {}",
+                start_line,
+                end_line,
+                path.display()
+            ))
         }
     }
 }
@@ -214,8 +245,8 @@ pub async fn execute_text_edit(
 pub async fn symbolic_edit(state: &SharedState, json_str: &str) -> Result<String> {
     debug!("Parsing symbolic edit request: {}", json_str);
 
-    let edit: SymbolicEdit = serde_json::from_str(json_str)
-        .context("Failed to parse symbolic edit request")?;
+    let edit: SymbolicEdit =
+        serde_json::from_str(json_str).context("Failed to parse symbolic edit request")?;
 
     execute_symbolic_edit(state, &edit).await
 }
@@ -224,8 +255,8 @@ pub async fn symbolic_edit(state: &SharedState, json_str: &str) -> Result<String
 pub async fn text_edit(state: &SharedState, json_str: &str) -> Result<String> {
     debug!("Parsing text edit request: {}", json_str);
 
-    let edit: TextEdit = serde_json::from_str(json_str)
-        .context("Failed to parse text edit request")?;
+    let edit: TextEdit =
+        serde_json::from_str(json_str).context("Failed to parse text edit request")?;
 
     execute_text_edit(state, &edit).await
 }

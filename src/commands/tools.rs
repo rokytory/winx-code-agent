@@ -75,14 +75,20 @@ impl WinxTools {
         };
 
         if tasks.is_empty() {
-            Ok(CallToolResult::success(vec![Content::text("No tasks available.")]))
+            Ok(CallToolResult::success(vec![Content::text(
+                "No tasks available.",
+            )]))
         } else {
-            let task_list = tasks.iter()
+            let task_list = tasks
+                .iter()
                 .map(|task| format!("- {}", task))
                 .collect::<Vec<_>>()
                 .join("\n");
 
-            Ok(CallToolResult::success(vec![Content::text(format!("Available tasks:\n{}", task_list))]))
+            Ok(CallToolResult::success(vec![Content::text(format!(
+                "Available tasks:\n{}",
+                task_list
+            ))]))
         }
     }
 
@@ -109,13 +115,12 @@ impl WinxTools {
         #[tool(param)] extension: String,
         #[tool(param)] content: String,
     ) -> Result<CallToolResult, McpError> {
-        let result = code::validate_syntax(&extension, &content)
-            .map_err(|e| {
-                McpError::internal_error(
-                    "syntax_validator_error",
-                    Some(serde_json::Value::String(e.to_string())),
-                )
-            })?;
+        let result = code::validate_syntax(&extension, &content).map_err(|e| {
+            McpError::internal_error(
+                "syntax_validator_error",
+                Some(serde_json::Value::String(e.to_string())),
+            )
+        })?;
 
         let is_valid = result.is_valid;
         let description = result.description;
@@ -123,7 +128,10 @@ impl WinxTools {
         let response = if is_valid {
             format!("Syntax validation passed for .{} file.", extension)
         } else {
-            format!("Syntax validation failed for .{} file:\n{}", extension, description)
+            format!(
+                "Syntax validation failed for .{} file:\n{}",
+                extension, description
+            )
         };
 
         Ok(CallToolResult::success(vec![Content::text(response)]))
@@ -152,7 +160,8 @@ impl WinxTools {
         #[tool(param)] keys: Vec<String>,
     ) -> Result<CallToolResult, McpError> {
         // Convert string keys to Special enum
-        let special_keys = keys.iter()
+        let special_keys = keys
+            .iter()
             .map(|k| k.parse::<crate::core::types::Special>())
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
@@ -191,7 +200,7 @@ impl WinxTools {
         let command = if action_json.is_string() {
             // If it's a simple string, check if it's a JSON string first
             let action_str = action_json.as_str().unwrap_or("");
-            
+
             if action_str.starts_with('{') && action_str.contains("command") {
                 // Try to parse the string as JSON
                 match serde_json::from_str::<serde_json::Value>(action_str) {
@@ -215,7 +224,7 @@ impl WinxTools {
                                 })),
                             ));
                         }
-                    },
+                    }
                     Err(_) => {
                         // If not a valid JSON, use the string as command directly
                         action_str.to_string()
@@ -244,7 +253,7 @@ impl WinxTools {
                 if nested_action.is_string() {
                     // If action_json is a string, try to parse it as JSON first
                     let nested_str = nested_action.as_str().unwrap_or("");
-                    
+
                     if nested_str.starts_with('{') && nested_str.contains("command") {
                         // Try to parse the string as JSON
                         match serde_json::from_str::<serde_json::Value>(nested_str) {
@@ -268,7 +277,7 @@ impl WinxTools {
                                         })),
                                     ));
                                 }
-                            },
+                            }
                             Err(_) => {
                                 // If not a valid JSON, use the string as command directly
                                 nested_str.to_string()

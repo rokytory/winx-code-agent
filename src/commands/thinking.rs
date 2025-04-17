@@ -128,7 +128,7 @@ pub async fn process_sequential_thinking(_state: &SharedState, json_str: &str) -
         branch_id,
         needs_more_thoughts,
     )
-        .await
+    .await
 }
 
 #[cfg(test)]
@@ -164,8 +164,8 @@ mod tests {
                 None,
                 None,
             )
-                .await
-                .unwrap();
+            .await
+            .unwrap();
 
             assert!(result.contains("Thought #1"));
 
@@ -181,8 +181,8 @@ mod tests {
                 None,
                 None,
             )
-                .await
-                .unwrap();
+            .await
+            .unwrap();
 
             assert!(result.contains("Thought #1"));
             assert!(result.contains("Thought #2"));
@@ -199,8 +199,8 @@ mod tests {
                 None,
                 None,
             )
-                .await
-                .unwrap();
+            .await
+            .unwrap();
 
             assert!(result.contains("Thought #1"));
             assert!(result.contains("Thought #2"));
