@@ -1,8 +1,12 @@
 use anyhow::{Context, Result};
-use rmcp::ServiceExt;
+use rmcp::{ServiceExt, transport::Transport};
 use std::env;
 use std::path::PathBuf;
-use tracing::{error, info};
+use tracing::{debug, error, info};
+use std::pin::Pin;
+use std::task::{Context as TaskContext, Poll};
+use futures::prelude::*;
+use tokio::io::{AsyncRead, AsyncWrite};
 
 use winx::{
     commands::tools::WinxTools,
@@ -185,11 +189,14 @@ async fn main() -> Result<()> {
     // Start the MCP server and keep it running until the client disconnects
     info!("Server starting...");
 
-    // Use standard transport - with our environment variables set to disable ANSI codes
-    let std_transport = rmcp::transport::stdio();
-
-    // Add error handling and detailed logging
-    let client_result = tools.serve(std_transport).await;
+    // Create a custom transport wrapper that filters log-like messages
+    let stdio_transport = rmcp::transport::stdio();
+    
+    // Create a filtering transport adapter that wraps the standard stdio transport
+    let filtering_transport = FilteringTransport::new(stdio_transport);
+    
+    // Use our custom filtered transport
+    let client_result = tools.serve(filtering_transport).await;
     let client = match client_result {
         Ok(client) => {
             info!("MCP server started successfully");
@@ -223,4 +230,87 @@ async fn main() -> Result<()> {
     info!("Shutting down Winx agent");
 
     Ok(())
+}
+
+/// A custom transport wrapper that filters out log-like messages
+/// which might be mistakenly parsed as JSON
+struct FilteringTransport<T> {
+    inner: T,
+}
+
+impl<T> FilteringTransport<T> {
+    fn new(inner: T) -> Self {
+        Self { inner }
+    }
+    
+    /// Check if the data looks like a log message rather than JSON
+    fn is_log_message(data: &[u8]) -> bool {
+        // Skip empty data
+        if data.is_empty() {
+            return false;
+        }
+        
+        // Check for common log patterns
+        let log_indicators = [" INFO ", " DEBUG ", " WARN ", " ERROR ", " TRACE "];
+        
+        // Convert the first part of the data to a string for comparison
+        let max_check_len = std::cmp::min(data.len(), 20);
+        if let Ok(start_str) = std::str::from_utf8(&data[..max_check_len]) {
+            // Check if it starts with any of our log indicators
+            for &indicator in &log_indicators {
+                if start_str.contains(indicator) {
+                    debug!("Filtering out log-like message: {}", start_str);
+                    return true;
+                }
+            }
+        }
+        
+        false
+    }
+}
+
+impl<T: Transport> Transport for FilteringTransport<T> {
+    type Error = T::Error;
+    type Reader = FilteringReader<T::Reader>;
+    type Writer = T::Writer;
+    
+    fn split(self) -> (Self::Reader, Self::Writer) {
+        let (reader, writer) = self.inner.split();
+        (FilteringReader { inner: reader }, writer)
+    }
+}
+
+/// A filtering reader that silently discards log-like messages
+struct FilteringReader<R> {
+    inner: R,
+}
+
+impl<R: AsyncRead + Unpin> AsyncRead for FilteringReader<R> {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut TaskContext<'_>,
+        buf: &mut tokio::io::ReadBuf<'_>,
+    ) -> Poll<std::io::Result<()>> {
+        // Temporary buffer to check the data before passing it on
+        let mut temp_buf = vec![0u8; buf.capacity()];
+        let mut temp_read_buf = tokio::io::ReadBuf::new(&mut temp_buf);
+        
+        match Pin::new(&mut self.inner).poll_read(cx, &mut temp_read_buf) {
+            Poll::Ready(Ok(())) => {
+                let filled = temp_read_buf.filled();
+                if !filled.is_empty() && !FilteringTransport::<R>::is_log_message(filled) {
+                    // Only copy non-log data to the actual buffer
+                    buf.put_slice(filled);
+                } else if !filled.is_empty() {
+                    // If it was a log message, return "no data" but mark as ready
+                    // This will prevent the caller from waiting on more data
+                    debug!("Filtered out log-like message ({} bytes)", filled.len());
+                    // We still need to return Ready to prevent blocking
+                    return Poll::Ready(Ok(()));
+                }
+                Poll::Ready(Ok(()))
+            }
+            other => other,
+        }
+    }
 }

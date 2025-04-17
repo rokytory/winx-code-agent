@@ -99,6 +99,20 @@ pub fn debug_json_bytes(data: &[u8], prefix: &str) {
         return;
     }
 
+    // Quick check if this is a log line instead of JSON
+    // Look for common log patterns like "INFO", "DEBUG", etc. at the beginning
+    let log_indicators = ["INFO ", "DEBUG ", "WARN ", "ERROR ", "TRACE "];
+    let is_likely_log = data.len() > 5 && data[0] == b' ' && {
+        let first_chars = std::str::from_utf8(&data[1..6]).unwrap_or("");
+        log_indicators.iter().any(|&indicator| first_chars.starts_with(indicator))
+    };
+
+    if is_likely_log {
+        // Skip processing log lines masquerading as JSON
+        debug!("Detected log line instead of JSON - skipping JSON parsing");
+        return;
+    }
+
     // Log bytes in hexadecimal format - show up to 100 bytes
     let display_limit = std::cmp::min(data.len(), 100);
     let hex_data = data
