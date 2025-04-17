@@ -1,9 +1,9 @@
-pub mod edit;
-pub mod operations;
 pub mod checkpoint;
+pub mod edit;
 pub mod git;
+pub mod operations;
 
-pub use edit::*;
-pub use operations::*;
 pub use checkpoint::*;
+pub use edit::*;
 pub use git::*;
+pub use operations::*;
