@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use glob::glob;
 use std::fs;
 use std::path::{Path, PathBuf};
-use tracing::{debug, error, info};
+use tracing::debug;
 
 /// Read a file's contents as string
 pub async fn read_file(path: impl AsRef<Path>) -> Result<String> {
