@@ -56,7 +56,7 @@ pub fn strip_ansi_codes(input: &str) -> String {
     }
 
     // First pass: Replace standard escape sequences with regex
-    let mut result = ANSI_REGEX.replace_all(input, "").to_string();
+    let result = ANSI_REGEX.replace_all(input, "").to_string();
 
     // Second pass: Handle any broken or invalid ANSI sequences by filtering out control characters
     // This catches any non-standard or broken ANSI sequences
