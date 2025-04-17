@@ -13,10 +13,32 @@ pub async fn read_file(path: impl AsRef<Path>) -> Result<String> {
     fs::read_to_string(path).with_context(|| format!("Failed to read file: {}", path.display()))
 }
 
+/// Read a file's contents as string (synchronous version)
+pub fn read_file_to_string(path: impl AsRef<Path>) -> Result<String> {
+    let path = path.as_ref();
+    debug!("Reading file synchronously: {}", path.display());
+
+    fs::read_to_string(path).with_context(|| format!("Failed to read file: {}", path.display()))
+}
+
 /// Write string content to a file
 pub async fn write_file(path: impl AsRef<Path>, content: &str) -> Result<()> {
     let path = path.as_ref();
     debug!("Writing to file: {}", path.display());
+
+    // Create parent directories if they don't exist
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("Failed to create directory: {}", parent.display()))?;
+    }
+
+    fs::write(path, content).with_context(|| format!("Failed to write to file: {}", path.display()))
+}
+
+/// Write string content to a file (synchronous version)
+pub fn write_file_sync(path: impl AsRef<Path>, content: &str) -> Result<()> {
+    let path = path.as_ref();
+    debug!("Writing to file synchronously: {}", path.display());
 
     // Create parent directories if they don't exist
     if let Some(parent) = path.parent() {
