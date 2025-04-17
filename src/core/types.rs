@@ -180,12 +180,134 @@ pub struct ReadFiles {
     pub show_line_numbers_reason: Option<String>,
 }
 
+/// Enhanced file write/edit tracking
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FileReadState {
+    /// Hash of the file content when last read
+    pub file_hash: String,
+    /// Ranges of lines that have been read
+    pub read_ranges: Vec<(usize, usize)>,
+    /// Time when the file was last read
+    pub last_read: chrono::DateTime<chrono::Utc>,
+}
+
+impl FileReadState {
+    /// Create a new file read state with a single range covering the entire file
+    pub fn new(hash: String, total_lines: usize) -> Self {
+        Self {
+            file_hash: hash,
+            read_ranges: vec![(1, total_lines)],
+            last_read: chrono::Utc::now(),
+        }
+    }
+
+    /// Create a new file read state with specific line ranges
+    pub fn with_ranges(hash: String, ranges: Vec<(usize, usize)>) -> Self {
+        Self {
+            file_hash: hash,
+            read_ranges: ranges,
+            last_read: chrono::Utc::now(),
+        }
+    }
+    
+    /// Check if a file has been fully read
+    pub fn is_fully_read(&self) -> bool {
+        // If there are no ranges, the file hasn't been read at all
+        if self.read_ranges.is_empty() {
+            return false;
+        }
+        
+        // Sort ranges for easier processing
+        let mut sorted_ranges = self.read_ranges.clone();
+        sorted_ranges.sort_by_key(|r| r.0);
+        
+        // Check if there are gaps in the ranges
+        let mut current_end = 0;
+        for (start, end) in sorted_ranges {
+            if start > current_end + 1 {
+                return false;
+            }
+            current_end = current_end.max(end);
+        }
+        
+        true
+    }
+    
+    /// Get unread ranges in a file
+    pub fn get_unread_ranges(&self, total_lines: usize) -> Vec<(usize, usize)> {
+        if self.read_ranges.is_empty() {
+            return vec![(1, total_lines)];
+        }
+        
+        let mut sorted_ranges = self.read_ranges.clone();
+        sorted_ranges.sort_by_key(|r| r.0);
+        
+        let mut unread_ranges = Vec::new();
+        let mut current_pos = 1;
+        
+        for (start, end) in sorted_ranges {
+            if start > current_pos {
+                unread_ranges.push((current_pos, start - 1));
+            }
+            current_pos = end + 1;
+        }
+        
+        if current_pos <= total_lines {
+            unread_ranges.push((current_pos, total_lines));
+        }
+        
+        unread_ranges
+    }
+    
+    /// Add a read range to the file state
+    pub fn add_read_range(&mut self, start: usize, end: usize) {
+        self.read_ranges.push((start, end));
+        self.last_read = chrono::Utc::now();
+        
+        // Merge overlapping ranges
+        self.merge_ranges();
+    }
+    
+    /// Merge overlapping ranges for more efficient storage
+    fn merge_ranges(&mut self) {
+        if self.read_ranges.len() <= 1 {
+            return;
+        }
+        
+        self.read_ranges.sort_by_key(|r| r.0);
+        
+        let mut merged = Vec::new();
+        let mut current = self.read_ranges[0];
+        
+        for (start, end) in self.read_ranges.iter().skip(1) {
+            if *start <= current.1 + 1 {
+                // Ranges overlap or are adjacent, merge them
+                current.1 = current.1.max(*end);
+            } else {
+                // No overlap, add current range and start a new one
+                merged.push(current);
+                current = (*start, *end);
+            }
+        }
+        
+        merged.push(current);
+        self.read_ranges = merged;
+    }
+}
+
 /// File writing/editing model
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileWriteOrEdit {
     pub file_path: String,
     pub percentage_to_change: u8,
     pub file_content_or_search_replace_blocks: String,
+    #[serde(default = "default_auto_read")]
+    pub auto_read_if_needed: bool,
+}
+
+/// Default value for auto_read_if_needed (true for backward compatibility)
+fn default_auto_read() -> bool {
+    true
 }
 
 /// Context saving model
