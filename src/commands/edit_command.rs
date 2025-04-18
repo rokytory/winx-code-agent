@@ -286,22 +286,20 @@ mod tests {
                 .unwrap()
                 .as_secs();
 
-            // Create file directly in /tmp for test
+            // Create file directly in the temporary directory
             let file_name = format!("test_{}.txt", timestamp);
-            let file_path = PathBuf::from("/tmp").join(&file_name);
+            let file_path = base_dir.join(&file_name);
 
             // Write initial content - be very careful to match exactly what will be in the search block
             let initial_content = "function hello() {\n    console.log(\"Hello, universe!\");\n}\n";
 
-            // Ensure parent directory exists
-            if let Some(parent) = file_path.parent() {
-                fs::create_dir_all(parent).unwrap_or_default();
-            }
+            // Create the directory structure
+            fs::create_dir_all(&base_dir).unwrap_or_else(|e| panic!("Failed to create test directory: {}", e));
 
             // Write the file with better error handling
             match fs::write(&file_path, initial_content) {
                 Ok(_) => {},
-                Err(e) => panic!("Failed to create test file: {}", e)
+                Err(e) => panic!("Failed to create test file {}: {}", file_path.display(), e)
             }
 
             // Make sure we actually wrote the file

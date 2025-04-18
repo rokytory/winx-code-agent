@@ -576,7 +576,8 @@ mod tests {
             }
 
             // Create the initial file with content that will be in the assertions
-            match fs::write(&file_path, "function hello() {\n    console.log(\"Hello, universe!\");\n}\n") {
+            let initial_content = "function hello() {\n console.log(\"Hello, World!\");\n}\n";
+            match fs::write(&file_path, initial_content) {
                 Ok(_) => {},
                 Err(e) => panic!("Failed to create test file: {}", e)
             }
@@ -593,7 +594,7 @@ mod tests {
 
                 // The path is in the result even if it fails to read, so check content too
                 assert!(result.contains(file_path_str.as_str()));
-                assert!(result.contains("Hello, universe!") || result.contains("```\nHello, universe!"));
+                assert!(result.contains("Hello, World!") || result.contains("```\nHello, World!"));
             }
 
             // Then test writing to the file
