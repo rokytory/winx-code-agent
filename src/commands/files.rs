@@ -225,17 +225,17 @@ pub async fn write_or_edit_file_internal(
         // Check if file exists first
         if !path.exists() {
             debug!("File doesn't exist, creating new file with content: {}", path.display());
-            
+
             // Ensure parent directories exist
             if let Some(parent) = path.parent() {
                 fs::create_dir_all(parent)?;
             }
-            
+
             // For new files, always use the content directly (not as search/replace blocks)
             fs::write(&path, content)?;
             return Ok(format!("Created new file: {}", path.display()));
         }
-        
+
         // Parse search/replace blocks and apply them
         debug!(
             "Performing partial edit with search/replace blocks: {}",
@@ -279,9 +279,9 @@ pub async fn write_or_edit_file_internal(
                 // If syntax error in search/replace blocks, try alternative format
                 if e.to_string().contains("No valid search/replace blocks") {
                     debug!("Standard format failed, trying to handle content as a complete file or alternative format");
-                    
+
                     // Check if it's actually valid content and not search/replace blocks at all
-                    if !content.contains("<<<<<<< SEARCH") && 
+                    if !content.contains("<<<<<<< SEARCH") &&
                        !content.contains("search:") &&
                        !content.contains("replace:") {
                         // Treat as complete file content
@@ -289,7 +289,7 @@ pub async fn write_or_edit_file_internal(
                         fs::write(&path, content)?;
                         return Ok(format!("Created/replaced file: {}", path.display()));
                     }
-                    
+
                     // Try to provide more helpful error message for search/replace format issues
                     let error_msg = if content.contains("search:") || content.contains("replace:") {
                         "Invalid search/replace format. For prefix format, each 'search:' must be followed by a 'replace:'"
@@ -298,11 +298,11 @@ pub async fn write_or_edit_file_internal(
                     } else {
                         "Invalid search/replace blocks format. Use either marker format or prefix format"
                     };
-                    
+
                     warn!("{}: {}", error_msg, e);
                     return Err(anyhow::anyhow!("{}", error_msg));
                 }
-                
+
                 // For other errors, provide detailed debug info
                 warn!("Search/replace failed: {}", e);
 
