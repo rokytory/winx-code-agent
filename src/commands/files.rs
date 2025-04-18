@@ -570,8 +570,19 @@ mod tests {
                 let _ = std::fs::remove_file(&file_path_clone);
             });
 
+            // Ensure parent directory exists
+            if let Some(parent) = file_path.parent() {
+                fs::create_dir_all(parent).unwrap_or_default();
+            }
+
             // Create the initial file with content that will be in the assertions
-            fs::write(&file_path, "function hello() {\n    console.log(\"Hello, universe!\");\n}\n").unwrap();
+            match fs::write(&file_path, "function hello() {\n    console.log(\"Hello, universe!\");\n}\n") {
+                Ok(_) => {},
+                Err(e) => panic!("Failed to create test file: {}", e)
+            }
+
+            // Verify the file was created
+            assert!(file_path.exists(), "Failed to create test file");
 
             // Test reading the file first
             {
