@@ -3,7 +3,7 @@ use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 use tracing::{info, level_filters::LevelFilter};
 use tracing_subscriber::fmt::format::FmtSpan;
-use winx::integrations::openai::{OpenAIClient, OpenAIConfig, OpenAIThinking};
+use winx_code_agent::integrations::openai::{OpenAIClient, OpenAIConfig, OpenAIThinking};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -174,7 +174,7 @@ async fn run_cli() -> Result<()> {
                 println!("\n--- SQL Execution ---");
 
                 // Initialize SQL connection
-                let conn = winx::sql::DbConnection::open(Some(db_path))?;
+                let conn = winx_code_agent::sql::DbConnection::open(Some(db_path))?;
 
                 // Extract SQL queries from the result (simplified approach)
                 let sql_queries = extract_sql_queries(&result);
@@ -233,7 +233,7 @@ fn extract_sql_queries(text: &str) -> Vec<String> {
 #[tokio::main]
 async fn main() -> Result<()> {
     // Initialize Winx
-    winx::init()?;
+    winx_code_agent::init()?;
 
     // Run CLI
     run_cli().await?;
