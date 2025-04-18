@@ -57,7 +57,9 @@ If no path is provided, the current directory will be used as the workspace.
 
 ## 🔧 Integration with Claude
 
-Winx is inspired by the [WCGW project](https://github.com/rusiaaman/wcgw) but reimplemented in Rust for enhanced performance. To integrate with Claude Desktop, configure the file `claude_desktop_config.json` (located in `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+Winx is inspired by the [WCGW project](https://github.com/rusiaaman/wcgw) but reimplemented in Rust for enhanced
+performance. To integrate with Claude Desktop, configure the file `claude_desktop_config.json` (located in
+`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
 
 ```json
 {
@@ -147,7 +149,10 @@ Together, we can make **Winx Agent** even better!
 
 ## 🙏 Special Thanks
 
-A huge thank you to [rusiaaman](https://github.com/rusiaaman) for the inspiring work on [WCGW](https://github.com/rusiaaman/wcgw), which served as a primary inspiration for this project. Winx reimplements many of WCGW's best features in Rust for enhanced performance while adding additional capabilities for semantic code understanding.
+A huge thank you to [rusiaaman](https://github.com/rusiaaman) for the inspiring work
+on [WCGW](https://github.com/rusiaaman/wcgw), which served as a primary inspiration for this project. Winx reimplements
+many of WCGW's best features in Rust for enhanced performance while adding additional capabilities for semantic code
+understanding.
 
 ---
 

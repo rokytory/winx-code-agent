@@ -367,11 +367,11 @@ impl ContextualMemoryStore {
                 m.name.to_lowercase().contains(&query)
                     || m.task_description.to_lowercase().contains(&query)
                     || m.progress_notes
-                        .iter()
-                        .any(|n| n.to_lowercase().contains(&query))
+                    .iter()
+                    .any(|n| n.to_lowercase().contains(&query))
                     || m.decisions
-                        .iter()
-                        .any(|d| d.description.to_lowercase().contains(&query))
+                    .iter()
+                    .any(|d| d.description.to_lowercase().contains(&query))
             })
             .cloned()
             .collect()

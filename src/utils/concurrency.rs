@@ -58,7 +58,7 @@ impl FileLockManager {
                 return Err(localized_error(
                     format!("Timeout waiting for read lock on file: {}", path.display()),
                     format!("Timeout aguardando bloqueio de leitura no arquivo: {}", path.display()),
-                    format!("Tiempo de espera agotado esperando el bloqueo de lectura en el archivo: {}", path.display())
+                    format!("Tiempo de espera agotado esperando el bloqueo de lectura en el archivo: {}", path.display()),
                 ));
             }
 
@@ -124,7 +124,7 @@ impl FileLockManager {
                 return Err(localized_error(
                     format!("Timeout waiting for write lock on file: {}", path.display()),
                     format!("Timeout aguardando bloqueio de escrita no arquivo: {}", path.display()),
-                    format!("Tiempo de espera agotado esperando el bloqueo de escritura en el archivo: {}", path.display())
+                    format!("Tiempo de espera agotado esperando el bloqueo de escritura en el archivo: {}", path.display()),
                 ));
             }
 

@@ -562,9 +562,9 @@ impl StaticAnalyzer {
             ("clippy", Some(code)) => {
                 // Common clippy fix suggestions
                 match code {
-                    "unused_variables" => 
+                    "unused_variables" =>
                         Some("Consider prefixing with underscore to mark as intentionally unused: `_variable_name`".to_string()),
-                    "redundant_clone" => 
+                    "redundant_clone" =>
                         Some("Remove unnecessary `.clone()` call".to_string()),
                     _ => None,
                 }

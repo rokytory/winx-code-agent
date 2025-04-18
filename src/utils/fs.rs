@@ -34,7 +34,7 @@ pub fn read_file_to_string(path: impl AsRef<Path>) -> Result<String> {
         return Err(crate::utils::localized_error(
             format!("File {} was accessed too recently. Please try again in a moment.", path.display()),
             format!("O arquivo {} foi acessado muito recentemente. Por favor, tente novamente em um momento.", path.display()),
-            format!("El archivo {} fue accedido muy recientemente. Por favor, inténtelo de nuevo en un momento.", path.display())
+            format!("El archivo {} fue accedido muy recientemente. Por favor, inténtelo de nuevo en un momento.", path.display()),
         ));
     }
 
@@ -82,7 +82,7 @@ pub fn write_file_sync(path: impl AsRef<Path>, content: &str) -> Result<()> {
         return Err(crate::utils::localized_error(
             format!("File {} was accessed too recently. Please try again in a moment.", path.display()),
             format!("O arquivo {} foi acessado muito recentemente. Por favor, tente novamente em um momento.", path.display()),
-            format!("El archivo {} fue accedido muy recientemente. Por favor, inténtelo de nuevo en un momento.", path.display())
+            format!("El archivo {} fue accedido muy recientemente. Por favor, inténtelo de nuevo en un momento.", path.display()),
         ));
     }
 
@@ -113,7 +113,7 @@ pub fn write_file_sync(path: impl AsRef<Path>, content: &str) -> Result<()> {
             return Err(crate::utils::localized_error(
                 format!("File {} may have been modified concurrently during write", path.display()),
                 format!("O arquivo {} pode ter sido modificado concorrentemente durante a escrita", path.display()),
-                format!("El archivo {} puede haber sido modificado concurrentemente durante la escritura", path.display())
+                format!("El archivo {} puede haber sido modificado concurrentemente durante la escritura", path.display()),
             ));
         }
     }

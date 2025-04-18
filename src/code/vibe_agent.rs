@@ -626,21 +626,21 @@ impl VibeAgent {
                         .join(", ");
 
                     return Err(crate::utils::localized_error(
-                        format!("Auto-read failed for {}. Please read the following line ranges manually: {}. Error: {}", 
-                               file_path.display(), ranges_str, e),
+                        format!("Auto-read failed for {}. Please read the following line ranges manually: {}. Error: {}",
+                                file_path.display(), ranges_str, e),
                         format!("Leitura automática falhou para {}. Por favor, leia os seguintes intervalos de linha manualmente: {}. Erro: {}",
-                               file_path.display(), ranges_str, e),
+                                file_path.display(), ranges_str, e),
                         format!("Lectura automática falló para {}. Por favor, lea los siguientes rangos de línea manualmente: {}. Error: {}",
-                               file_path.display(), ranges_str, e)
+                                file_path.display(), ranges_str, e),
                     ));
                 } else {
                     return Err(crate::utils::localized_error(
-                        format!("File {} has changed since it was last read and auto-read failed: {}", 
-                               file_path.display(), e),
-                        format!("O arquivo {} foi alterado desde a última leitura e a leitura automática falhou: {}", 
-                               file_path.display(), e),
-                        format!("El archivo {} ha cambiado desde la última lectura y la lectura automática falló: {}", 
-                               file_path.display(), e)
+                        format!("File {} has changed since it was last read and auto-read failed: {}",
+                                file_path.display(), e),
+                        format!("O arquivo {} foi alterado desde a última leitura e a leitura automática falhou: {}",
+                                file_path.display(), e),
+                        format!("El archivo {} ha cambiado desde la última lectura y la lectura automática falló: {}",
+                                file_path.display(), e),
                     ));
                 }
             }
@@ -648,12 +648,12 @@ impl VibeAgent {
             // Re-check if the file can be edited after auto-read
             if !self.can_edit_file(file_path)? {
                 return Err(crate::utils::localized_error(
-                    format!("File {} still cannot be edited after auto-read. It may have changed during reading.", 
-                           file_path.display()),
-                    format!("O arquivo {} ainda não pode ser editado após a leitura automática. Ele pode ter sido alterado durante a leitura.", 
-                           file_path.display()),
-                    format!("El archivo {} todavía no se puede editar después de la lectura automática. Puede haber cambiado durante la lectura.", 
-                           file_path.display())
+                    format!("File {} still cannot be edited after auto-read. It may have changed during reading.",
+                            file_path.display()),
+                    format!("O arquivo {} ainda não pode ser editado após a leitura automática. Ele pode ter sido alterado durante a leitura.",
+                            file_path.display()),
+                    format!("El archivo {} todavía no se puede editar después de la lectura automática. Puede haber cambiado durante la lectura.",
+                            file_path.display()),
                 ));
             }
 
