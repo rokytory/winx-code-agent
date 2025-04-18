@@ -16,19 +16,34 @@ fn get_thinking_process() -> Arc<Mutex<SequentialThinking>> {
     THINKING_PROCESS.clone()
 }
 
+/// Parameters for processing a thinking step
+pub struct ThinkingParams<'a> {
+    pub state: &'a SharedState,
+    pub thought_content: &'a str,
+    pub thought_number: usize,
+    pub total_thoughts: usize,
+    pub next_thought_needed: bool,
+    pub is_revision: Option<bool>,
+    pub revises_thought: Option<usize>,
+    pub branch_from_thought: Option<usize>,
+    pub branch_id: Option<String>,
+    pub needs_more_thoughts: Option<bool>,
+}
+
 /// Process a sequential thinking step
-pub async fn process_thinking(
-    _state: &SharedState,
-    thought_content: &str,
-    thought_number: usize,
-    total_thoughts: usize,
-    next_thought_needed: bool,
-    is_revision: Option<bool>,
-    revises_thought: Option<usize>,
-    branch_from_thought: Option<usize>,
-    branch_id: Option<String>,
-    needs_more_thoughts: Option<bool>,
-) -> Result<String> {
+pub async fn process_thinking(params: ThinkingParams<'_>) -> Result<String> {
+    let ThinkingParams {
+        thought_content,
+        thought_number,
+        total_thoughts,
+        next_thought_needed,
+        is_revision,
+        revises_thought,
+        branch_from_thought,
+        branch_id,
+        needs_more_thoughts,
+        ..
+    } = params;
     debug!(
         "Processing thought #{}: {}",
         thought_number, thought_content
@@ -112,9 +127,9 @@ pub async fn process_sequential_thinking(_state: &SharedState, json_str: &str) -
     let needs_more_thoughts = json.get("needsMoreThoughts").and_then(Value::as_bool);
 
     // Process the thought using the existing functionality
-    process_thinking(
-        _state,
-        thought,
+    process_thinking(ThinkingParams {
+        state: _state,
+        thought_content: thought,
         thought_number,
         total_thoughts,
         next_thought_needed,
@@ -123,7 +138,7 @@ pub async fn process_sequential_thinking(_state: &SharedState, json_str: &str) -
         branch_from_thought,
         branch_id,
         needs_more_thoughts,
-    )
+    })
     .await
 }
 
@@ -149,53 +164,53 @@ mod tests {
             // Observe que em uma aplicação real, seria melhor ter um processo de thinking por sessão
 
             // Add some thoughts
-            let result = process_thinking(
-                &state,
-                "This is the first thought",
-                1,
-                3,
-                true,
-                None,
-                None,
-                None,
-                None,
-                None,
-            )
+            let result = process_thinking(ThinkingParams {
+                state: &state,
+                thought_content: "This is the first thought",
+                thought_number: 1,
+                total_thoughts: 3,
+                next_thought_needed: true,
+                is_revision: None,
+                revises_thought: None,
+                branch_from_thought: None,
+                branch_id: None,
+                needs_more_thoughts: None,
+            })
             .await
             .unwrap();
 
             assert!(result.contains("Thought #1"));
 
-            let result = process_thinking(
-                &state,
-                "This is the second thought",
-                2,
-                3,
-                true,
-                None,
-                None,
-                None,
-                None,
-                None,
-            )
+            let result = process_thinking(ThinkingParams {
+                state: &state,
+                thought_content: "This is the second thought",
+                thought_number: 2,
+                total_thoughts: 3,
+                next_thought_needed: true,
+                is_revision: None,
+                revises_thought: None,
+                branch_from_thought: None,
+                branch_id: None,
+                needs_more_thoughts: None,
+            })
             .await
             .unwrap();
 
             assert!(result.contains("Thought #1"));
             assert!(result.contains("Thought #2"));
 
-            let result = process_thinking(
-                &state,
-                "This is the final thought",
-                3,
-                3,
-                false,
-                None,
-                None,
-                None,
-                None,
-                None,
-            )
+            let result = process_thinking(ThinkingParams {
+                state: &state,
+                thought_content: "This is the final thought",
+                thought_number: 3,
+                total_thoughts: 3,
+                next_thought_needed: false,
+                is_revision: None,
+                revises_thought: None,
+                branch_from_thought: None,
+                branch_id: None,
+                needs_more_thoughts: None,
+            })
             .await
             .unwrap();
 

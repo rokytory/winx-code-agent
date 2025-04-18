@@ -98,9 +98,14 @@ impl LSPServer {
 
         info!("Stopping LSP server");
 
-        // Shutdown the client
-        let mut client_guard = self.client.lock().unwrap();
-        if let Some(client) = client_guard.take() {
+        // Lock the client mutex, extract the client, and drop the guard before awaiting
+        let client_option = {
+            let mut client_guard = self.client.lock().unwrap();
+            client_guard.take()
+        };
+        
+        // Shutdown the client if it exists
+        if let Some(client) = client_option {
             client.shutdown().await?;
         }
 
@@ -126,8 +131,14 @@ impl LSPServer {
             return Err(anyhow::anyhow!("LSP server not running"));
         }
 
-        let client_guard = self.client.lock().unwrap();
-        if let Some(client) = &*client_guard {
+        // Get a reference to the client without holding the lock across await
+        let client_option = {
+            let client_guard = self.client.lock().unwrap();
+            client_guard.as_ref().cloned()
+        };
+        
+        // Use the client if available
+        if let Some(client) = client_option {
             client.find_symbol(name, within_path, include_body).await
         } else {
             Err(anyhow::anyhow!("LSP client not initialized"))
@@ -144,8 +155,14 @@ impl LSPServer {
             return Err(anyhow::anyhow!("LSP server not running"));
         }
 
-        let client_guard = self.client.lock().unwrap();
-        if let Some(client) = &*client_guard {
+        // Get a reference to the client without holding the lock across await
+        let client_option = {
+            let client_guard = self.client.lock().unwrap();
+            client_guard.as_ref().cloned()
+        };
+        
+        // Use the client if available
+        if let Some(client) = client_option {
             client.find_references(location, include_body).await
         } else {
             Err(anyhow::anyhow!("LSP client not initialized"))
@@ -164,8 +181,14 @@ impl LSPServer {
 
         let file_path = self.root_path.join(relative_path);
 
-        let client_guard = self.client.lock().unwrap();
-        if let Some(client) = &*client_guard {
+        // Get a reference to the client without holding the lock across await
+        let client_option = {
+            let client_guard = self.client.lock().unwrap();
+            client_guard.as_ref().cloned()
+        };
+        
+        // Use the client if available
+        if let Some(client) = client_option {
             client.get_document_symbols(file_path, include_body).await
         } else {
             Err(anyhow::anyhow!("LSP client not initialized"))
@@ -190,8 +213,14 @@ impl LSPServer {
             character: column,
         };
 
-        let client_guard = self.client.lock().unwrap();
-        if let Some(client) = &*client_guard {
+        // Get a reference to the client without holding the lock across await
+        let client_option = {
+            let client_guard = self.client.lock().unwrap();
+            client_guard.as_ref().cloned()
+        };
+        
+        // Use the client if available
+        if let Some(client) = client_option {
             client.insert_text(file_path, position, text).await?;
             Ok(())
         } else {
@@ -224,8 +253,14 @@ impl LSPServer {
             },
         };
 
-        let client_guard = self.client.lock().unwrap();
-        if let Some(client) = &*client_guard {
+        // Get a reference to the client without holding the lock across await
+        let client_option = {
+            let client_guard = self.client.lock().unwrap();
+            client_guard.as_ref().cloned()
+        };
+        
+        // Use the client if available
+        if let Some(client) = client_option {
             client.delete_text(file_path, range).await
         } else {
             Err(anyhow::anyhow!("LSP client not initialized"))

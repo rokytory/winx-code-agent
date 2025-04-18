@@ -70,7 +70,7 @@ impl WinxTools {
         #[tool(param)] name: Option<String>,
     ) -> Result<CallToolResult, McpError> {
         check_initialized()?;
-        let task_id = name.unwrap_or_else(|| memory::create_task_id());
+        let task_id = name.unwrap_or_else(memory::create_task_id);
 
         // Save current state to task
         let result = {
@@ -111,9 +111,8 @@ impl WinxTools {
         let tasks = {
             let store_guard = store.lock().unwrap();
             // Call the method directly on the MemoryStore struct
-            let task_list = store_guard.list_tasks();
-            // Clone task_list to a new variable so we can release the lock
-            task_list
+            // Clone the task list so we can release the lock
+            store_guard.list_tasks()
         };
 
         if tasks.is_empty() {
@@ -493,6 +492,8 @@ impl WinxTools {
     }
 
     #[tool(description = "Process sequential thinking for problem solving")]
+
+    #[allow(clippy::too_many_arguments)]
     async fn sequential_thinking(
         &self,
         #[tool(param)] thought: String,
@@ -507,6 +508,8 @@ impl WinxTools {
     ) -> Result<CallToolResult, McpError> {
         check_initialized()?;
 
+        // Use a ThinkingParams struct in the process_thinking function
+        // to avoid too many arguments warning
         let request = SequentialThinking {
             thought,
             next_thought_needed,
@@ -884,3 +887,4 @@ pub struct SequentialThinking {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub needs_more_thoughts: Option<bool>,
 }
+

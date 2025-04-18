@@ -42,6 +42,7 @@ pub struct PluginInfo {
 }
 
 /// Manager for plugins
+#[derive(Clone)]
 pub struct PluginManager {
     /// Registered plugins (stored in an enum to handle dynamic dispatch)
     plugins: HashMap<String, PluginEnum>,
@@ -386,7 +387,7 @@ impl GitPlugin {
             return Err(anyhow::anyhow!("Git status failed"));
         }
 
-        Ok(String::from_utf8(output.stdout).context("Failed to parse git status output")?)
+        String::from_utf8(output.stdout).context("Failed to parse git status output")
     }
 
     /// Get current branch
@@ -421,7 +422,7 @@ impl GitPlugin {
             return Err(anyhow::anyhow!("Git log failed"));
         }
 
-        Ok(String::from_utf8(output.stdout).context("Failed to parse git log output")?)
+        String::from_utf8(output.stdout).context("Failed to parse git log output")
     }
 
     /// Get git diff
@@ -439,7 +440,7 @@ impl GitPlugin {
             return Err(anyhow::anyhow!("Git diff failed"));
         }
 
-        Ok(String::from_utf8(output.stdout).context("Failed to parse git diff output")?)
+        String::from_utf8(output.stdout).context("Failed to parse git diff output")
     }
 
     /// Commit changes
@@ -478,7 +479,7 @@ impl GitPlugin {
             ));
         }
 
-        Ok(String::from_utf8(output.stdout).context("Failed to parse git commit output")?)
+        String::from_utf8(output.stdout).context("Failed to parse git commit output")
     }
 }
 
@@ -490,6 +491,12 @@ impl CodeQualityPlugin {
     /// Create a new code quality plugin
     pub fn new() -> Self {
         Self
+    }
+}
+
+impl Default for CodeQualityPlugin {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -621,7 +628,11 @@ pub static PLUGIN_MANAGER: once_cell::sync::Lazy<Arc<Mutex<PluginManager>>> =
 pub async fn initialize_plugins(workspace_dir: impl AsRef<Path>) -> Result<()> {
     let workspace_dir = workspace_dir.as_ref();
 
-    let mut manager = PLUGIN_MANAGER.lock().unwrap();
+    // Obtain the manager with lock
+    let mut manager = {
+        let lock = PLUGIN_MANAGER.lock().unwrap();
+        lock.clone()
+    };
 
     // Register built-in plugins
     // Use if-let for each plugin registration to continue even if one fails
@@ -665,8 +676,12 @@ pub async fn execute_plugin_command(
     command: &str,
     args: &[String],
 ) -> Result<String> {
-    let manager = PLUGIN_MANAGER.lock().unwrap();
-    manager.execute_command(plugin_name, command, args).await
+    // Get a clone of the manager without holding the lock across await
+    let manager_clone = {
+        let manager = PLUGIN_MANAGER.lock().unwrap();
+        manager.clone()
+    };
+    manager_clone.execute_command(plugin_name, command, args).await
 }
 
 /// Get list of available plugins
@@ -677,6 +692,10 @@ pub fn list_plugins() -> Vec<PluginInfo> {
 
 /// Shutdown the plugin system
 pub async fn shutdown_plugins() -> Result<()> {
-    let mut manager = PLUGIN_MANAGER.lock().unwrap();
-    manager.shutdown_all().await
+    // Get a clone of the manager without holding the lock across await
+    let mut manager_clone = {
+        let manager = PLUGIN_MANAGER.lock().unwrap();
+        manager.clone()
+    };
+    manager_clone.shutdown_all().await
 }

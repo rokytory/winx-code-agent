@@ -142,7 +142,7 @@ pub fn find_fuzzy_matches(content: &str, pattern: &str, threshold: f64) -> Vec<F
         let mut best_score = 0.0;
 
         // Split content into chunks of approximately the same size as the pattern
-        let chunk_size = pattern.len().max(20).min(100);
+        let chunk_size = pattern.len().clamp(20, 100);
         let step_size = chunk_size / 2; // Overlap chunks
 
         for i in (0..content.len()).step_by(step_size) {
@@ -237,8 +237,7 @@ fn calculate_similarity_score(s1: &str, s2: &str) -> f64 {
         return 0.0;
     }
 
-    let similarity = 100.0 * (2.0 * unchanged as f64) / total as f64;
-    similarity
+    100.0 * (2.0 * unchanged as f64) / total as f64
 }
 
 /// Apply replacements to content with fuzzy matching

@@ -174,7 +174,7 @@ impl TerminalSession {
     pub async fn start_background_process(&mut self, command: &str) -> Result<String> {
         // Verificar se o screen está disponível
         if is_screen_available() {
-            let session_id = format!("winx-{}", Uuid::new_v4().to_string());
+            let session_id = format!("winx-{}", Uuid::new_v4());
 
             // Executar o comando em background usando screen
             let screen_cmd = format!(

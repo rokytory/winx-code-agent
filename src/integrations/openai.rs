@@ -332,12 +332,7 @@ Your goal is to reach the best possible solution through careful sequential thin
 
             // Extract which thought to revise (this is a simplistic approach)
             // A more robust implementation would parse the response more carefully
-            let thought_number = if let Some(num) = extract_thought_number(&revision_response) {
-                num
-            } else {
-                // Default to first thought if we can't determine which one
-                1
-            };
+            let thought_number = extract_thought_number(&revision_response).unwrap_or(1);
 
             // Create a revision prompt
             let revision_content_prompt = format!(

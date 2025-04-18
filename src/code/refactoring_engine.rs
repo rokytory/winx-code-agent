@@ -130,6 +130,12 @@ pub struct RefactoringEngine {
     applied_operations: Vec<RefactoringOperation>,
 }
 
+impl Default for RefactoringEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RefactoringEngine {
     /// Create a new refactoring engine
     pub fn new() -> Self {
@@ -447,11 +453,7 @@ impl RefactoringEngine {
         for i in start_line..=end_line {
             if i < lines.len() {
                 let line_indent = get_indentation(lines[i]);
-                let additional = if line_indent.starts_with(indentation) {
-                    &line_indent[indentation.len()..]
-                } else {
-                    ""
-                };
+                let additional = line_indent.strip_prefix(indentation).unwrap_or("");
 
                 method_body.push(format!(
                     "{}{}{}{}",

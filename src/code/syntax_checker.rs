@@ -99,7 +99,7 @@ impl SyntaxValidator {
                 );
             }
 
-            return Ok(Self { parsers });
+            Ok(Self { parsers })
         }
 
         #[cfg(not(feature = "syntax_validation"))]

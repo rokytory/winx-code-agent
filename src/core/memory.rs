@@ -107,7 +107,7 @@ impl MemoryStore {
             let entry = entry?;
             let path = entry.path();
 
-            if path.is_file() && path.extension().map_or(false, |ext| ext == "json") {
+            if path.is_file() && path.extension().is_some_and(|ext| ext == "json") {
                 if let Ok(memory) = self.load_memory_from_file(&path) {
                     debug!("Loaded memory: {}", memory.name);
                     self.memories.insert(memory.name.clone(), memory);
@@ -212,7 +212,7 @@ impl MemoryStore {
             let entry = entry?;
             let path = entry.path();
 
-            if path.is_file() && path.extension().map_or(false, |ext| ext == "json") {
+            if path.is_file() && path.extension().is_some_and(|ext| ext == "json") {
                 if let Some(stem) = path.file_stem() {
                     if let Some(task_id) = stem.to_str() {
                         if let Ok(task) = self.load_task_from_file(&path) {
@@ -280,7 +280,7 @@ impl MemoryStore {
 
     /// Deletes a task
     pub fn delete_task(&mut self, task_id: &str) -> Result<bool> {
-        if let Some(_) = self.tasks.remove(task_id) {
+        if self.tasks.remove(task_id).is_some() {
             // Delete the file
             let tasks_dir = self.storage_dir.join("tasks");
             let file_name = format!("{}.json", task_id);
@@ -309,7 +309,7 @@ pub fn create_shared_memory_store(storage_dir: PathBuf) -> Result<SharedMemorySt
 
 /// Generate a new task ID
 pub fn create_task_id() -> String {
-    format!("task-{}", uuid::Uuid::new_v4().to_string())
+    format!("task-{}", uuid::Uuid::new_v4())
 }
 
 /// Get the memory directory path

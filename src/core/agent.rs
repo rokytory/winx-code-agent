@@ -305,17 +305,22 @@ impl WinxAgent {
 
     /// Execute a command and return the result
     pub async fn execute_command(&self, command: &str) -> Result<String> {
-        let state = self.state.lock().unwrap();
+        // Check permission and get workspace path
+        let workspace_path = {
+            let state = self.state.lock().unwrap();
+            
+            if !state.is_command_allowed(command) {
+                return Err(anyhow::anyhow!("Command not allowed: {}", command));
+            }
+            
+            state.workspace_path.clone()
+        };
 
-        if !state.is_command_allowed(command) {
-            return Err(anyhow::anyhow!("Command not allowed: {}", command));
-        }
-
-        // Execute the command
+        // Execute the command - lock is released before await
         let output = Command::new("sh")
             .arg("-c")
             .arg(command)
-            .current_dir(&state.workspace_path)
+            .current_dir(&workspace_path)
             .output()
             .await
             .context("Failed to execute command")?;
@@ -332,7 +337,7 @@ impl WinxAgent {
         let mut result = stdout;
         if !stderr.is_empty() {
             if !result.is_empty() {
-                result.push_str("\n");
+                result.push('\n');
             }
             result.push_str("STDERR: ");
             result.push_str(&stderr);

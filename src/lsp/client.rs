@@ -80,6 +80,7 @@ enum ClientMessage {
 }
 
 /// Wrapper for an LSP client
+#[derive(Clone)]
 pub struct LSPClient {
     #[allow(dead_code)]
     config: LSPConfig,
@@ -856,7 +857,7 @@ impl Drop for LSPClient {
     fn drop(&mut self) {
         // Kill the server process if it's still running
         let mut handle = self.server_handle.lock().unwrap();
-        if let Some(_) = handle.take() {
+        if handle.take().is_some() {
             // We only have the process ID, not the Child struct
             // In a real implementation, you would use the process ID to kill the process
             // For now, we'll just log that we would kill it

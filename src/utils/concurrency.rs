@@ -34,6 +34,12 @@ pub struct FileLockManager {
     last_operations: Arc<RwLock<HashMap<PathBuf, Instant>>>,
 }
 
+impl Default for FileLockManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl FileLockManager {
     /// Create a new file lock manager
     pub fn new() -> Self {
@@ -303,7 +309,8 @@ impl FileOperationGuard {
             Arc::new(manager.clone())
         };
 
-        lock_manager.lock_for_reading(&path).await?;
+        // Deref the Arc<FileLockManager> to get a &FileLockManager reference
+        lock_manager.as_ref().lock_for_reading(&path).await?;
 
         Ok(Self {
             path,
@@ -322,7 +329,8 @@ impl FileOperationGuard {
             Arc::new(manager.clone())
         };
 
-        lock_manager.lock_for_writing(&path).await?;
+        // Deref the Arc<FileLockManager> to get a &FileLockManager reference
+        lock_manager.as_ref().lock_for_writing(&path).await?;
 
         Ok(Self {
             path,
@@ -334,7 +342,7 @@ impl FileOperationGuard {
     /// Manually release the lock before drop
     pub async fn release(&mut self) -> Result<()> {
         if !self.released {
-            self.lock_manager.release_lock(&self.path).await?;
+            self.lock_manager.as_ref().release_lock(&self.path).await?;
             self.released = true;
         }
         Ok(())
@@ -349,7 +357,7 @@ impl Drop for FileOperationGuard {
             let lock_manager = self.lock_manager.clone();
 
             tokio::spawn(async move {
-                let _ = lock_manager.release_lock(&path).await;
+                let _ = lock_manager.as_ref().release_lock(&path).await;
             });
         }
     }

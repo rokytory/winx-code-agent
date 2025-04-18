@@ -777,7 +777,7 @@ impl VibeAgent {
         let mut suggestions = Vec::new();
 
         if !self.detected_patterns.is_empty() {
-            suggestions.push(format!("Consider following these project patterns:"));
+            suggestions.push("Consider following these project patterns:".to_string());
 
             for (pattern, _) in &self.detected_patterns {
                 match pattern {
@@ -883,7 +883,7 @@ impl VibeAgent {
                 // Clone symbol to avoid borrowing issues
                 let symbol_clone = symbol.clone();
                 // Store a copy of self.format_symbol directly to avoid borrowing issues
-                let formatted_text = self.format_symbol_to_string(&symbol_clone, 0);
+                let formatted_text = self.format_symbol_to_string(self, &symbol_clone, 0);
                 info.push_str(&formatted_text);
             }
 
@@ -910,13 +910,13 @@ impl VibeAgent {
 
     /// Format a symbol for display
     #[allow(dead_code)]
-    fn format_symbol(&self, symbol: &Symbol, indent: usize, output: &mut String) {
+    fn format_symbol(&self, _self_ref: &Self, symbol: &Symbol, indent: usize, output: &mut String) {
         let indent_str = "  ".repeat(indent);
 
         output.push_str(&format!(
             "{}* **{}**: {} (lines {}-{})\n",
             indent_str,
-            symbol.kind.to_string(),
+            symbol.kind,
             symbol.name,
             symbol.line_range.0,
             symbol.line_range.1
@@ -928,19 +928,19 @@ impl VibeAgent {
 
         // Format children with increased indentation
         for child in &symbol.children {
-            self.format_symbol(child, indent + 1, output);
+            self.format_symbol(self, child, indent + 1, output);
         }
     }
 
     /// Format a symbol to a string without modifying an existing String
-    fn format_symbol_to_string(&self, symbol: &Symbol, indent: usize) -> String {
+    fn format_symbol_to_string(&self, _self_ref: &Self, symbol: &Symbol, indent: usize) -> String {
         let mut output = String::new();
         let indent_str = "  ".repeat(indent);
 
         output.push_str(&format!(
             "{}* **{}**: {} (lines {}-{})\n",
             indent_str,
-            symbol.kind.to_string(),
+            symbol.kind,
             symbol.name,
             symbol.line_range.0,
             symbol.line_range.1
@@ -952,7 +952,7 @@ impl VibeAgent {
 
         // Format children with increased indentation
         for child in &symbol.children {
-            let child_str = self.format_symbol_to_string(child, indent + 1);
+            let child_str = self.format_symbol_to_string(self, child, indent + 1);
             output.push_str(&child_str);
         }
 
@@ -960,38 +960,40 @@ impl VibeAgent {
     }
 }
 
-impl SymbolKind {
-    /// Get string representation of symbol kind
-    fn to_string(&self) -> String {
-        match self {
-            SymbolKind::File => "File".to_string(),
-            SymbolKind::Module => "Module".to_string(),
-            SymbolKind::Namespace => "Namespace".to_string(),
-            SymbolKind::Package => "Package".to_string(),
-            SymbolKind::Class => "Class".to_string(),
-            SymbolKind::Method => "Method".to_string(),
-            SymbolKind::Property => "Property".to_string(),
-            SymbolKind::Field => "Field".to_string(),
-            SymbolKind::Constructor => "Constructor".to_string(),
-            SymbolKind::Enum => "Enum".to_string(),
-            SymbolKind::Interface => "Interface".to_string(),
-            SymbolKind::Function => "Function".to_string(),
-            SymbolKind::Variable => "Variable".to_string(),
-            SymbolKind::Constant => "Constant".to_string(),
-            SymbolKind::String => "String".to_string(),
-            SymbolKind::Number => "Number".to_string(),
-            SymbolKind::Boolean => "Boolean".to_string(),
-            SymbolKind::Array => "Array".to_string(),
-            SymbolKind::Object => "Object".to_string(),
-            SymbolKind::Key => "Key".to_string(),
-            SymbolKind::Null => "Null".to_string(),
-            SymbolKind::EnumMember => "EnumMember".to_string(),
-            SymbolKind::Struct => "Struct".to_string(),
-            SymbolKind::Event => "Event".to_string(),
-            SymbolKind::Operator => "Operator".to_string(),
-            SymbolKind::TypeParameter => "TypeParameter".to_string(),
-            SymbolKind::Unknown => "Unknown".to_string(),
-        }
+use std::fmt;
+
+impl fmt::Display for SymbolKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            SymbolKind::File => "File",
+            SymbolKind::Module => "Module",
+            SymbolKind::Namespace => "Namespace",
+            SymbolKind::Package => "Package",
+            SymbolKind::Class => "Class",
+            SymbolKind::Method => "Method",
+            SymbolKind::Property => "Property",
+            SymbolKind::Field => "Field",
+            SymbolKind::Constructor => "Constructor",
+            SymbolKind::Enum => "Enum",
+            SymbolKind::Interface => "Interface",
+            SymbolKind::Function => "Function",
+            SymbolKind::Variable => "Variable",
+            SymbolKind::Constant => "Constant",
+            SymbolKind::String => "String",
+            SymbolKind::Number => "Number",
+            SymbolKind::Boolean => "Boolean",
+            SymbolKind::Array => "Array",
+            SymbolKind::Object => "Object",
+            SymbolKind::Key => "Key",
+            SymbolKind::Null => "Null",
+            SymbolKind::EnumMember => "EnumMember",
+            SymbolKind::Struct => "Struct",
+            SymbolKind::Event => "Event",
+            SymbolKind::Operator => "Operator",
+            SymbolKind::TypeParameter => "TypeParameter",
+            SymbolKind::Unknown => "Unknown",
+        };
+        write!(f, "{}", s)
     }
 }
 

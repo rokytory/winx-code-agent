@@ -82,7 +82,7 @@ pub fn strip_ansi_codes(input: &str) -> String {
         debug!("ANSI stripping fallback: escape sequences detected after regex pass");
         sanitized
             .chars()
-            .filter(|&c| (c >= ' ' && c <= '~') || c == '\n' || c == '\r' || c == '\t')
+            .filter(|&c| (' '..='~').contains(&c) || c == '\n' || c == '\r' || c == '\t')
             .collect::<String>()
     } else {
         sanitized
@@ -140,14 +140,12 @@ pub fn debug_json_bytes(data: &[u8], prefix: &str) {
     let text = match std::str::from_utf8(data) {
         Ok(text) => {
             // Pre-emptively clean the text from ANSI and control characters
-            let cleaned_text = strip_ansi_codes(text);
-            cleaned_text
+            strip_ansi_codes(text)
         }
         Err(_) => {
             // Fall back to lossy conversion and then clean it
             let text = String::from_utf8_lossy(data);
-            let cleaned_text = strip_ansi_codes(&text);
-            cleaned_text
+            strip_ansi_codes(&text)
         }
     };
 
@@ -169,7 +167,7 @@ pub fn debug_json_bytes(data: &[u8], prefix: &str) {
     if text.contains("jsonrpc") {
         // Check each character in the first bytes (where parsing errors often occur)
         for (i, &b) in data.iter().take(20).enumerate() {
-            let char_desc = if b < 32 || b > 126 {
+            let char_desc = if !(32..=126).contains(&b) {
                 format!("\\x{:02x} (control)", b)
             } else {
                 format!("'{}' ({})", b as char, b)
@@ -366,9 +364,10 @@ pub async fn init_file_tracking(state: &core::state::SharedState, files: &[&str]
     use std::path::Path;
 
     // Filter for existing files within the workspace
-    let state_guard = state.lock().unwrap();
-    let workspace_path = state_guard.workspace_path.clone();
-    drop(state_guard);
+    let workspace_path = {
+        let state_guard = state.lock().unwrap();
+        state_guard.workspace_path.clone()
+    };
 
     let mut existing_files = Vec::new();
     for file in files {
@@ -398,11 +397,9 @@ pub async fn init_file_tracking(state: &core::state::SharedState, files: &[&str]
 
     for pattern in &important_patterns {
         if let Ok(glob_paths) = glob::glob(&workspace_path.join(pattern).to_string_lossy()) {
-            for entry in glob_paths {
-                if let Ok(path) = entry {
-                    if path.is_file() {
-                        existing_files.push(path.to_string_lossy().to_string());
-                    }
+            for path in glob_paths.flatten() {
+                if path.is_file() {
+                    existing_files.push(path.to_string_lossy().to_string());
                 }
             }
         }

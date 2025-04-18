@@ -42,10 +42,7 @@ impl ToleranceLevel {
 
     /// Returns whether this tolerance level should generate a warning
     pub fn should_warn(&self) -> bool {
-        match self {
-            ToleranceLevel::Exact => false,
-            _ => true,
-        }
+        !matches!(self, ToleranceLevel::Exact)
     }
 
     /// Returns the score for this tolerance level (lower is better)
@@ -209,7 +206,7 @@ fn parse_marker_format(text: &str) -> Result<Vec<SearchReplaceBlock>> {
 
             if i >= lines.len() {
                 return Err(anyhow!(SearchReplaceSyntaxError {
-                    message: format!("Unclosed SEARCH block - missing ======= marker"),
+                    message: "Unclosed SEARCH block - missing ======= marker".to_string(),
                     line_number: Some(line_num),
                 }));
             }
@@ -217,7 +214,7 @@ fn parse_marker_format(text: &str) -> Result<Vec<SearchReplaceBlock>> {
             // Check if search block is empty
             if search_block.is_empty() {
                 return Err(anyhow!(SearchReplaceSyntaxError {
-                    message: format!("SEARCH block cannot be empty"),
+                    message: "SEARCH block cannot be empty".to_string(),
                     line_number: Some(line_num),
                 }));
             }
@@ -239,7 +236,7 @@ fn parse_marker_format(text: &str) -> Result<Vec<SearchReplaceBlock>> {
 
             if i >= lines.len() {
                 return Err(anyhow!(SearchReplaceSyntaxError {
-                    message: format!("Unclosed block - missing REPLACE marker"),
+                    message: "Unclosed block - missing REPLACE marker".to_string(),
                     line_number: Some(line_num),
                 }));
             }
@@ -737,10 +734,7 @@ pub fn find_context_for_search_block(
     }
 
     // Fall back to finding the best match for just the first line
-    let (best_idx, score) = match find_best_match_line(&content_lines, &search_block[0]) {
-        Some(result) => result,
-        None => return None,
-    };
+    let (best_idx, score) = find_best_match_line(&content_lines, &search_block[0])?;
 
     // If the match is too poor, return None
     if score > 0.5 {

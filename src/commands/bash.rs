@@ -215,7 +215,7 @@ pub async fn execute_command(state: &SharedState, command: &str) -> Result<Strin
     let mut result = crate::strip_ansi_codes(&stdout);
     if !stderr.is_empty() {
         if !result.is_empty() {
-            result.push_str("\n");
+            result.push('\n');
         }
         result.push_str("STDERR: ");
         result.push_str(&crate::strip_ansi_codes(&stderr));
@@ -393,7 +393,7 @@ pub async fn start_background_process(state: &SharedState, command: &str) -> Res
     };
 
     // Generate a unique session ID
-    let session_id = format!("winx-{}", uuid::Uuid::new_v4().to_string());
+    let session_id = format!("winx-{}", uuid::Uuid::new_v4());
 
     // Check if screen is installed
     let which_output = Command::new("which").arg("screen").output().await?;
@@ -435,7 +435,7 @@ pub async fn start_background_process(state: &SharedState, command: &str) -> Res
 
 /// Send ASCII characters to a running process
 #[allow(dead_code)]
-async fn send_ascii_chars(_state: &SharedState, _chars: &Vec<u8>) -> Result<String> {
+async fn send_ascii_chars(_state: &SharedState, _chars: &[u8]) -> Result<String> {
     // In a real implementation, we would send ASCII chars to a running process
     // This is a simplified implementation
     warn!("ASCII input not implemented yet");

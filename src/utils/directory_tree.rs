@@ -161,9 +161,8 @@ impl DirectoryTree {
                     .to_string_lossy();
                 writeln!(
                     output,
-                    "{}{}{}",
+                    "{}{}",
                     " ".repeat(indent),
-                    if current_path.is_dir() { "" } else { "" },
                     name
                 )?;
             }

@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::Path;
 
 use crate::core::state::SharedState;
 pub use crate::lsp::types::Language;
@@ -50,7 +50,7 @@ impl AllowedItems {
     }
 
     /// Update relative globs to absolute paths
-    pub fn update_relative_paths(&mut self, workspace_root: &PathBuf) {
+    pub fn update_relative_paths(&mut self, workspace_root: &Path) {
         if let AllowedItems::Specific(items) = self {
             for item in items.iter_mut() {
                 if !item.starts_with('/') && !item.starts_with('~') {

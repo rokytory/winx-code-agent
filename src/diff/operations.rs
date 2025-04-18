@@ -283,7 +283,7 @@ pub fn apply_operations_parallel(source: &str, operations: &[DiffOp]) -> Result<
 
     // Group operations by logical chunks (e.g., 200 lines per chunk)
     let chunk_size = 200;
-    let num_chunks = (lines.len() + chunk_size - 1) / chunk_size;
+    let num_chunks = lines.len().div_ceil(chunk_size);
 
     let mut chunk_operations: Vec<Vec<DiffOp>> = vec![Vec::new(); num_chunks];
 
@@ -347,7 +347,7 @@ pub fn apply_operations_parallel(source: &str, operations: &[DiffOp]) -> Result<
                     })
                     .collect();
 
-                apply_operations(&chunk_source, &adjusted_ops).unwrap_or_else(|_| chunk_source)
+                apply_operations(&chunk_source, &adjusted_ops).unwrap_or(chunk_source)
             }
         })
         .collect();

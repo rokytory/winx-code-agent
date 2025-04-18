@@ -137,7 +137,7 @@ impl ContextualMemory {
 
     /// Update completion percentage
     pub fn update_completion(&mut self, percentage: f32) {
-        self.completion_percentage = percentage.max(0.0).min(100.0);
+        self.completion_percentage = percentage.clamp(0.0, 100.0);
         self.updated_at = Utc::now();
     }
 
@@ -194,7 +194,7 @@ impl ContextualMemory {
             for (i, note) in self.progress_notes.iter().rev().take(3).enumerate() {
                 summary.push_str(&format!("{}. {}\n", i + 1, note));
             }
-            summary.push_str("\n");
+            summary.push('\n');
         }
 
         if !self.decisions.is_empty() {
@@ -207,7 +207,7 @@ impl ContextualMemory {
                     decision.rationale
                 ));
             }
-            summary.push_str("\n");
+            summary.push('\n');
         }
 
         if !self.relevant_files.is_empty() {
@@ -259,7 +259,7 @@ impl ContextualMemoryStore {
             let entry = entry.context("Failed to read directory entry")?;
             let path = entry.path();
 
-            if path.is_file() && path.extension().map_or(false, |ext| ext == "json") {
+            if path.is_file() && path.extension().is_some_and(|ext| ext == "json") {
                 match self.load_memory_from_file(&path) {
                     Ok(memory) => {
                         self.memories.insert(memory.id.clone(), memory);

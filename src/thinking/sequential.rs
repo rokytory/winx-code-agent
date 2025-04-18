@@ -27,7 +27,7 @@ pub struct Thought {
 }
 
 /// The sequential thinking process manager
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SequentialThinking {
     /// All thoughts in the process
     thoughts: HashMap<usize, Thought>,
@@ -121,7 +121,7 @@ impl SequentialThinking {
         if let Some(branch) = &self.current_branch {
             let branch_thoughts = thoughts
                 .iter()
-                .filter(|t| t.branch_id.as_ref().map_or(false, |b| b == branch))
+                .filter(|t| t.branch_id.as_ref() == Some(branch))
                 .cloned()
                 .collect::<Vec<_>>();
 
@@ -177,6 +177,13 @@ impl SequentialThinking {
         }
 
         summary
+    }
+}
+
+// Implement Default separately to avoid conflicts with methods
+impl Default for SequentialThinking {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

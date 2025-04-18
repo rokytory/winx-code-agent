@@ -59,6 +59,12 @@ pub struct DependencyGraph {
     symbol_to_module: HashMap<String, PathBuf>,
 }
 
+impl Default for DependencyGraph {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DependencyGraph {
     /// Create a new empty dependency graph
     pub fn new() -> Self {
@@ -123,6 +129,12 @@ pub struct SemanticAnalyzer {
     lsp_client: Option<Arc<LSPClient>>,
     workspace_path: PathBuf,
     dependency_graph: Arc<Mutex<DependencyGraph>>,
+}
+
+impl Default for SemanticAnalyzer {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl SemanticAnalyzer {
@@ -309,7 +321,7 @@ impl SemanticAnalyzer {
                 import_path,
                 current_module.display()
             );
-            return Ok(None);
+            Ok(None)
         } else {
             // For absolute/library imports, we would need more project-specific logic
             // For now, just log that we can't resolve it

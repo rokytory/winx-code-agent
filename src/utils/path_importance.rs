@@ -202,9 +202,8 @@ impl PathImportanceAnalyzer {
         // Helper function to check if a path should be ignored
         fn should_ignore(path: &Path) -> bool {
             for pattern in IGNORE_PATTERNS {
-                if pattern.ends_with('/') {
+                if let Some(dir_name) = pattern.strip_suffix('/') {
                     // Check directory pattern
-                    let dir_name = &pattern[..pattern.len() - 1];
                     if path.to_string_lossy().contains(&format!("/{}/", dir_name)) {
                         return true;
                     }
@@ -230,9 +229,8 @@ impl PathImportanceAnalyzer {
         // Helper function to check if a path is important
         fn is_important(path: &Path) -> bool {
             for pattern in IMPORTANT_PATTERNS {
-                if pattern.ends_with('/') {
+                if let Some(dir_name) = pattern.strip_suffix('/') {
                     // Check directory pattern
-                    let dir_name = &pattern[..pattern.len() - 1];
                     if path.to_string_lossy().contains(&format!("/{}/", dir_name)) {
                         return true;
                     }
@@ -294,7 +292,7 @@ impl PathImportanceAnalyzer {
 
         // Try to execute git command to get recent files
         let output = std::process::Command::new("git")
-            .args(&["log", "--name-only", "--pretty=format:%at", "-n", "50"])
+            .args(["log", "--name-only", "--pretty=format:%at", "-n", "50"])
             .current_dir(&self.workspace_root)
             .output();
 
@@ -312,7 +310,7 @@ impl PathImportanceAnalyzer {
                     }
 
                     // Check if line is a timestamp (all digits)
-                    if line.chars().all(|c| c.is_digit(10)) {
+                    if line.chars().all(|c| c.is_ascii_digit()) {
                         // Parse timestamp as seconds since epoch
                         if let Ok(secs) = line.parse::<u64>() {
                             timestamp =

@@ -56,18 +56,18 @@ pub enum BuildSystem {
     Unknown,
 }
 
-impl ToString for BuildSystem {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for BuildSystem {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            BuildSystem::Cargo => "Cargo (Rust)".to_string(),
-            BuildSystem::Npm => "npm/yarn (JavaScript/TypeScript)".to_string(),
-            BuildSystem::Python => "Python (pip/setuptools/poetry)".to_string(),
-            BuildSystem::Maven => "Maven (Java)".to_string(),
-            BuildSystem::Gradle => "Gradle (Java/Kotlin)".to_string(),
-            BuildSystem::CMake => "CMake (C/C++)".to_string(),
-            BuildSystem::Make => "Make".to_string(),
-            BuildSystem::Bazel => "Bazel".to_string(),
-            BuildSystem::Unknown => "Unknown".to_string(),
+            BuildSystem::Cargo => write!(f, "Cargo (Rust)"),
+            BuildSystem::Npm => write!(f, "npm/yarn (JavaScript/TypeScript)"),
+            BuildSystem::Python => write!(f, "Python (pip/setuptools/poetry)"),
+            BuildSystem::Maven => write!(f, "Maven (Java)"),
+            BuildSystem::Gradle => write!(f, "Gradle (Java/Kotlin)"),
+            BuildSystem::CMake => write!(f, "CMake (C/C++)"),
+            BuildSystem::Make => write!(f, "Make"),
+            BuildSystem::Bazel => write!(f, "Bazel"),
+            BuildSystem::Unknown => write!(f, "Unknown"),
         }
     }
 }
@@ -196,7 +196,7 @@ impl ProjectAnalysis {
         // Build system
         md.push_str(&format!(
             "## Build System\n\n{}\n\n",
-            self.build_system.to_string()
+            self.build_system
         ));
 
         // Primary languages
@@ -204,14 +204,14 @@ impl ProjectAnalysis {
         for lang in &self.primary_languages {
             md.push_str(&format!("- {}\n", lang));
         }
-        md.push_str("\n");
+        md.push('\n');
 
         // Important files
         md.push_str("## Important Files\n\n");
         for file in &self.important_files {
             md.push_str(&format!("- `{}`\n", file.to_string_lossy()));
         }
-        md.push_str("\n");
+        md.push('\n');
 
         // Project structure
         md.push_str("## Project Structure\n\n");
@@ -223,20 +223,20 @@ impl ProjectAnalysis {
             for component in &self.structure.components {
                 md.push_str(&format!("- `{}`\n", component.to_string_lossy()));
             }
-            md.push_str("\n");
+            md.push('\n');
         }
 
         md.push_str("### Source Directories\n\n");
         for dir in &self.structure.source_dirs {
             md.push_str(&format!("- `{}`\n", dir.to_string_lossy()));
         }
-        md.push_str("\n");
+        md.push('\n');
 
         md.push_str("### Test Directories\n\n");
         for dir in &self.structure.test_dirs {
             md.push_str(&format!("- `{}`\n", dir.to_string_lossy()));
         }
-        md.push_str("\n");
+        md.push('\n');
 
         // Dependencies
         md.push_str("## Dependencies\n\n");
@@ -252,7 +252,7 @@ impl ProjectAnalysis {
                     dep.found_in.len()
                 ));
             }
-            md.push_str("\n");
+            md.push('\n');
         }
 
         let internal_deps: Vec<_> = self
@@ -270,7 +270,7 @@ impl ProjectAnalysis {
                     dep.found_in.len()
                 ));
             }
-            md.push_str("\n");
+            md.push('\n');
         }
 
         // Common patterns
@@ -282,7 +282,7 @@ impl ProjectAnalysis {
             for (pattern, count) in patterns.iter().take(10) {
                 md.push_str(&format!("- **{}**: found {} times\n", pattern, count));
             }
-            md.push_str("\n");
+            md.push('\n');
         }
 
         // Statistics

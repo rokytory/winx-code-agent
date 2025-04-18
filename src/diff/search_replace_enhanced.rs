@@ -145,12 +145,12 @@ impl EnhancedSearchReplace {
         // Try batch application first
         match self.apply_batch(content, blocks) {
             Ok((result, diagnostics)) => {
-                return Ok(EnhancedEditResult {
+                Ok(EnhancedEditResult {
                     standard_result: result,
                     diagnostics,
                     applied_individually: false,
                     suggestions: Vec::new(),
-                });
+                })
             }
             Err(batch_error) => {
                 // If batch failed and individual fallback is enabled, try individual application
@@ -158,28 +158,28 @@ impl EnhancedSearchReplace {
                     debug!("Batch application failed, attempting individual application");
                     match self.apply_individually(content, blocks) {
                         Ok((result, diagnostics, suggestions)) => {
-                            return Ok(EnhancedEditResult {
+                            Ok(EnhancedEditResult {
                                 standard_result: result,
                                 diagnostics,
                                 applied_individually: true,
                                 suggestions,
-                            });
+                            })
                         }
                         Err(individual_error) => {
                             // Both batch and individual failed
                             debug!("Both batch and individual application failed");
-                            return Err(anyhow!(
+                            Err(anyhow!(
                                 "Failed to apply search/replace blocks. Batch error: {}. Individual error: {}",
                                 batch_error, individual_error
-                            ));
+                            ))
                         }
                     }
                 } else {
                     // Individual fallback disabled, return batch error
-                    return Err(anyhow!(
+                    Err(anyhow!(
                         "Failed to apply search/replace blocks: {}",
                         batch_error
-                    ));
+                    ))
                 }
             }
         }
@@ -631,7 +631,7 @@ impl EnhancedSearchReplace {
             ));
         }
 
-        report.push_str("\n");
+        report.push('\n');
 
         // Block diagnostics
         report.push_str("## Block Diagnostics\n\n");
@@ -681,7 +681,7 @@ impl EnhancedSearchReplace {
                 report.push_str("\n```\n");
             }
 
-            report.push_str("\n");
+            report.push('\n');
         }
 
         // Suggestions
@@ -692,7 +692,7 @@ impl EnhancedSearchReplace {
                 report.push_str(&format!("- {}\n", suggestion));
             }
 
-            report.push_str("\n");
+            report.push('\n');
         }
 
         // Warnings in detail
@@ -703,7 +703,7 @@ impl EnhancedSearchReplace {
                 report.push_str(&format!("- {}\n", warning));
             }
 
-            report.push_str("\n");
+            report.push('\n');
         }
 
         report
