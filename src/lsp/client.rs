@@ -424,7 +424,7 @@ impl LSPClient {
                                                     "Content-Length: {}\r\n\r\n{}",
                                                     content_length, request_str
                                                 )
-                                                    .as_bytes(),
+                                                .as_bytes(),
                                             )
                                             .await
                                         {
@@ -628,7 +628,7 @@ impl LSPClient {
                                     "Content-Length: {}\r\n\r\n{}",
                                     content_length, request_str
                                 )
-                                    .as_bytes(),
+                                .as_bytes(),
                             )
                             .await
                         {
@@ -666,7 +666,7 @@ impl LSPClient {
                                     "Content-Length: {}\r\n\r\n{}",
                                     content_length, notification_str
                                 )
-                                    .as_bytes(),
+                                .as_bytes(),
                             )
                             .await
                         {
@@ -713,7 +713,7 @@ impl LSPClient {
                                             "Content-Length: {}\r\n\r\n{}",
                                             content_length, notification_str
                                         )
-                                            .as_bytes(),
+                                        .as_bytes(),
                                     )
                                     .await
                                 {

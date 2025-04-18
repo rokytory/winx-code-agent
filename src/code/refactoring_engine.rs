@@ -1,6 +1,4 @@
-use crate::code::semantic_analyzer::{
-    RefactoringSeverity, SemanticAnalyzer,
-};
+use crate::code::semantic_analyzer::{RefactoringSeverity, SemanticAnalyzer};
 use crate::lsp::types::{Position, Range, Symbol};
 use anyhow::{anyhow, Context, Result};
 use std::collections::HashMap;

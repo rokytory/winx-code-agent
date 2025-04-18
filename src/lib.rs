@@ -23,23 +23,23 @@ static ANSI_REGEX: Lazy<Regex> = Lazy::new(|| {
     // This matches all ANSI escape sequences used for colors and formatting
     // Ultra comprehensive pattern to catch all documented and undocumented ANSI sequences
     Regex::new(concat!(
-    // Match ESC and CSI followed by any control sequence - main pattern
-    r"[\x1b\x9b][\[\]()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[\dA-PR-TZcf-nq-uy=><~]|",
-    // Match color codes (SGR sequences)
-    r"[\x1b\x9b]\[[\x30-\x3F]*[\x20-\x2F]*[\x40-\x7E]|",
-    // Match older style codes
-    r"[\x1b\x9b][0-9;]*[a-zA-Z]|",
-    // Catch any standalone ESC character
-    r"\x1b|",
-    // Match Unicode console codes (rare but possible)
-    r"\u009b[^A-Za-z]*[A-Za-z]|",
-    // Match CSI window manipulation
-    r"\x1b\][0-9][^\x07]*\x07"
+        // Match ESC and CSI followed by any control sequence - main pattern
+        r"[\x1b\x9b][\[\]()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[\dA-PR-TZcf-nq-uy=><~]|",
+        // Match color codes (SGR sequences)
+        r"[\x1b\x9b]\[[\x30-\x3F]*[\x20-\x2F]*[\x40-\x7E]|",
+        // Match older style codes
+        r"[\x1b\x9b][0-9;]*[a-zA-Z]|",
+        // Catch any standalone ESC character
+        r"\x1b|",
+        // Match Unicode console codes (rare but possible)
+        r"\u009b[^A-Za-z]*[A-Za-z]|",
+        // Match CSI window manipulation
+        r"\x1b\][0-9][^\x07]*\x07"
     ))
-        .unwrap_or_else(|_| {
-            debug!("Failed to compile ANSI regex, falling back to simpler pattern");
-            Regex::new(r"\x1b\[[0-9;]*[a-zA-Z]").unwrap()
-        })
+    .unwrap_or_else(|_| {
+        debug!("Failed to compile ANSI regex, falling back to simpler pattern");
+        Regex::new(r"\x1b\[[0-9;]*[a-zA-Z]").unwrap()
+    })
 });
 
 /// Strip ANSI color codes from a string - ultra enhanced version with JSON safety

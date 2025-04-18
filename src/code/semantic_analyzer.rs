@@ -88,7 +88,7 @@ impl DependencyGraph {
     }
 
     /// Get all modules in the graph
-    pub fn get_all_modules(&self) -> impl Iterator<Item=&ModuleAnalysis> {
+    pub fn get_all_modules(&self) -> impl Iterator<Item = &ModuleAnalysis> {
         self.modules.values()
     }
 
@@ -193,8 +193,8 @@ impl SemanticAnalyzer {
                 // as potential indicators of import statements
                 s.kind == SymbolKind::Variable
                     && (s.name.contains("import")
-                    || s.name.contains("require")
-                    || s.name.starts_with("use"))
+                        || s.name.contains("require")
+                        || s.name.starts_with("use"))
             })
             .cloned()
             .collect::<Vec<_>>();

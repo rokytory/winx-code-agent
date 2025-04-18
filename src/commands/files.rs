@@ -531,7 +531,7 @@ pub async fn write_or_edit_file(state: &SharedState, json_str: &str) -> Result<S
         request.percentage_to_change,
         &request.file_content_or_search_replace_blocks,
     )
-        .await
+    .await
 }
 
 #[cfg(test)]
@@ -568,8 +568,8 @@ mod tests {
                 100,
                 "Hello, universe!",
             )
-                .await
-                .unwrap();
+            .await
+            .unwrap();
 
             assert!(result.contains("Successfully"));
 
