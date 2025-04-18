@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use serde::{Deserialize, Serialize};
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 use crate::code::vibe_agent::VibeAgent;
 use crate::core::state::SharedState;

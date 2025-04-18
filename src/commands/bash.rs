@@ -4,11 +4,9 @@ use tokio::process::Command;
 use tracing::{debug, info, warn};
 
 use crate::core::state::SharedState;
-use crate::core::types::{
-    BashAction, BashCommand, Command as CommandType, SendAscii, SendSpecials, SendText,
-};
 
 /// Strip ANSI color codes from a string
+#[allow(dead_code)]
 fn strip_ansi_codes(input: &str) -> String {
     // Match ANSI escape sequences: \u001b followed by [ and then any sequence until m
     // This handles most common color codes and formatting
@@ -436,6 +434,7 @@ pub async fn start_background_process(state: &SharedState, command: &str) -> Res
 }
 
 /// Send ASCII characters to a running process
+#[allow(dead_code)]
 async fn send_ascii_chars(_state: &SharedState, _chars: &Vec<u8>) -> Result<String> {
     // In a real implementation, we would send ASCII chars to a running process
     // This is a simplified implementation

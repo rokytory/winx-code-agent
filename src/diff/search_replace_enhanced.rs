@@ -1,10 +1,5 @@
-use anyhow::{anyhow, Context, Result};
-use regex::Regex;
-use similar::{ChangeTag, TextDiff};
-use std::collections::HashMap;
-use std::fmt;
-use std::path::Path;
-use tracing::{debug, info, warn};
+use anyhow::{anyhow, Result};
+use tracing::debug;
 
 use super::search_replace::{
     adjust_indentation, find_context_for_search_block, find_matches, parse_search_replace_blocks,
@@ -82,6 +77,7 @@ impl BlockDiagnostic {
 #[derive(Clone)]
 pub struct EnhancedSearchReplace {
     /// Maximum number of attempts for individual blocks
+    #[allow(dead_code)]
     max_individual_attempts: usize,
     /// Whether to attempt individual application when batch fails
     enable_individual_fallback: bool,
@@ -352,8 +348,7 @@ impl EnhancedSearchReplace {
                     };
 
                     // Try to find similar content for diagnostic
-                    let content_lines: Vec<String> =
-                        current_content.lines().map(ToString::to_string).collect();
+                    // No need to split into lines here as find_context_for_search_block handles it
                     if let Some(context) = find_context_for_search_block(
                         &current_content,
                         &block.search_lines,
@@ -586,16 +581,18 @@ impl EnhancedSearchReplace {
                 // Log the error for debugging
                 debug!("Failed to parse search/replace blocks: {}", e);
                 debug!("Original text: {}", search_replace_text);
-                
+
                 // Convert to a more user-friendly error message
                 let err_msg = if e.to_string().contains("No valid search/replace blocks") {
-                    String::from("Failed to parse search/replace blocks: No valid blocks found. \
+                    String::from(
+                        "Failed to parse search/replace blocks: No valid blocks found. \
                     Use either <<<<<<< SEARCH/=======/>>>>>>> REPLACE format \
-                    or search:/replace: prefix format.")
+                    or search:/replace: prefix format.",
+                    )
                 } else {
                     e.to_string()
                 };
-                
+
                 Err(anyhow!("{}", err_msg))
             }
         }

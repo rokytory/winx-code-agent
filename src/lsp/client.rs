@@ -12,7 +12,6 @@ use tracing::{debug, error, info, warn};
 use crate::lsp::types::{LSPConfig, Language, Position, Range, Symbol, SymbolLocation};
 
 // Use the more comprehensive sanitize_json_text function from lib.rs instead
-use crate::sanitize_json_text;
 
 /// Message to be sent to the language server
 #[derive(Debug)]
@@ -29,40 +28,60 @@ enum ClientMessage {
         response_tx: oneshot::Sender<Result<()>>,
     },
     CloseFile {
+        #[allow(dead_code)]
         file_path: PathBuf,
+        #[allow(dead_code)]
         response_tx: oneshot::Sender<Result<()>>,
     },
     FindSymbol {
+        #[allow(dead_code)]
         name: String,
+        #[allow(dead_code)]
         within_path: Option<PathBuf>,
+        #[allow(dead_code)]
         include_body: bool,
+        #[allow(dead_code)]
         response_tx: oneshot::Sender<Result<Vec<Symbol>>>,
     },
     FindReferences {
+        #[allow(dead_code)]
         location: SymbolLocation,
+        #[allow(dead_code)]
         include_body: bool,
+        #[allow(dead_code)]
         response_tx: oneshot::Sender<Result<Vec<Symbol>>>,
     },
     InsertText {
+        #[allow(dead_code)]
         file_path: PathBuf,
+        #[allow(dead_code)]
         position: Position,
+        #[allow(dead_code)]
         text: String,
+        #[allow(dead_code)]
         response_tx: oneshot::Sender<Result<Position>>,
     },
     DeleteText {
+        #[allow(dead_code)]
         file_path: PathBuf,
+        #[allow(dead_code)]
         range: Range,
+        #[allow(dead_code)]
         response_tx: oneshot::Sender<Result<String>>,
     },
     GetDocumentSymbols {
+        #[allow(dead_code)]
         file_path: PathBuf,
+        #[allow(dead_code)]
         include_body: bool,
+        #[allow(dead_code)]
         response_tx: oneshot::Sender<Result<Vec<Symbol>>>,
     },
 }
 
 /// Wrapper for an LSP client
 pub struct LSPClient {
+    #[allow(dead_code)]
     config: LSPConfig,
     tx: mpsc::Sender<ClientMessage>,
     server_handle: Arc<Mutex<Option<u32>>>,
@@ -304,13 +323,13 @@ impl LSPClient {
         server_handle: Arc<Mutex<Option<u32>>>,
     ) {
         // Communication state
-        let mut server_process: Option<Child> = None;
+        let mut _server_process: Option<Child> = None; // Prefixado com _ pois não é usado
         let mut stdin_writer = None;
         let mut stdout_reader = None;
         let mut request_id = 0;
 
         // Track pending requests and their response channels
-        let mut pending_requests: HashMap<usize, oneshot::Sender<Result<Value>>> = HashMap::new();
+        let _pending_requests: HashMap<usize, oneshot::Sender<Result<Value>>> = HashMap::new(); // Prefixado com _ pois não é usado
 
         while let Some(message) = rx.recv().await {
             match message {
@@ -340,7 +359,7 @@ impl LSPClient {
                                             *handle = Some(pid);
                                         }
                                     }
-                                    server_process = Some(process);
+                                    _server_process = Some(process);
 
                                     // Create async writers and readers - Tokio já fornece streams assíncronos
                                     stdin_writer = Some(BufWriter::new(stdin));
@@ -589,7 +608,7 @@ impl LSPClient {
                 }
                 ClientMessage::Shutdown { response_tx } => {
                     // Send shutdown request to the server
-                    if let (Some(writer), Some(reader)) =
+                    if let (Some(writer), Some(_reader)) =
                         (stdin_writer.as_mut(), stdout_reader.as_mut())
                     {
                         request_id += 1;

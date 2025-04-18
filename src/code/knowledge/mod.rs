@@ -1,8 +1,8 @@
 // Módulo de gerenciamento de conhecimento de arquivos
 // Parte da refatoração do Winx
 
-mod provider;
 mod cache;
+mod provider;
 
-pub use provider::*;
 pub use cache::*;
+pub use provider::*;

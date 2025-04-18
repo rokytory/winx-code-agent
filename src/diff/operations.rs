@@ -113,7 +113,8 @@ pub fn diff_strings_parallel(old: &str, new: &str) -> Vec<DiffOp> {
 /// Combine diff results from chunked processing with adjusted offsets
 fn combine_chunk_results(chunk_results: Vec<Vec<DiffOp>>, chunk_size: usize) -> Vec<DiffOp> {
     let mut combined = Vec::new();
-    let mut line_offset = 0;
+    #[allow(unused_assignments)]
+    let mut _line_offset = 0;
 
     for (i, ops) in chunk_results.into_iter().enumerate() {
         for op in ops {
@@ -150,7 +151,7 @@ fn combine_chunk_results(chunk_results: Vec<Vec<DiffOp>>, chunk_size: usize) -> 
         }
 
         // Update line offset based on the chunk
-        line_offset += chunk_size;
+        // line_offset increment would be used in a full implementation
     }
 
     // Optimize the combined operations
@@ -288,7 +289,7 @@ pub fn apply_operations_parallel(source: &str, operations: &[DiffOp]) -> Result<
 
     // Assign operations to chunks
     for op in operations {
-        let (start_pos, end_pos) = match op {
+        let (start_pos, _end_pos) = match op {
             DiffOp::Insert { position, .. } => (*position, *position),
             DiffOp::Delete { start, end } => (*start, *end),
             DiffOp::Replace { start, end, .. } => (*start, *end),

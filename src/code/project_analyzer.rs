@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 use globset::{Glob, GlobSet, GlobSetBuilder};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use tracing::{debug, info};
@@ -479,7 +479,7 @@ impl ProjectAnalyzer {
     /// Extract dependencies from a file (simple version)
     fn extract_dependencies(&self, path: &Path, content: &str) -> Vec<String> {
         let mut dependencies = Vec::new();
-        let file_name = path
+        let _file_name = path
             .file_name()
             .map(|name| name.to_string_lossy().to_lowercase())
             .unwrap_or_default()

@@ -6,20 +6,8 @@ pub mod path_importance;
 pub mod paths;
 
 // Re-exports para facilitar o uso
-pub use concurrency::{
-    FileLockManager,
-    FileOperationGuard,
-    LockStatus,
-    get_lock_manager
-};
+pub use concurrency::{get_lock_manager, FileLockManager, FileOperationGuard, LockStatus};
 pub use error_handling::{
-    ErrorContextExt, 
-    ErrorType, 
-    LocalizedError, 
-    command_error, 
-    file_error, 
-    format_error, 
-    is_error_type, 
-    localized_error, 
-    state_error
+    command_error, file_error, format_error, is_error_type, localized_error, state_error,
+    ErrorContextExt, ErrorType, LocalizedError,
 };

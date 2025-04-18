@@ -2,11 +2,7 @@ use anyhow::{Context, Result};
 use rmcp::{transport, ServiceExt};
 use std::env;
 use std::path::PathBuf;
-use std::pin::Pin;
-use std::task::{Context as TaskContext, Poll};
-use tokio::io::AsyncRead;
-use tokio_util::compat::FuturesAsyncReadCompatExt;
-use tracing::{debug, error, info};
+use tracing::{error, info};
 
 use winx::{
     commands::tools::WinxTools,

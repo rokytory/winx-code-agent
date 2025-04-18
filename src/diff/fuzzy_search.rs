@@ -3,7 +3,7 @@ use regex::Regex;
 use similar::{ChangeTag, TextDiff};
 use std::cmp::Ordering;
 use std::collections::HashMap;
-use tracing::{debug, info, warn};
+use tracing::debug;
 
 /// Match quality in fuzzy search
 #[derive(Debug, Clone, PartialEq)]
@@ -223,12 +223,12 @@ fn calculate_similarity_score(s1: &str, s2: &str) -> f64 {
     let diff = TextDiff::from_chars(s1, s2);
 
     let mut unchanged = 0;
-    let mut changed = 0;
+    let mut _changed = 0; // Prefixado com _ pois não é usado
 
     for change in diff.iter_all_changes() {
         match change.tag() {
             ChangeTag::Equal => unchanged += change.value().chars().count(),
-            _ => changed += change.value().chars().count(),
+            _ => _changed += change.value().chars().count(),
         }
     }
 
@@ -363,7 +363,7 @@ fn apply_indentation_pattern(source: &str, target: &str) -> String {
     }
 
     // Calculate first line indentation for target
-    let target_first_indent = get_indentation(target_lines[0]);
+    let _target_first_indent = get_indentation(target_lines[0]); // Prefixado com _ pois não é usado
 
     // Apply indentation to target lines
     let mut result = Vec::new();
@@ -374,7 +374,7 @@ fn apply_indentation_pattern(source: &str, target: &str) -> String {
             continue;
         }
 
-        let line_indent = get_indentation(line);
+        let _line_indent = get_indentation(line); // Prefixado com _ pois não é usado
 
         // Calculate target indentation
         let rel_indent = indentation_map.get(&i).copied().unwrap_or(0);

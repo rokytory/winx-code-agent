@@ -67,7 +67,12 @@ pub struct LocalizedError {
 
 impl LocalizedError {
     /// Cria um novo erro localizado
-    pub fn new(en: impl Into<String>, pt: impl Into<String>, es: impl Into<String>, error_type: ErrorType) -> Self {
+    pub fn new(
+        en: impl Into<String>,
+        pt: impl Into<String>,
+        es: impl Into<String>,
+        error_type: ErrorType,
+    ) -> Self {
         Self {
             en: en.into(),
             pt: pt.into(),
@@ -96,38 +101,59 @@ impl fmt::Display for LocalizedError {
 impl std::error::Error for LocalizedError {}
 
 /// Cria um erro localizado como anyhow::Error
-pub fn localized_error(en: impl Into<String>, pt: impl Into<String>, es: impl Into<String>) -> anyhow::Error {
+pub fn localized_error(
+    en: impl Into<String>,
+    pt: impl Into<String>,
+    es: impl Into<String>,
+) -> anyhow::Error {
     let error = LocalizedError::new(en, pt, es, ErrorType::Unknown);
     anyhow::Error::new(error)
 }
 
 /// Cria um erro de arquivo localizado
-pub fn file_error(en: impl Into<String>, pt: impl Into<String>, es: impl Into<String>) -> anyhow::Error {
+pub fn file_error(
+    en: impl Into<String>,
+    pt: impl Into<String>,
+    es: impl Into<String>,
+) -> anyhow::Error {
     let error = LocalizedError::new(en, pt, es, ErrorType::File);
     anyhow::Error::new(error)
 }
 
 /// Cria um erro de formato localizado
-pub fn format_error(en: impl Into<String>, pt: impl Into<String>, es: impl Into<String>) -> anyhow::Error {
+pub fn format_error(
+    en: impl Into<String>,
+    pt: impl Into<String>,
+    es: impl Into<String>,
+) -> anyhow::Error {
     let error = LocalizedError::new(en, pt, es, ErrorType::Format);
     anyhow::Error::new(error)
 }
 
 /// Cria um erro de estado localizado
-pub fn state_error(en: impl Into<String>, pt: impl Into<String>, es: impl Into<String>) -> anyhow::Error {
+pub fn state_error(
+    en: impl Into<String>,
+    pt: impl Into<String>,
+    es: impl Into<String>,
+) -> anyhow::Error {
     let error = LocalizedError::new(en, pt, es, ErrorType::State);
     anyhow::Error::new(error)
 }
 
 /// Cria um erro de comando localizado
-pub fn command_error(en: impl Into<String>, pt: impl Into<String>, es: impl Into<String>) -> anyhow::Error {
+pub fn command_error(
+    en: impl Into<String>,
+    pt: impl Into<String>,
+    es: impl Into<String>,
+) -> anyhow::Error {
     let error = LocalizedError::new(en, pt, es, ErrorType::Command);
     anyhow::Error::new(error)
 }
 
 /// Verifica se um erro é de um determinado tipo
 pub fn is_error_type(error: &anyhow::Error, error_type: ErrorType) -> bool {
-    error.downcast_ref::<LocalizedError>()
+    error
+        .downcast_ref::<LocalizedError>()
         .map(|e| e.error_type == error_type)
         .unwrap_or(false)
 }
@@ -135,7 +161,7 @@ pub fn is_error_type(error: &anyhow::Error, error_type: ErrorType) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::i18n::{Language, set_language};
+    use crate::core::i18n::{set_language, Language};
 
     #[test]
     fn test_localized_error() {
@@ -158,28 +184,38 @@ mod tests {
     #[test]
     fn test_with_localized_context() {
         set_language(Language::English);
-        
-        let result: Result<(), _> = Err(anyhow::anyhow!("Base error"))
-            .with_localized_context(|| (
-                "Error with context",
-                "Erro com contexto",
-                "Error con contexto"
-            ));
-        
+
+        let result: Result<(), _> =
+            Err(anyhow::anyhow!("Base error")).with_localized_context(|| {
+                (
+                    "Error with context",
+                    "Erro com contexto",
+                    "Error con contexto",
+                )
+            });
+
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err().to_string(), "Error with context: Base error");
-        
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Error with context: Base error"
+        );
+
         // Change language and test again
         set_language(Language::Portuguese);
-        
-        let result: Result<(), _> = Err(anyhow::anyhow!("Base error"))
-            .with_localized_context(|| (
-                "Error with context",
-                "Erro com contexto",
-                "Error con contexto"
-            ));
-        
+
+        let result: Result<(), _> =
+            Err(anyhow::anyhow!("Base error")).with_localized_context(|| {
+                (
+                    "Error with context",
+                    "Erro com contexto",
+                    "Error con contexto",
+                )
+            });
+
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err().to_string(), "Erro com contexto: Base error");
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Erro com contexto: Base error"
+        );
     }
 }

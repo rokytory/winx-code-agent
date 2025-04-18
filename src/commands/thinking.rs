@@ -6,18 +6,14 @@ use tracing::{debug, info};
 use crate::core::state::SharedState;
 use crate::thinking::{SequentialThinking, Thought};
 
-/// Global thinking process state
-static mut THINKING_PROCESS: Option<Arc<Mutex<SequentialThinking>>> = None;
+// Singleton pattern com inicialização segura usando lazy_static
+lazy_static::lazy_static! {
+    static ref THINKING_PROCESS: Arc<Mutex<SequentialThinking>> = Arc::new(Mutex::new(SequentialThinking::new()));
+}
 
-/// Get or create the thinking process
+/// Get the thinking process singleton
 fn get_thinking_process() -> Arc<Mutex<SequentialThinking>> {
-    unsafe {
-        if THINKING_PROCESS.is_none() {
-            THINKING_PROCESS = Some(Arc::new(Mutex::new(SequentialThinking::new())));
-        }
-
-        THINKING_PROCESS.clone().unwrap()
-    }
+    THINKING_PROCESS.clone()
 }
 
 /// Process a sequential thinking step
@@ -146,10 +142,11 @@ mod tests {
             let temp_dir = tempdir().unwrap();
             let state = create_shared_state(temp_dir.path(), ModeType::Wcgw, None, None).unwrap();
 
-            // Reset the thinking process
-            unsafe {
-                THINKING_PROCESS = None;
-            }
+            // Para testes, criamos um novo processo de thinking local
+            let thinking_process = Arc::new(Mutex::new(SequentialThinking::new()));
+
+            // Usamos o thinking process global para os testes
+            // Observe que em uma aplicação real, seria melhor ter um processo de thinking por sessão
 
             // Add some thoughts
             let result = process_thinking(

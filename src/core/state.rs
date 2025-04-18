@@ -1,6 +1,6 @@
 use crate::core::types::{AllowedItems, CodeWriterConfig, Mode, ModeType};
 use anyhow::{Context, Result};
-use std::any::{Any, TypeId};
+use std::any::Any;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};

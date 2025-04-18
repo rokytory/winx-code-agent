@@ -84,15 +84,16 @@ impl OpenAIClient {
 
         let messages = vec![message];
 
-        // Criar request
         let mut request = CreateChatCompletionRequestArgs::default()
             .model(&self.config.model)
             .messages(messages)
             .build()?;
 
-        // Adicionar max_tokens se definido
         if let Some(max_tokens) = self.config.max_tokens {
-            request.max_tokens = Some(max_tokens as u32);
+            #[allow(deprecated)]
+            {
+                request.max_tokens = Some(max_tokens as u32);
+            }
         }
 
         // Adicionar temperature se definido
@@ -121,18 +122,18 @@ impl OpenAIClient {
             messages.len()
         );
 
-        // Criar request
         let mut request = CreateChatCompletionRequestArgs::default()
             .model(&self.config.model)
             .messages(messages)
             .build()?;
 
-        // Adicionar max_tokens se definido
         if let Some(max_tokens) = self.config.max_tokens {
-            request.max_tokens = Some(max_tokens as u32);
+            #[allow(deprecated)]
+            {
+                request.max_tokens = Some(max_tokens as u32);
+            }
         }
 
-        // Adicionar temperature se definido
         if let Some(temp) = self.config.temperature {
             request.temperature = Some(temp);
         }
@@ -174,6 +175,7 @@ Your goal is to reach the best possible solution through careful sequential thin
     }
 
     /// Process a query with sequential thinking
+    #[allow(deprecated)]
     pub async fn process_query(&mut self, query: &str, total_steps: usize) -> Result<String> {
         // Initialize the conversation with system and user prompts
         let mut messages = vec![
@@ -225,6 +227,7 @@ Your goal is to reach the best possible solution through careful sequential thin
                 name: None,
                 tool_calls: None,
                 audio: None,
+                #[allow(deprecated)]
                 function_call: None,
                 refusal: None,
             },
@@ -272,6 +275,7 @@ Your goal is to reach the best possible solution through careful sequential thin
                     name: None,
                     tool_calls: None,
                     audio: None,
+                    #[allow(deprecated)]
                     function_call: None,
                     refusal: None,
                 },

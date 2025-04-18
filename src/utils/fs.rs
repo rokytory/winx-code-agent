@@ -4,7 +4,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tracing::{debug, warn};
-use tokio::fs as tokio_fs;
 
 /// Read a file's contents as string with concurrency control
 pub async fn read_file(path: impl AsRef<Path>) -> Result<String> {
@@ -17,7 +16,7 @@ pub async fn read_file(path: impl AsRef<Path>) -> Result<String> {
     // Read file content
     let content = fs::read_to_string(path)
         .with_context(|| format!("Failed to read file: {}", path.display()))?;
-    
+
     // Release lock explicitly (will also be released on drop)
     let _ = guard.release().await;
 
@@ -28,7 +27,7 @@ pub async fn read_file(path: impl AsRef<Path>) -> Result<String> {
 pub fn read_file_to_string(path: impl AsRef<Path>) -> Result<String> {
     let path = path.as_ref();
     debug!("Reading file synchronously: {}", path.display());
-    
+
     // We can't use async locks in a sync context, but we can check if cooldown passed
     if !crate::utils::concurrency::is_cooldown_passed_sync(path) {
         warn!("File access cooldown not passed for: {}", path.display());
@@ -59,10 +58,10 @@ pub async fn write_file(path: impl AsRef<Path>, content: &str) -> Result<()> {
     // Write file content
     fs::write(path, content)
         .with_context(|| format!("Failed to write to file: {}", path.display()))?;
-    
+
     // Release lock explicitly (will also be released on drop)
     let _ = guard.release().await;
-    
+
     Ok(())
 }
 
@@ -94,19 +93,23 @@ pub fn write_file_sync(path: impl AsRef<Path>, content: &str) -> Result<()> {
         None
     };
 
-    let result = fs::write(path, content).with_context(|| format!("Failed to write to file: {}", path.display()));
+    let result = fs::write(path, content)
+        .with_context(|| format!("Failed to write to file: {}", path.display()));
 
     // If successful, validate that no concurrent write happened
     if result.is_ok() && hash_before.is_some() {
         // Give the file system a moment to update
         std::thread::sleep(std::time::Duration::from_millis(10));
-        
+
         let hash_after = calculate_file_hash(path)?;
-        
+
         // If hash doesn't match expected result, another process might have modified it
         let expected_hash = calculate_string_hash(content);
         if hash_after != expected_hash {
-            warn!("File hash after write doesn't match expected: {}", path.display());
+            warn!(
+                "File hash after write doesn't match expected: {}",
+                path.display()
+            );
             return Err(crate::utils::localized_error(
                 format!("File {} may have been modified concurrently during write", path.display()),
                 format!("O arquivo {} pode ter sido modificado concorrentemente durante a escrita", path.display()),
@@ -121,7 +124,7 @@ pub fn write_file_sync(path: impl AsRef<Path>, content: &str) -> Result<()> {
 /// Calculate a hash for file content
 fn calculate_file_hash(path: impl AsRef<Path>) -> Result<String> {
     let content = fs::read(path.as_ref())?;
-    
+
     use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();
     hasher.update(&content);

@@ -112,8 +112,10 @@ struct FileMetadata {
     /// Total number of lines in the file
     total_lines: usize,
     /// File size in bytes
+    #[allow(dead_code)]
     file_size: u64,
     /// Last modified time
+    #[allow(dead_code)]
     last_modified: std::time::SystemTime,
 }
 
@@ -224,7 +226,10 @@ pub async fn write_or_edit_file_internal(
     } else {
         // Check if file exists first
         if !path.exists() {
-            debug!("File doesn't exist, creating new file with content: {}", path.display());
+            debug!(
+                "File doesn't exist, creating new file with content: {}",
+                path.display()
+            );
 
             // Ensure parent directories exist
             if let Some(parent) = path.parent() {
@@ -281,9 +286,10 @@ pub async fn write_or_edit_file_internal(
                     debug!("Standard format failed, trying to handle content as a complete file or alternative format");
 
                     // Check if it's actually valid content and not search/replace blocks at all
-                    if !content.contains("<<<<<<< SEARCH") &&
-                       !content.contains("search:") &&
-                       !content.contains("replace:") {
+                    if !content.contains("<<<<<<< SEARCH")
+                        && !content.contains("search:")
+                        && !content.contains("replace:")
+                    {
                         // Treat as complete file content
                         debug!("Content appears to be complete file content, not search/replace blocks");
                         fs::write(&path, content)?;

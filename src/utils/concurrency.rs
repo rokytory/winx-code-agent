@@ -1,7 +1,7 @@
 use anyhow::Result;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 use tracing::debug;
@@ -75,11 +75,11 @@ impl FileLockManager {
                     // File is already read-locked, that's fine
                     // Drop the read lock so we can acquire a write lock to update
                     drop(locks);
-                    
+
                     // Update timestamp with a write lock
                     let mut locks = self.locks.write().await;
                     if let Some((_, timestamp)) = locks.get(&path) {
-                        let current = *timestamp;
+                        let _current = *timestamp;
                         locks.insert(path.clone(), (LockStatus::ReadLocked, Instant::now()));
                     } else {
                         locks.insert(path.clone(), (LockStatus::ReadLocked, Instant::now()));
@@ -90,7 +90,7 @@ impl FileLockManager {
                 _ => {
                     // File is not locked, acquire read lock
                     drop(locks);
-                    
+
                     // Update with a write lock
                     let mut locks = self.locks.write().await;
                     locks.insert(path.clone(), (LockStatus::ReadLocked, Instant::now()));
@@ -130,11 +130,12 @@ impl FileLockManager {
 
             // Read current lock status
             let locks = self.locks.read().await;
-            if !locks.contains_key(&path) || 
-               matches!(locks.get(&path), Some((LockStatus::Unlocked, _))) {
+            if !locks.contains_key(&path)
+                || matches!(locks.get(&path), Some((LockStatus::Unlocked, _)))
+            {
                 // File is not locked, acquire write lock
                 drop(locks);
-                
+
                 // Update with a write lock
                 let mut locks = self.locks.write().await;
                 locks.insert(path.clone(), (LockStatus::WriteLocked, Instant::now()));
@@ -164,9 +165,12 @@ impl FileLockManager {
 
         // First read current timestamp if exists
         let locks = self.locks.read().await;
-        let timestamp = locks.get(&path).map(|(_, ts)| *ts).unwrap_or_else(Instant::now);
+        let timestamp = locks
+            .get(&path)
+            .map(|(_, ts)| *ts)
+            .unwrap_or_else(Instant::now);
         drop(locks);
-        
+
         // Now update with write lock
         let mut locks = self.locks.write().await;
         locks.insert(path.clone(), (LockStatus::Unlocked, timestamp));
@@ -179,22 +183,23 @@ impl FileLockManager {
     /// Check if a file is locked
     pub async fn is_locked(&self, path: impl AsRef<Path>) -> Result<bool> {
         let path = path.as_ref().to_path_buf();
-        
+
         let locks = self.locks.read().await;
-        let result = matches!(locks.get(&path), Some((status, _)) if *status != LockStatus::Unlocked);
+        let result =
+            matches!(locks.get(&path), Some((status, _)) if *status != LockStatus::Unlocked);
         drop(locks);
-        
+
         Ok(result)
     }
 
     /// Check if a file is locked for writing
     pub async fn is_write_locked(&self, path: impl AsRef<Path>) -> Result<bool> {
         let path = path.as_ref().to_path_buf();
-        
+
         let locks = self.locks.read().await;
         let result = matches!(locks.get(&path), Some((LockStatus::WriteLocked, _)));
         drop(locks);
-        
+
         Ok(result)
     }
 
@@ -203,25 +208,29 @@ impl FileLockManager {
         let last_ops = self.last_operations.read().await;
         let last_op = last_ops.get(path).cloned();
         drop(last_ops);
-        
+
         if let Some(last_op_time) = last_op {
             let elapsed = last_op_time.elapsed().as_millis();
             let required_delay = OPERATION_DELAY_MS as u128;
-            
+
             if elapsed < required_delay {
                 let wait_time = required_delay - elapsed;
-                debug!("Waiting {}ms before accessing file: {}", wait_time, path.display());
+                debug!(
+                    "Waiting {}ms before accessing file: {}",
+                    wait_time,
+                    path.display()
+                );
                 tokio::time::sleep(Duration::from_millis(wait_time as u64)).await;
             }
         }
-        
+
         Ok(())
     }
 
     /// Check if enough time has passed since the last operation on a file
     pub async fn is_cooldown_passed(&self, path: impl AsRef<Path>) -> Result<bool> {
         let path = path.as_ref().to_path_buf();
-        
+
         let last_ops = self.last_operations.read().await;
         let result = if let Some(last_op) = last_ops.get(&path) {
             let elapsed = last_op.elapsed().as_millis();
@@ -231,26 +240,26 @@ impl FileLockManager {
             true
         };
         drop(last_ops);
-        
+
         Ok(result)
     }
 
     /// Clean up expired locks
     pub async fn cleanup_expired_locks(&self) -> Result<()> {
         debug!("Cleaning up expired locks");
-        
+
         // Find expired locks (read first)
         let locks = self.locks.read().await;
         let expired: Vec<PathBuf> = locks
             .iter()
             .filter(|(_, (status, timestamp))| {
-                *status != LockStatus::Unlocked && 
-                timestamp.elapsed().as_millis() > LOCK_TIMEOUT_MS as u128 * 2
+                *status != LockStatus::Unlocked
+                    && timestamp.elapsed().as_millis() > LOCK_TIMEOUT_MS as u128 * 2
             })
             .map(|(path, _)| path.clone())
             .collect();
         drop(locks);
-        
+
         // Release expired locks (write after)
         if !expired.is_empty() {
             let mut locks = self.locks.write().await;
@@ -260,17 +269,20 @@ impl FileLockManager {
             }
             drop(locks);
         }
-        
+
         Ok(())
     }
 }
 
 // Global file lock manager singleton using tokio's OnceCell instead of lazy_static
-static GLOBAL_LOCK_MANAGER: tokio::sync::OnceCell<FileLockManager> = tokio::sync::OnceCell::const_new();
+static GLOBAL_LOCK_MANAGER: tokio::sync::OnceCell<FileLockManager> =
+    tokio::sync::OnceCell::const_new();
 
 /// Get the global file lock manager instance
 pub async fn get_lock_manager() -> &'static FileLockManager {
-    GLOBAL_LOCK_MANAGER.get_or_init(|| async { FileLockManager::new() }).await
+    GLOBAL_LOCK_MANAGER
+        .get_or_init(|| async { FileLockManager::new() })
+        .await
 }
 
 /// File operation guard for automatic locking and unlocking
@@ -284,41 +296,41 @@ impl FileOperationGuard {
     /// Create a new file operation guard for reading
     pub async fn for_reading(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref().to_path_buf();
-        
+
         // Need to initialize the global lock manager first
         let lock_manager = {
             let manager = get_lock_manager().await;
             Arc::new(manager.clone())
         };
-        
+
         lock_manager.lock_for_reading(&path).await?;
-        
+
         Ok(Self {
             path,
             lock_manager,
             released: false,
         })
     }
-    
+
     /// Create a new file operation guard for writing
     pub async fn for_writing(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref().to_path_buf();
-        
+
         // Need to initialize the global lock manager first
         let lock_manager = {
             let manager = get_lock_manager().await;
             Arc::new(manager.clone())
         };
-        
+
         lock_manager.lock_for_writing(&path).await?;
-        
+
         Ok(Self {
             path,
             lock_manager,
             released: false,
         })
     }
-    
+
     /// Manually release the lock before drop
     pub async fn release(&mut self) -> Result<()> {
         if !self.released {
@@ -335,7 +347,7 @@ impl Drop for FileOperationGuard {
             // Can't use async in drop, so we need to spawn a task
             let path = self.path.clone();
             let lock_manager = self.lock_manager.clone();
-            
+
             tokio::spawn(async move {
                 let _ = lock_manager.release_lock(&path).await;
             });
@@ -348,21 +360,19 @@ pub fn is_cooldown_passed_sync(path: impl AsRef<Path>) -> bool {
     // Create a runtime for the sync operation
     match tokio::runtime::Builder::new_current_thread()
         .enable_all()
-        .build() {
-            Ok(rt) => {
-                rt.block_on(async {
-                    let manager = get_lock_manager().await;
-                    manager.is_cooldown_passed(&path).await.unwrap_or(true)
-                })
-            },
-            Err(_) => true // Default to true on error
-        }
+        .build()
+    {
+        Ok(rt) => rt.block_on(async {
+            let manager = get_lock_manager().await;
+            manager.is_cooldown_passed(&path).await.unwrap_or(true)
+        }),
+        Err(_) => true, // Default to true on error
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::runtime::Runtime;
     use tempfile::tempdir;
 
     #[tokio::test]
@@ -412,7 +422,7 @@ mod tests {
     async fn test_operation_guard() {
         let temp_dir = tempdir().unwrap();
         let file_path = temp_dir.path().join("test.txt");
-        
+
         // Initialize the lock manager
         let lock_manager = get_lock_manager().await;
 
@@ -421,10 +431,10 @@ mod tests {
             let _guard = FileOperationGuard::for_reading(&file_path).await.unwrap();
             assert!(lock_manager.is_locked(&file_path).await.unwrap());
         }
-        
+
         // Need to wait a bit for the async release in drop
         tokio::time::sleep(Duration::from_millis(100)).await;
-        
+
         // Lock should be released
         assert!(!lock_manager.is_locked(&file_path).await.unwrap());
 
@@ -436,10 +446,10 @@ mod tests {
             let _guard = FileOperationGuard::for_writing(&file_path).await.unwrap();
             assert!(lock_manager.is_write_locked(&file_path).await.unwrap());
         }
-        
+
         // Need to wait a bit for the async release in drop
         tokio::time::sleep(Duration::from_millis(100)).await;
-        
+
         // Lock should be released
         assert!(!lock_manager.is_locked(&file_path).await.unwrap());
     }

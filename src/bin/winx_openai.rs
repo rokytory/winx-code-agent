@@ -24,7 +24,7 @@ struct Cli {
     model: String,
 
     /// Maximum tokens to generate
-    #[arg(short, long, default_value_t = 2048)]
+    #[arg(short = 'k', long, default_value_t = 2048)]
     max_tokens: i32,
 
     /// Temperature (0.0 to 1.0)
@@ -62,7 +62,7 @@ enum Commands {
         max_revisions: usize,
 
         /// System prompt to use
-        #[arg(short, long)]
+        #[arg(short = 'p', long)]
         system_prompt: Option<String>,
 
         /// Output file to save thinking results

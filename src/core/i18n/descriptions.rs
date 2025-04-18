@@ -1,5 +1,5 @@
+use super::language::{get_language, Language};
 use tracing::info;
-use super::language::{Language, get_language};
 
 /// Registra o mapeamento de descrições de ferramentas para o framework MCP
 pub fn register_tool_descriptions() {
@@ -34,7 +34,7 @@ impl LocalizedDescription {
             Language::Spanish => self.es,
         }
     }
-    
+
     /// Obtém a descrição no idioma atual
     pub fn current(&self) -> &'static str {
         self.get(get_language())

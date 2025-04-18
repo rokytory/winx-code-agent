@@ -5,7 +5,7 @@ use anyhow::{Context, Result};
 use std::fs;
 use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
-use tracing::{debug, warn};
+use tracing::debug;
 
 // Definindo os tipos que estavam faltando
 #[derive(Debug, Clone)]
@@ -47,9 +47,11 @@ pub fn process_large_file<P: AsRef<Path>>(path: P, operations: &[EditOperation])
 
     // Sort operations by starting line
     let mut sorted_ops = operations.to_vec();
-    sorted_ops.sort_by_key(|op| match op {
-        EditOperation::ReplaceLines { start_line, .. } => *start_line,
-        _ => 0, // Other operations types would go here
+    sorted_ops.sort_by_key(|op| {
+        // Na versão atual, só temos um tipo de operação (ReplaceLines)
+        match op {
+            EditOperation::ReplaceLines { start_line, .. } => *start_line,
+        }
     });
 
     // Process the file line by line
@@ -138,15 +140,9 @@ pub fn apply_operations<P: AsRef<Path>>(path: P, operations: &[FileOperation]) -
     let mut edit_operations = Vec::new();
 
     for op in operations {
-        match op {
-            FileOperation::Edit(edit_op) => {
-                edit_operations.push(edit_op.clone());
-            }
-            _ => {
-                warn!("Unsupported operation type for large file processing");
-                return Err(anyhow::anyhow!("Unsupported operation type"));
-            }
-        }
+        // Using let instead of if let since this pattern is irrefutable
+        let FileOperation::Edit(edit_op) = op;
+        edit_operations.push(edit_op.clone());
     }
 
     // Process the file with the collected edit operations

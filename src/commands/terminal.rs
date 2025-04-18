@@ -4,7 +4,6 @@
 
 use anyhow::{anyhow, Result};
 use regex::Regex;
-use std::io::{Read, Write};
 use std::process::Command as StdCommand;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -14,6 +13,7 @@ use crate::core::state::SharedState;
 use crate::core::types::Special;
 
 /// Strip ANSI color codes from a string
+#[allow(dead_code)]
 fn strip_ansi_codes(input: &str) -> String {
     // Match ANSI escape sequences: \u001b followed by [ and then any sequence until m
     // This handles most common color codes and formatting

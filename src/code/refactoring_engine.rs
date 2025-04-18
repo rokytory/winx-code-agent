@@ -1,12 +1,12 @@
 use crate::code::semantic_analyzer::{
-    RefactoringSeverity, RefactoringSuggestion, SemanticAnalyzer,
+    RefactoringSeverity, SemanticAnalyzer,
 };
-use crate::lsp::types::{Position, Range, Symbol, SymbolKind};
+use crate::lsp::types::{Position, Range, Symbol};
 use anyhow::{anyhow, Context, Result};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tracing::{debug, info, warn};
+use tracing::info;
 
 /// Patterns for code smells
 #[derive(Debug, Clone)]
@@ -126,7 +126,9 @@ impl RefactoringType {
 pub struct RefactoringEngine {
     semantic_analyzer: Option<Arc<SemanticAnalyzer>>,
     workspace_path: PathBuf,
+    #[allow(dead_code)]
     pending_operations: Vec<RefactoringOperation>,
+    #[allow(dead_code)]
     applied_operations: Vec<RefactoringOperation>,
 }
 

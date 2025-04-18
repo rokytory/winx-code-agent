@@ -79,7 +79,7 @@ pub struct MatchOptions {
 }
 
 /// Executes a symbolic edit
-pub async fn execute_symbolic_edit(state: &SharedState, edit: &SymbolicEdit) -> Result<String> {
+pub async fn execute_symbolic_edit(_state: &SharedState, edit: &SymbolicEdit) -> Result<String> {
     debug!("Executing symbolic edit: {:?}", edit);
 
     // For now, we'll just return a placeholder result, until we implement

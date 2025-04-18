@@ -426,7 +426,7 @@ pub async fn init_file_tracking(state: &core::state::SharedState, files: &[&str]
 /// When used as an MCP server, this should be false to avoid JSON parsing errors
 pub fn init_with_logger(ansi_colors: bool) -> Result<()> {
     use tracing_subscriber::fmt;
-    use tracing_subscriber::util::SubscriberInitExt;
+    // O import SubscriberInitExt não é mais necessário
     use tracing_subscriber::EnvFilter;
 
     // Use the try_init() method instead of init() to handle cases where

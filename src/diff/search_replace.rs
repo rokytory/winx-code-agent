@@ -169,15 +169,16 @@ pub fn parse_search_replace_blocks(text: &str) -> Result<Vec<SearchReplaceBlock>
     if let Ok(blocks) = parse_marker_format(text) {
         return Ok(blocks);
     }
-    
+
     // If standard format fails, try alternative format with "search:" and "replace:" prefixes
     if let Ok(blocks) = parse_prefix_format(text) {
         return Ok(blocks);
     }
-    
+
     // If both formats fail, return an error
     Err(anyhow!(SearchReplaceSyntaxError {
-        message: "No valid search/replace blocks found in either standard or alternative format".to_string(),
+        message: "No valid search/replace blocks found in either standard or alternative format"
+            .to_string(),
         line_number: None,
     }))
 }
@@ -275,17 +276,17 @@ fn parse_marker_format(text: &str) -> Result<Vec<SearchReplaceBlock>> {
 fn parse_prefix_format(text: &str) -> Result<Vec<SearchReplaceBlock>> {
     let lines: Vec<&str> = text.lines().collect();
     let mut blocks = Vec::new();
-    
+
     // Variables to track the current block
     let mut in_search = false;
     let mut in_replace = false;
     let mut current_search_lines = Vec::new();
     let mut current_replace_lines = Vec::new();
     let mut line_num = 0;
-    
+
     for (i, line) in lines.iter().enumerate() {
         let trimmed = line.trim();
-        
+
         // Check for start of search block
         if trimmed == "search:" {
             line_num = i + 1;
@@ -300,16 +301,17 @@ fn parse_prefix_format(text: &str) -> Result<Vec<SearchReplaceBlock>> {
             } else if in_search {
                 // Starting a new search without finishing the previous one
                 return Err(anyhow!(SearchReplaceSyntaxError {
-                    message: "Found 'search:' without matching 'replace:' for previous block".to_string(),
+                    message: "Found 'search:' without matching 'replace:' for previous block"
+                        .to_string(),
                     line_number: Some(i + 1),
                 }));
             }
-            
+
             in_search = true;
             in_replace = false;
             continue;
         }
-        
+
         // Check for start of replace block
         if trimmed == "replace:" {
             // Can't have replace without search
@@ -319,12 +321,12 @@ fn parse_prefix_format(text: &str) -> Result<Vec<SearchReplaceBlock>> {
                     line_number: Some(i + 1),
                 }));
             }
-            
+
             in_search = false;
             in_replace = true;
             continue;
         }
-        
+
         // Add to appropriate block
         if in_search {
             current_search_lines.push(line.to_string());
@@ -332,7 +334,7 @@ fn parse_prefix_format(text: &str) -> Result<Vec<SearchReplaceBlock>> {
             current_replace_lines.push(line.to_string());
         }
     }
-    
+
     // Don't forget the last block if there is one
     if in_search && !current_search_lines.is_empty() {
         // Missing replace block
@@ -346,14 +348,14 @@ fn parse_prefix_format(text: &str) -> Result<Vec<SearchReplaceBlock>> {
             replace_lines: current_replace_lines,
         });
     }
-    
+
     if blocks.is_empty() {
         return Err(anyhow!(SearchReplaceSyntaxError {
             message: "No valid search/replace blocks found in prefix format".to_string(),
             line_number: None,
         }));
     }
-    
+
     Ok(blocks)
 }
 
@@ -647,12 +649,13 @@ pub fn similarity_score(s1: &str, s2: &str) -> f64 {
     let diff = TextDiff::from_chars(s1, s2);
 
     let mut unchanged = 0;
-    let mut changed = 0;
+    #[allow(unused_assignments)]
+    let mut _changed = 0;
 
     for change in diff.iter_all_changes() {
         match change.tag() {
             ChangeTag::Equal => unchanged += change.value().chars().count(),
-            _ => changed += change.value().chars().count(),
+            _ => _changed += change.value().chars().count(),
         }
     }
 

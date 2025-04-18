@@ -47,7 +47,7 @@ pub fn reset_initialization() {
 }
 
 /// Registra as ferramentas e marca como inicializado
-pub fn register_tools(state: SharedState) -> Result<()> {
+pub fn register_tools(_state: SharedState) -> Result<()> {
     // Marca como inicializado
     INITIALIZED.store(true, Ordering::SeqCst);
 
@@ -233,7 +233,7 @@ impl WinxTools {
     async fn bash_command(
         &self,
         #[tool(param)] action_json: serde_json::Value,
-        #[tool(param)] wait_for_seconds: Option<f32>,
+        #[tool(param)] _wait_for_seconds: Option<f32>,
     ) -> Result<CallToolResult, McpError> {
         check_initialized()?;
         // Enhanced version to handle nested action_json format from different clients
@@ -722,11 +722,11 @@ impl ServerHandler for WinxTools {
 
         // Customized instructions based on language
         let instructions = match current_lang {
-            crate::core::i18n::Language::English => 
+            crate::core::i18n::Language::English =>
                 "Winx is a Rust code agent that allows executing bash commands, manipulating files, and executing SQL queries.",
-            crate::core::i18n::Language::Portuguese => 
+            crate::core::i18n::Language::Portuguese =>
                 "Winx é um agente de código Rust que permite executar comandos bash, manipular arquivos e executar consultas SQL.",
-            crate::core::i18n::Language::Spanish => 
+            crate::core::i18n::Language::Spanish =>
                 "Winx es un agente de código Rust que permite ejecutar comandos bash, manipular archivos y ejecutar consultas SQL.",
         };
 

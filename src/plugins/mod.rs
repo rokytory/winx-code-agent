@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 /// Trait that all plugins must implement
 #[async_trait]
@@ -80,6 +80,7 @@ impl PluginEnum {
         }
     }
 
+    #[allow(dead_code)]
     fn name(&self) -> &'static str {
         match self {
             PluginEnum::Git(p) => p.name(),

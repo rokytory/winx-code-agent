@@ -58,7 +58,7 @@ impl Language {
             Language::Spanish => "Español",
         }
     }
-    
+
     /// Converte u8 para Language
     fn from_u8(value: u8) -> Self {
         match value {

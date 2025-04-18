@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use std::sync::Arc;
 use tracing::{debug, warn};
 
@@ -140,7 +140,7 @@ impl SyntaxValidator {
     }
 
     /// Validate syntax for a given language extension and content
-    pub fn validate(&mut self, extension: &str, content: &str) -> SyntaxValidationResult {
+    pub fn validate(&mut self, _extension: &str, _content: &str) -> SyntaxValidationResult {
         // If syntax validation is disabled, always return valid
         if !SYNTAX_VALIDATION_ENABLED {
             return SyntaxValidationResult {
@@ -268,8 +268,7 @@ impl SyntaxValidator {
 }
 
 // Use once_cell to provide a shared instance
-use once_cell::sync::OnceCell;
-static SYNTAX_VALIDATOR: OnceCell<Arc<std::sync::Mutex<SyntaxValidator>>> = OnceCell::new();
+// OnceCell import removed, as it's not used
 
 /// Get the shared syntax validator instance
 pub fn get_syntax_validator() -> Result<Arc<std::sync::Mutex<SyntaxValidator>>> {

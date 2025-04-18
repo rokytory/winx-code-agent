@@ -1,9 +1,8 @@
 use anyhow::{Context, Result};
-use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 use crate::lsp::client::LSPClient;
 use crate::lsp::server::LSPServer;
@@ -91,8 +90,8 @@ impl SymbolManager {
 
             info!("Found {} symbols in {}", symbols.len(), file_path.display());
             Ok(symbols)
-        } else if let Some(server) = &self.lsp_server {
-            let server_guard = server.lock().await;
+        } else if let Some(_server) = &self.lsp_server {
+            let server_guard = _server.lock().await;
             let relative_path = self.to_relative_path(file_path)?;
 
             let symbols = server_guard
@@ -263,14 +262,14 @@ impl SymbolManager {
                 }
             });
 
-            let response = lsp_client
+            let _response = lsp_client
                 .send_request("textDocument/definition", params)
                 .await?;
 
             // Convert from Location to SymbolLocation
             // This conversion would need to be implemented based on the response format
             unimplemented!("Conversion from LSP Location to SymbolLocation not implemented yet");
-        } else if let Some(server) = &self.lsp_server {
+        } else if let Some(_server) = &self.lsp_server {
             // Use server to get definitions
             // Implementation would depend on server API
             unimplemented!("Get definition using LSP server not implemented yet");
@@ -335,7 +334,7 @@ impl SymbolManager {
             };
 
             Ok(filtered_symbols)
-        } else if let Some(lsp_client) = &self.lsp_client {
+        } else if let Some(_lsp_client) = &self.lsp_client {
             // Implementation would depend on client API
             unimplemented!("Find referencing symbols using LSP client not implemented yet");
         } else {
@@ -418,7 +417,7 @@ impl SymbolManager {
             } else {
                 Ok(Some(hover_text))
             }
-        } else if let Some(server) = &self.lsp_server {
+        } else if let Some(_server) = &self.lsp_server {
             // Implementation would depend on server API
             unimplemented!("Get hover using LSP server not implemented yet");
         } else {
@@ -481,7 +480,7 @@ impl SymbolManager {
                 .await?;
 
             Ok(())
-        } else if let Some(lsp_client) = &self.lsp_client {
+        } else if let Some(_lsp_client) = &self.lsp_client {
             // Implementation would depend on client API
             unimplemented!("Replace symbol body using LSP client not implemented yet");
         } else {
@@ -508,7 +507,7 @@ impl SymbolManager {
                 .await?;
 
             Ok(())
-        } else if let Some(lsp_client) = &self.lsp_client {
+        } else if let Some(_lsp_client) = &self.lsp_client {
             // Implementation would depend on client API
             unimplemented!("Insert after symbol using LSP client not implemented yet");
         } else {
@@ -535,7 +534,7 @@ impl SymbolManager {
                 .await?;
 
             Ok(())
-        } else if let Some(lsp_client) = &self.lsp_client {
+        } else if let Some(_lsp_client) = &self.lsp_client {
             // Implementation would depend on client API
             unimplemented!("Insert before symbol using LSP client not implemented yet");
         } else {
@@ -559,7 +558,7 @@ impl SymbolManager {
                 .await?;
 
             Ok(())
-        } else if let Some(lsp_client) = &self.lsp_client {
+        } else if let Some(_lsp_client) = &self.lsp_client {
             // Implementation would depend on client API
             unimplemented!("Insert at line using LSP client not implemented yet");
         } else {
@@ -586,7 +585,7 @@ impl SymbolManager {
                 .await?;
 
             Ok(())
-        } else if let Some(lsp_client) = &self.lsp_client {
+        } else if let Some(_lsp_client) = &self.lsp_client {
             // Implementation would depend on client API
             unimplemented!("Delete lines using LSP client not implemented yet");
         } else {
@@ -631,7 +630,7 @@ impl SymbolManager {
 
             info!("Successfully edited symbol '{}'", symbol.name);
             Ok(())
-        } else if let Some(server) = &self.lsp_server {
+        } else if let Some(_server) = &self.lsp_server {
             // Convert Symbol to SymbolLocation and call replace_body
             // This is a simplification - actual implementation might be more complex
             let location = SymbolLocation {
