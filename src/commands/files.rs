@@ -547,31 +547,48 @@ mod tests {
         let rt = Runtime::new().unwrap();
 
         rt.block_on(async {
-            let temp_dir = tempdir().unwrap();
-            let state = create_shared_state(temp_dir.path(), ModeType::Wcgw, None, None).unwrap();
-
-            // Create a test file
-            let file_path = temp_dir.path().join("test.txt");
+            // Create a state with /tmp as workspace
+            let state = create_shared_state("/tmp", ModeType::Wcgw, None, None).unwrap();
+            
+            // Create a test file with a timestamp to avoid conflicts
+            let timestamp = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs();
+            let file_name = format!("test_{}.txt", timestamp);
+            let file_path = PathBuf::from("/tmp").join(&file_name);
+            
+            // Make sure we clean up after the test
+            let file_path_clone = file_path.clone();
+            let _cleanup = defer::defer(move || {
+                let _ = std::fs::remove_file(&file_path_clone);
+            });
+            
+            // Create the initial file
             fs::write(&file_path, "Hello, world!").unwrap();
 
-            // Test reading
-            let results = read_files(&state, &[file_path.to_string_lossy().to_string()])
-                .awaict
-                .unwrap();
-            assert_eq!(results.len(), 1);
-            assert_eq!(results[0].1, "Hello, world!");
+            // Test reading the file first - add debug to see what's going on
+            {
+                let file_path_str = file_path.to_string_lossy().to_string();
+                let json = format!("{{\"file_paths\":[\"{}\"], \"show_line_numbers_reason\":null}}", file_path_str);
+                let result = read_files(&state, &json).await.unwrap();
+                println!("READ RESULT: {}", result);  // Debug output
+                
+                // The path is in the result even if it fails to read, so check content too
+                assert!(result.contains(file_path_str.as_str()));
+                assert!(result.contains("Hello, world!") || result.contains("```\nHello, world!"));
+            }
 
-            // Test writing
-            let result = write_or_edit_file(
-                &state,
-                &file_path.to_string_lossy().to_string(),
-                100,
-                "Hello, universe!",
-            )
-            .await
-            .unwrap();
-
-            assert!(result.contains("Successfully"));
+            // Then test writing to the file
+            {
+                let file_path_str = file_path.to_string_lossy().to_string();
+                let json = format!(
+                    "{{\"file_path\":\"{}\", \"percentage_to_change\":100, \"auto_read_if_needed\":true, \"file_content_or_search_replace_blocks\":\"Hello, universe!\"}}",
+                    file_path_str
+                );
+                let result = write_or_edit_file(&state, &json).await.unwrap();
+                assert!(result.contains("Successfully"));
+            }
 
             // Verify the file was updated
             let content = fs::read_to_string(&file_path).unwrap();

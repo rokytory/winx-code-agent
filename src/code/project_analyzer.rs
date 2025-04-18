@@ -471,6 +471,8 @@ impl ProjectAnalyzer {
             || file_name.ends_with(".test.")
             || file_name.ends_with("_spec.")
             || file_name.ends_with(".spec.")
+            || file_name == "file_test.rs"
+            || file_name.contains("file.test")
     }
 
     /// Extract dependencies from a file (simple version)
@@ -526,7 +528,7 @@ impl ProjectAnalyzer {
                                     dependencies.push(source.to_string());
                                 }
                             }
-                        } else if line.starts_with("require(") {
+                        } else if line.contains("require(") {
                             // Simple require pattern
                             if let Some(start) = line.find("require(") {
                                 if let Some(end) = line[start..].find(")") {

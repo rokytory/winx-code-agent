@@ -158,7 +158,7 @@ mod tests {
             let state = create_shared_state(temp_dir.path(), ModeType::Wcgw, None, None).unwrap();
 
             // Para testes, criamos um novo processo de thinking local
-            let thinking_process = Arc::new(Mutex::new(SequentialThinking::new()));
+            let _thinking_process = Arc::new(Mutex::new(SequentialThinking::new()));
 
             // Usamos o thinking process global para os testes
             // Observe que em uma aplicação real, seria melhor ter um processo de thinking por sessão

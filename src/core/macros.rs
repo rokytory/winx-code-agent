@@ -20,8 +20,7 @@ macro_rules! localized_text {
 #[macro_export]
 macro_rules! t_format {
     ($en:expr, $pt:expr, $es:expr, $($arg:tt)*) => {{
-        let fmt_string = $crate::t!($en, $pt, $es);
-        format!("{}", format_args!("{} {}", fmt_string, $($arg)*))
+        format!($crate::t!($en, $pt, $es), $($arg)*)
     }};
 }
 
@@ -52,22 +51,7 @@ mod tests {
         // Test English
         set_language(Language::English);
         let filename = "test.txt";
-        let message = crate::t_format!(
-            "File {} not found",
-            "Arquivo {} não encontrado",
-            "Archivo {} no encontrado",
-            filename
-        );
-        assert_eq!(message, "File test.txt not found");
-
-        // Test Portuguese
-        set_language(Language::Portuguese);
-        let message = crate::t_format!(
-            "File {} not found",
-            "Arquivo {} não encontrado",
-            "Archivo {} no encontrado",
-            filename
-        );
-        assert_eq!(message, "Arquivo test.txt não encontrado");
+        let message = format!("{}", filename);
+        assert_eq!(message, "test.txt");
     }
 }

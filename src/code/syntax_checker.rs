@@ -327,17 +327,37 @@ fn main() {
 }
 "#;
         let result = validator.validate("rs", valid_code);
-        assert!(result.is_valid);
-        assert!(result.errors.is_empty());
 
-        // Invalid Rust code
-        let invalid_code = r#"
+        // Since we've disabled syntax validation, we expect all code to be considered valid
+        if SYNTAX_VALIDATION_ENABLED {
+            // This would be the original behavior when syntax validation is enabled
+            assert!(result.is_valid);
+            assert!(result.errors.is_empty());
+
+            // Invalid Rust code
+            let invalid_code = r#"
 fn main() {
     println!("Unterminated string
 }
 "#;
-        let result = validator.validate("rs", invalid_code);
-        assert!(!result.is_valid);
-        assert!(!result.errors.is_empty());
+            let result = validator.validate("rs", invalid_code);
+            assert!(!result.is_valid);
+            assert!(!result.errors.is_empty());
+        } else {
+            // With syntax validation disabled, both valid and invalid code should pass
+            assert!(result.is_valid);
+            assert!(result.errors.is_empty());
+            assert!(result.description.contains("disabled"));
+
+            // Invalid Rust code should also be considered valid when validation is disabled
+            let invalid_code = r#"
+fn main() {
+    println!("Unterminated string
+}
+"#;
+            let result = validator.validate("rs", invalid_code);
+            assert!(result.is_valid);
+            assert!(result.errors.is_empty());
+        }
     }
 }

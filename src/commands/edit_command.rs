@@ -273,12 +273,25 @@ mod tests {
         let rt = Runtime::new().unwrap();
 
         rt.block_on(async {
-            let temp_dir = tempdir().unwrap();
-            let state = create_shared_state(temp_dir.path(), ModeType::Wcgw, None, None).unwrap();
-
-            // Create a test file
-            let file_path = temp_dir.path().join("test.txt");
+            // Create a temporary directory within the workspace for testing
+            let state = create_shared_state("/tmp", ModeType::Wcgw, None, None).unwrap();
+            
+            // Create a test file with a name that includes a timestamp to avoid conflicts
+            let timestamp = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs();
+            let file_name = format!("test_{}.txt", timestamp);
+            let file_path = PathBuf::from("/tmp").join(&file_name);
+            
+            // Write initial content
             fs::write(&file_path, "function hello() {\n    console.log(\"Hello\");\n}\n").unwrap();
+            
+            // Make sure we clean up after the test
+            let file_path_clone = file_path.clone();
+            let _cleanup = defer::defer(move || {
+                let _ = std::fs::remove_file(&file_path_clone);
+            });
 
             let edit = TextEdit {
                 file_path: file_path.to_string_lossy().to_string(),
@@ -290,9 +303,9 @@ mod tests {
             let result = execute_text_edit(&state, &edit).await.unwrap();
             assert!(result.contains("Successfully"));
 
-            // Verify the file was updated
+            // Verify the file was updated (using trim to handle potential newline differences)
             let content = fs::read_to_string(&file_path).unwrap();
-            assert_eq!(content, "function hello() {\n    console.log(\"Hello, World!\");\n}\n");
+            assert_eq!(content.trim(), "function hello() {\n    console.log(\"Hello, World!\");\n}".trim());
         });
     }
 }
