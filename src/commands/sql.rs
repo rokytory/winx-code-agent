@@ -60,21 +60,24 @@ mod tests {
             // Create a direct SQL connection instead of using execute_sql_query_internal
             // which creates a new connection each time
             let conn = DbConnection::open(None::<&str>).unwrap();
-            
+
             // Execute the CREATE TABLE directly on the connection
-            conn.execute("CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT)").unwrap();
-            
+            conn.execute("CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT)")
+                .unwrap();
+
             // Insert directly using the connection
-            conn.execute("INSERT INTO test (id, name) VALUES (1, 'Alice')").unwrap();
-            conn.execute("INSERT INTO test (id, name) VALUES (2, 'Bob')").unwrap();
-            
+            conn.execute("INSERT INTO test (id, name) VALUES (1, 'Alice')")
+                .unwrap();
+            conn.execute("INSERT INTO test (id, name) VALUES (2, 'Bob')")
+                .unwrap();
+
             // For the SELECT, we'll use the JSON interface
             let _select_query = "{\"sql\": \"SELECT * FROM test\"}";
-            
+
             // Create our own implementation for testing that uses the existing connection
             let results = execute_query(&conn, "SELECT * FROM test").unwrap();
             let formatted = format_results_as_table(&results);
-            
+
             // Verify the results
             assert!(formatted.contains("Alice"));
             assert!(formatted.contains("Bob"));

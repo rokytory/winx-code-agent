@@ -37,7 +37,10 @@ pub fn execute_query(conn: &DbConnection, sql: &str) -> Result<QueryResult> {
 fn get_column_names(conn: &DbConnection, sql: &str) -> Result<Vec<String>> {
     // Check if this is a CREATE TABLE or other DDL statement
     let sql_upper = sql.trim().to_uppercase();
-    if sql_upper.starts_with("CREATE ") || sql_upper.starts_with("DROP ") || sql_upper.starts_with("ALTER ") {
+    if sql_upper.starts_with("CREATE ")
+        || sql_upper.starts_with("DROP ")
+        || sql_upper.starts_with("ALTER ")
+    {
         // For DDL statements, just return placeholder column names
         return Ok(vec!["Result".to_string()]);
     }

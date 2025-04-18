@@ -549,7 +549,6 @@ mod tests {
         rt.block_on(async {
             // Create a state with /tmp as workspace
             let state = create_shared_state("/tmp", ModeType::Wcgw, None, None).unwrap();
-            
             // Create a test file with a timestamp to avoid conflicts
             let timestamp = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -557,13 +556,13 @@ mod tests {
                 .as_secs();
             let file_name = format!("test_{}.txt", timestamp);
             let file_path = PathBuf::from("/tmp").join(&file_name);
-            
+
             // Make sure we clean up after the test
             let file_path_clone = file_path.clone();
             let _cleanup = defer::defer(move || {
                 let _ = std::fs::remove_file(&file_path_clone);
             });
-            
+
             // Create the initial file with content that will be in the assertions
             fs::write(&file_path, "function hello() {\n    console.log(\"Hello, universe!\");\n}\n").unwrap();
 
@@ -573,7 +572,7 @@ mod tests {
                 let json = format!("{{\"file_paths\":[\"{}\"], \"show_line_numbers_reason\":null}}", file_path_str);
                 let result = read_files(&state, &json).await.unwrap();
                 println!("READ RESULT: {}", result);  // Debug output
-                
+
                 // The path is in the result even if it fails to read, so check content too
                 assert!(result.contains(file_path_str.as_str()));
                 assert!(result.contains("Hello, universe!") || result.contains("```\nHello, universe!"));

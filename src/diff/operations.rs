@@ -429,10 +429,10 @@ mod tests {
 
         // Get the diff operations
         let ops = diff_strings_parallel(old, new);
-        
+
         // Apply the operations to the original string
         let result = apply_operations(old, &ops).unwrap();
-        
+
         // Verify the result matches the expected new string
         assert_eq!(result, new);
     }

@@ -51,10 +51,8 @@ pub fn process_large_file<P: AsRef<Path>>(path: P, operations: &[EditOperation])
 
     // Sort operations by starting line
     let mut sorted_ops = operations.to_vec();
-    sorted_ops.sort_by_key(|op| {
-        match op {
-            EditOperation::ReplaceLines { start_line, .. } => *start_line,
-        }
+    sorted_ops.sort_by_key(|op| match op {
+        EditOperation::ReplaceLines { start_line, .. } => *start_line,
     });
 
     // Process line by line
@@ -64,7 +62,7 @@ pub fn process_large_file<P: AsRef<Path>>(path: P, operations: &[EditOperation])
 
     while line_index < total_lines {
         let current_line = line_index as u64;
-        
+
         // Check if we need to perform an operation at this line
         if next_op_index < sorted_ops.len() {
             match &sorted_ops[next_op_index] {
@@ -171,13 +169,11 @@ mod tests {
         file.flush().unwrap();
 
         // Create operations to replace both Line 2 (index 1) and Line 3 (index 2)
-        let operations = vec![
-            EditOperation::ReplaceLines {
-                start_line: 1, // Line 2 (0-indexed)
-                end_line: 2,   // Line 3 (0-indexed)
-                new_content: "New Line 2\nNew Line 3\n".to_string(),
-            }
-        ];
+        let operations = vec![EditOperation::ReplaceLines {
+            start_line: 1, // Line 2 (0-indexed)
+            end_line: 2,   // Line 3 (0-indexed)
+            new_content: "New Line 2\nNew Line 3\n".to_string(),
+        }];
 
         // Process the file
         let path = file.path().to_path_buf();
@@ -185,13 +181,13 @@ mod tests {
 
         // Read the processed file and verify the changes
         let content = fs::read_to_string(&path).unwrap();
-        
+
         // Expected content: Line 1, then new lines 2-3, then Line 4-5
         let expected = "Line 1\nNew Line 2\nNew Line 3\nLine 4\nLine 5\n";
-        
+
         println!("ACTUAL CONTENT: '{}'", content);
         println!("EXPECTED: '{}'", expected);
-        
+
         assert_eq!(content, expected);
     }
 }

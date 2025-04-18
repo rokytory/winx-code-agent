@@ -275,7 +275,6 @@ mod tests {
         rt.block_on(async {
             // Create a temporary directory within the workspace for testing
             let state = create_shared_state("/tmp", ModeType::Wcgw, None, None).unwrap();
-            
             // Create a test file with a name that includes a timestamp to avoid conflicts
             let timestamp = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -283,11 +282,11 @@ mod tests {
                 .as_secs();
             let file_name = format!("test_{}.txt", timestamp);
             let file_path = PathBuf::from("/tmp").join(&file_name);
-            
+
             // Write initial content - be very careful to match exactly what will be in the search block
             let initial_content = "function hello() {\n    console.log(\"Hello, universe!\");\n}\n";
             fs::write(&file_path, initial_content).unwrap();
-            
+
             // Make sure we clean up after the test
             let file_path_clone = file_path.clone();
             let _cleanup = defer::defer(move || {
@@ -296,10 +295,10 @@ mod tests {
 
             // Create search/replace content that exactly matches initial content
             let search_replace = format!(
-                "<<<<<<< SEARCH\n{0}=======\nfunction hello() {{\n    console.log(\"Hello, World!\");\n}}\n>>>>>>> REPLACE\n", 
+                "<<<<<<< SEARCH\n{0}=======\nfunction hello() {{\n    console.log(\"Hello, World!\");\n}}\n>>>>>>> REPLACE\n",
                 initial_content
             );
-            
+
             let edit = TextEdit {
                 file_path: file_path.to_string_lossy().to_string(),
                 edit_type: TextEditType::SearchReplace,
