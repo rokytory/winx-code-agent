@@ -1,19 +1,3 @@
-/// Macro para obter strings internacionalizadas
-///
-/// # Exemplos
-///
-/// ```
-/// use winx::t;
-///
-/// let message = t!(
-///     "File not found",
-///     "Arquivo não encontrado",
-///     "Archivo no encontrado"
-/// );
-///
-/// // O idioma atual determina qual string será retornada
-/// assert_eq!(message, "File not found"); // Se o idioma atual for inglês
-/// ```
 #[macro_export]
 macro_rules! t {
     ($en:expr, $pt:expr, $es:expr) => {{
@@ -26,22 +10,6 @@ macro_rules! t {
     }};
 }
 
-/// Macro para criar uma descrição localizada e obter o texto no idioma atual
-///
-/// # Exemplos
-///
-/// ```
-/// use winx::localized_text;
-///
-/// let message = localized_text!(
-///     "File not found",
-///     "Arquivo não encontrado",
-///     "Archivo no encontrado"
-/// );
-///
-/// // O idioma atual determina qual string será retornada
-/// assert_eq!(message, "File not found"); // Se o idioma atual for inglês
-/// ```
 #[macro_export]
 macro_rules! localized_text {
     ($en:expr, $pt:expr, $es:expr) => {{
@@ -49,30 +17,10 @@ macro_rules! localized_text {
     }};
 }
 
-/// Macro para formatar strings com suporte a internacionalização
-///
-/// # Exemplos
-///
-/// ```
-/// use winx::t_format;
-///
-/// let filename = "example.txt";
-/// let message = t_format!(
-///     "File {} not found",
-///     "Arquivo {} não encontrado",
-///     "Archivo {} no encontrado",
-///     filename
-/// );
-///
-/// // O idioma atual determina qual string será retornada
-/// assert_eq!(message, "File example.txt not found"); // Se o idioma atual for inglês
-/// ```
 #[macro_export]
 macro_rules! t_format {
     ($en:expr, $pt:expr, $es:expr, $($arg:tt)*) => {{
         let fmt_string = $crate::t!($en, $pt, $es);
-        // Use format_args! com o operador ? para formar a string
-        // sem exigir um literal de string
         format!("{}", format_args!(fmt_string, $($arg)*))
     }};
 }

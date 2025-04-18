@@ -139,7 +139,7 @@ async fn main() -> Result<()> {
             // Initialize syntax validator with robust error handling
             #[cfg(feature = "syntax_validation")]
             {
-                match winx::code::get_syntax_validator() {
+                match winx_code_agent::code::get_syntax_validator() {
                     Ok(_) => {
                         info!("Syntax validator initialized successfully");
                     }
