@@ -21,7 +21,7 @@ macro_rules! localized_text {
 macro_rules! t_format {
     ($en:expr, $pt:expr, $es:expr, $($arg:tt)*) => {{
         let fmt_string = $crate::t!($en, $pt, $es);
-        format!("{}", format_args!(fmt_string, $($arg)*))
+        format!("{}", format_args!("{} {}", fmt_string, $($arg)*))
     }};
 }
 

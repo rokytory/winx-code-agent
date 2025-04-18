@@ -22,7 +22,7 @@ jobs:
           release_name: Release ${{ github.ref_name }}
           draft: false
           prerelease: false
-          
+
   build:
     name: Build Release
     needs: create-release
