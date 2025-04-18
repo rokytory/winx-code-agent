@@ -556,7 +556,7 @@ mod tests {
 
             // Test reading
             let results = read_files(&state, &[file_path.to_string_lossy().to_string()])
-                .await
+                .awaict
                 .unwrap();
             assert_eq!(results.len(), 1);
             assert_eq!(results[0].1, "Hello, world!");
