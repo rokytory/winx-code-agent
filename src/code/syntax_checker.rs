@@ -53,7 +53,7 @@ impl SyntaxValidator {
 
             // Skip actual initialization for build fix
             debug!("Tree-sitter language parsers disabled in this build");
-            
+
             // Comment out actual initialization for now
             /*
             // Try to initialize Rust parser
@@ -63,7 +63,7 @@ impl SyntaxValidator {
                 debug!("Failed to initialize Rust parser: {}", e);
                 tree_sitter_libs_available = false;
             }
-            
+
             // Only try other parsers if first one succeeded
             if tree_sitter_libs_available {
                 // Try JavaScript
