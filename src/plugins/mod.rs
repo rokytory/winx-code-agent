@@ -681,7 +681,9 @@ pub async fn execute_plugin_command(
         let manager = PLUGIN_MANAGER.lock().unwrap();
         manager.clone()
     };
-    manager_clone.execute_command(plugin_name, command, args).await
+    manager_clone
+        .execute_command(plugin_name, command, args)
+        .await
 }
 
 /// Get list of available plugins

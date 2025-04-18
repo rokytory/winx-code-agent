@@ -144,27 +144,23 @@ impl EnhancedSearchReplace {
 
         // Try batch application first
         match self.apply_batch(content, blocks) {
-            Ok((result, diagnostics)) => {
-                Ok(EnhancedEditResult {
-                    standard_result: result,
-                    diagnostics,
-                    applied_individually: false,
-                    suggestions: Vec::new(),
-                })
-            }
+            Ok((result, diagnostics)) => Ok(EnhancedEditResult {
+                standard_result: result,
+                diagnostics,
+                applied_individually: false,
+                suggestions: Vec::new(),
+            }),
             Err(batch_error) => {
                 // If batch failed and individual fallback is enabled, try individual application
                 if self.enable_individual_fallback {
                     debug!("Batch application failed, attempting individual application");
                     match self.apply_individually(content, blocks) {
-                        Ok((result, diagnostics, suggestions)) => {
-                            Ok(EnhancedEditResult {
-                                standard_result: result,
-                                diagnostics,
-                                applied_individually: true,
-                                suggestions,
-                            })
-                        }
+                        Ok((result, diagnostics, suggestions)) => Ok(EnhancedEditResult {
+                            standard_result: result,
+                            diagnostics,
+                            applied_individually: true,
+                            suggestions,
+                        }),
                         Err(individual_error) => {
                             // Both batch and individual failed
                             debug!("Both batch and individual application failed");

@@ -159,12 +159,7 @@ impl DirectoryTree {
                     .file_name()
                     .unwrap_or_default()
                     .to_string_lossy();
-                writeln!(
-                    output,
-                    "{}{}",
-                    " ".repeat(indent),
-                    name
-                )?;
+                writeln!(output, "{}{}", " ".repeat(indent), name)?;
             }
 
             // Don't recurse beyond depth 1 unless path contains expanded files/dirs

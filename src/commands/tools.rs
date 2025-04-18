@@ -492,7 +492,6 @@ impl WinxTools {
     }
 
     #[tool(description = "Process sequential thinking for problem solving")]
-
     #[allow(clippy::too_many_arguments)]
     async fn sequential_thinking(
         &self,
@@ -887,4 +886,3 @@ pub struct SequentialThinking {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub needs_more_thoughts: Option<bool>,
 }
-

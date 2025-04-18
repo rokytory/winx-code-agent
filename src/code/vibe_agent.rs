@@ -915,11 +915,7 @@ impl VibeAgent {
 
         output.push_str(&format!(
             "{}* **{}**: {} (lines {}-{})\n",
-            indent_str,
-            symbol.kind,
-            symbol.name,
-            symbol.line_range.0,
-            symbol.line_range.1
+            indent_str, symbol.kind, symbol.name, symbol.line_range.0, symbol.line_range.1
         ));
 
         if let Some(signature) = &symbol.signature {
@@ -939,11 +935,7 @@ impl VibeAgent {
 
         output.push_str(&format!(
             "{}* **{}**: {} (lines {}-{})\n",
-            indent_str,
-            symbol.kind,
-            symbol.name,
-            symbol.line_range.0,
-            symbol.line_range.1
+            indent_str, symbol.kind, symbol.name, symbol.line_range.0, symbol.line_range.1
         ));
 
         if let Some(signature) = &symbol.signature {

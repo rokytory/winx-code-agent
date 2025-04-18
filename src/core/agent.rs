@@ -308,11 +308,11 @@ impl WinxAgent {
         // Check permission and get workspace path
         let workspace_path = {
             let state = self.state.lock().unwrap();
-            
+
             if !state.is_command_allowed(command) {
                 return Err(anyhow::anyhow!("Command not allowed: {}", command));
             }
-            
+
             state.workspace_path.clone()
         };
 

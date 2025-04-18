@@ -103,7 +103,7 @@ impl LSPServer {
             let mut client_guard = self.client.lock().unwrap();
             client_guard.take()
         };
-        
+
         // Shutdown the client if it exists
         if let Some(client) = client_option {
             client.shutdown().await?;
@@ -136,7 +136,7 @@ impl LSPServer {
             let client_guard = self.client.lock().unwrap();
             client_guard.as_ref().cloned()
         };
-        
+
         // Use the client if available
         if let Some(client) = client_option {
             client.find_symbol(name, within_path, include_body).await
@@ -160,7 +160,7 @@ impl LSPServer {
             let client_guard = self.client.lock().unwrap();
             client_guard.as_ref().cloned()
         };
-        
+
         // Use the client if available
         if let Some(client) = client_option {
             client.find_references(location, include_body).await
@@ -186,7 +186,7 @@ impl LSPServer {
             let client_guard = self.client.lock().unwrap();
             client_guard.as_ref().cloned()
         };
-        
+
         // Use the client if available
         if let Some(client) = client_option {
             client.get_document_symbols(file_path, include_body).await
@@ -218,7 +218,7 @@ impl LSPServer {
             let client_guard = self.client.lock().unwrap();
             client_guard.as_ref().cloned()
         };
-        
+
         // Use the client if available
         if let Some(client) = client_option {
             client.insert_text(file_path, position, text).await?;
@@ -258,7 +258,7 @@ impl LSPServer {
             let client_guard = self.client.lock().unwrap();
             client_guard.as_ref().cloned()
         };
-        
+
         // Use the client if available
         if let Some(client) = client_option {
             client.delete_text(file_path, range).await

@@ -194,10 +194,7 @@ impl ProjectAnalysis {
         ));
 
         // Build system
-        md.push_str(&format!(
-            "## Build System\n\n{}\n\n",
-            self.build_system
-        ));
+        md.push_str(&format!("## Build System\n\n{}\n\n", self.build_system));
 
         // Primary languages
         md.push_str("## Primary Languages\n\n");
