@@ -2122,7 +2122,6 @@ checksum = "6b9590b93e6fcc1739458317cccd391ad3955e2bde8913edf6f95f9e65a8f034"
 dependencies = [
  "bytes",
  "futures-core",
- "futures-io",
  "futures-sink",
  "pin-project-lite",
  "tokio",
@@ -2708,7 +2707,6 @@ dependencies = [
  "chrono",
  "clap",
  "dirs",
- "futures",
  "glob",
  "globset",
  "lazy_static",
@@ -2723,7 +2721,6 @@ dependencies = [
  "similar",
  "tempfile",
  "tokio",
- "tokio-util",
  "tracing",
  "tracing-subscriber",
  "tree-sitter",

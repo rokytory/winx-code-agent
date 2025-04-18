@@ -35,7 +35,6 @@ uuid = { version = "1.6", features = ["v4", "serde"] }
 # Model Context Protocol dependencies
 rmcp = { git = "https://github.com/modelcontextprotocol/rust-sdk", branch = "main", features = ["client", "server", "macros", "transport-child-process", "transport-io"] }
 tokio = { version = "1.32", features = ["full"] }
-tokio-util = { version = "0.7", features = ["compat"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
@@ -55,4 +54,3 @@ tempfile = "3.19.1"
 lazy_static = "1.4.0"
 rayon = "1.10.0"
 async-trait = "0.1.88"
-futures = "0.3.31"
