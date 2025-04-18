@@ -265,7 +265,7 @@ pub async fn text_edit(state: &SharedState, json_str: &str) -> Result<String> {
 mod tests {
     use super::*;
     use crate::core::{state::create_shared_state, types::ModeType};
-    use tempfile::tempdir;
+    // Removed unused import
     use tokio::runtime::Runtime;
 
     #[test]
@@ -284,8 +284,9 @@ mod tests {
             let file_name = format!("test_{}.txt", timestamp);
             let file_path = PathBuf::from("/tmp").join(&file_name);
             
-            // Write initial content
-            fs::write(&file_path, "function hello() {\n    console.log(\"Hello\");\n}\n").unwrap();
+            // Write initial content - be very careful to match exactly what will be in the search block
+            let initial_content = "function hello() {\n    console.log(\"Hello, universe!\");\n}\n";
+            fs::write(&file_path, initial_content).unwrap();
             
             // Make sure we clean up after the test
             let file_path_clone = file_path.clone();
@@ -293,17 +294,23 @@ mod tests {
                 let _ = std::fs::remove_file(&file_path_clone);
             });
 
+            // Create search/replace content that exactly matches initial content
+            let search_replace = format!(
+                "<<<<<<< SEARCH\n{0}=======\nfunction hello() {{\n    console.log(\"Hello, World!\");\n}}\n>>>>>>> REPLACE\n", 
+                initial_content
+            );
+            
             let edit = TextEdit {
                 file_path: file_path.to_string_lossy().to_string(),
                 edit_type: TextEditType::SearchReplace,
-                content: "<<<<<<< SEARCH\nfunction hello() {\n    console.log(\"Hello\");\n}\n=======\nfunction hello() {\n    console.log(\"Hello, World!\");\n}\n>>>>>>> REPLACE\n".to_string(),
+                content: search_replace,
                 parameters: None,
             };
 
             let result = execute_text_edit(&state, &edit).await.unwrap();
             assert!(result.contains("Successfully"));
 
-            // Verify the file was updated (using trim to handle potential newline differences)
+            // Verify the file was updated
             let content = fs::read_to_string(&file_path).unwrap();
             assert_eq!(content.trim(), "function hello() {\n    console.log(\"Hello, World!\");\n}".trim());
         });

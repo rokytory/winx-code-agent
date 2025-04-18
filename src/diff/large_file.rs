@@ -41,26 +41,30 @@ pub fn process_large_file<P: AsRef<Path>>(path: P, operations: &[EditOperation])
         temp_path.display()
     ))?;
 
-    // Open the input file for reading
+    // Open the input file for reading and read all lines
     let file = fs::File::open(path).context(format!("Failed to open file: {}", path.display()))?;
     let reader = BufReader::new(file);
+    let lines: Vec<String> = reader
+        .lines()
+        .collect::<std::io::Result<Vec<String>>>()
+        .context("Failed to read lines from file")?;
 
     // Sort operations by starting line
     let mut sorted_ops = operations.to_vec();
     sorted_ops.sort_by_key(|op| {
-        // Na versão atual, só temos um tipo de operação (ReplaceLines)
         match op {
             EditOperation::ReplaceLines { start_line, .. } => *start_line,
         }
     });
 
-    // Process the file line by line
-    let mut current_line = 0;
+    // Process line by line
+    let mut line_index = 0;
     let mut next_op_index = 0;
+    let total_lines = lines.len();
 
-    for line in reader.lines() {
-        let line = line.context("Failed to read line")?;
-
+    while line_index < total_lines {
+        let current_line = line_index as u64;
+        
         // Check if we need to perform an operation at this line
         if next_op_index < sorted_ops.len() {
             match &sorted_ops[next_op_index] {
@@ -75,8 +79,8 @@ pub fn process_large_file<P: AsRef<Path>>(path: P, operations: &[EditOperation])
                             .write_all(new_content.as_bytes())
                             .context("Failed to write replacement content")?;
 
-                        // Skip lines until we reach the end of the replacement
-                        current_line = *end_line + 1;
+                        // Skip original lines that were replaced
+                        line_index = (*end_line + 1) as usize;
                         next_op_index += 1;
                         continue;
                     }
@@ -85,14 +89,16 @@ pub fn process_large_file<P: AsRef<Path>>(path: P, operations: &[EditOperation])
         }
 
         // Write the current line if not skipped by an operation
-        temp_file
-            .write_all(line.as_bytes())
-            .context("Failed to write line")?;
-        temp_file
-            .write_all(b"\n")
-            .context("Failed to write newline")?;
+        if line_index < total_lines {
+            temp_file
+                .write_all(lines[line_index].as_bytes())
+                .context("Failed to write line")?;
+            temp_file
+                .write_all(b"\n")
+                .context("Failed to write newline")?;
+        }
 
-        current_line += 1;
+        line_index += 1;
     }
 
     // Finalize any operations that weren't applied (e.g., appending to the end of the file)
@@ -103,7 +109,7 @@ pub fn process_large_file<P: AsRef<Path>>(path: P, operations: &[EditOperation])
                 new_content,
                 ..
             } => {
-                if *start_line >= current_line {
+                if *start_line >= line_index as u64 {
                     // This operation is beyond the end of the file, append it
                     temp_file
                         .write_all(new_content.as_bytes())
@@ -162,13 +168,13 @@ mod tests {
         writeln!(file, "Line 3").unwrap();
         writeln!(file, "Line 4").unwrap();
         writeln!(file, "Line 5").unwrap();
+        file.flush().unwrap();
 
-        // Create some edit operations - replace Line 2 (index 1) with two new lines
-        // And also delete Line 3 (index 2) to fix the test expectation
+        // Create operations to replace both Line 2 (index 1) and Line 3 (index 2)
         let operations = vec![
             EditOperation::ReplaceLines {
                 start_line: 1, // Line 2 (0-indexed)
-                end_line: 2,   // Line 3 (0-indexed) - Replace line 2 AND line 3
+                end_line: 2,   // Line 3 (0-indexed)
                 new_content: "New Line 2\nNew Line 3\n".to_string(),
             }
         ];
@@ -180,13 +186,12 @@ mod tests {
         // Read the processed file and verify the changes
         let content = fs::read_to_string(&path).unwrap();
         
-        // Print debug outputs to help diagnose
-        println!("ACTUAL CONTENT: '{}'", content);
-        println!("EXPECTED: 'Line 1\\nNew Line 2\\nNew Line 3\\nLine 4\\nLine 5\\n'");
+        // Expected content: Line 1, then new lines 2-3, then Line 4-5
+        let expected = "Line 1\nNew Line 2\nNew Line 3\nLine 4\nLine 5\n";
         
-        // The expected content should only have Line 4 after the new lines
-        // since we replaced Line 2 and Line 3
-        assert_eq!(content.trim().replace("\r\n", "\n"), 
-                  "Line 1\nNew Line 2\nNew Line 3\nLine 4\nLine 5".trim());
+        println!("ACTUAL CONTENT: '{}'", content);
+        println!("EXPECTED: '{}'", expected);
+        
+        assert_eq!(content, expected);
     }
 }

@@ -539,7 +539,7 @@ mod tests {
     use super::*;
     use crate::core::{state::create_shared_state, types::ModeType};
     use std::fs;
-    use tempfile::tempdir;
+    // Removed unused import
     use tokio::runtime::Runtime;
 
     #[test]
@@ -564,10 +564,10 @@ mod tests {
                 let _ = std::fs::remove_file(&file_path_clone);
             });
             
-            // Create the initial file
-            fs::write(&file_path, "Hello, world!").unwrap();
+            // Create the initial file with content that will be in the assertions
+            fs::write(&file_path, "function hello() {\n    console.log(\"Hello, universe!\");\n}\n").unwrap();
 
-            // Test reading the file first - add debug to see what's going on
+            // Test reading the file first
             {
                 let file_path_str = file_path.to_string_lossy().to_string();
                 let json = format!("{{\"file_paths\":[\"{}\"], \"show_line_numbers_reason\":null}}", file_path_str);
@@ -576,7 +576,7 @@ mod tests {
                 
                 // The path is in the result even if it fails to read, so check content too
                 assert!(result.contains(file_path_str.as_str()));
-                assert!(result.contains("Hello, world!") || result.contains("```\nHello, world!"));
+                assert!(result.contains("Hello, universe!") || result.contains("```\nHello, universe!"));
             }
 
             // Then test writing to the file

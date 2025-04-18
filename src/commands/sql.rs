@@ -55,7 +55,7 @@ mod tests {
 
         rt.block_on(async {
             let temp_dir = tempdir().unwrap();
-            let state = create_shared_state(temp_dir.path(), ModeType::Wcgw, None, None).unwrap();
+            let _state = create_shared_state(temp_dir.path(), ModeType::Wcgw, None, None).unwrap();
 
             // Create a direct SQL connection instead of using execute_sql_query_internal
             // which creates a new connection each time
@@ -69,7 +69,7 @@ mod tests {
             conn.execute("INSERT INTO test (id, name) VALUES (2, 'Bob')").unwrap();
             
             // For the SELECT, we'll use the JSON interface
-            let select_query = "{\"sql\": \"SELECT * FROM test\"}";
+            let _select_query = "{\"sql\": \"SELECT * FROM test\"}";
             
             // Create our own implementation for testing that uses the existing connection
             let results = execute_query(&conn, "SELECT * FROM test").unwrap();
