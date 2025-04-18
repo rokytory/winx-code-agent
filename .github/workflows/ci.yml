@@ -52,4 +52,4 @@ jobs:
       - name: Security audit
         uses: rustsec/audit-check@v1
         with:
-          token: ${{ secrets.GH_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}

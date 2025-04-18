@@ -20,26 +20,21 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [ 'cpp', 'rust' ]
+        language: [ 'cpp' ]  # CodeQL não suporta Rust nativamente
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v2
+        uses: github/codeql-action/init@v3  # Atualizado para v3
         with:
           languages: ${{ matrix.language }}
 
-      - name: Setup Rust
-        if: matrix.language == 'rust'
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Build Rust
-        if: matrix.language == 'rust'
-        run: cargo build
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3  # Atualizado para v3
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v2
+        uses: github/codeql-action/analyze@v3  # Atualizado para v3
         with:
           category: "/language:${{matrix.language}}"
