@@ -550,20 +550,20 @@ mod tests {
             // Use the actual /tmp directory for testing
             let base_dir = PathBuf::from("/tmp/winx_test");
             fs::create_dir_all(&base_dir).unwrap_or_default();
-            
+
             // Create the state using /tmp as workspace
             let state = create_shared_state("/tmp", ModeType::Wcgw, None, None).unwrap();
-            
+
             // Create a test file within the workspace directory
             let timestamp = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
                 .as_secs();
-            
+
             // Create file directly in /tmp for test
             let file_name = format!("test_{}.txt", timestamp);
             let file_path = PathBuf::from("/tmp").join(&file_name);
-            
+
             // Make sure we clean up after the test
             let file_path_clone = file_path.clone();
             let _cleanup = defer::defer(move || {
