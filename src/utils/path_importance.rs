@@ -228,15 +228,20 @@ impl PathImportanceAnalyzer {
 
         // Helper function to check if a path is important
         fn is_important(path: &Path) -> bool {
-            for pattern in IMPORTANT_PATTERNS {
-                if let Some(dir_name) = pattern.strip_suffix('/') {
-                    // Check directory pattern
-                    if path.to_string_lossy().contains(&format!("/{}/", dir_name)) {
-                        return true;
-                    }
-                } else if let Some(file_name) = path.file_name() {
-                    // Check exact file name
-                    if file_name.to_string_lossy() == *pattern {
+            // Check the file name against important patterns
+            if let Some(file_name) = path.file_name() {
+                let file_name_str = file_name.to_string_lossy();
+
+                // First check exact file name matches
+                for pattern in IMPORTANT_PATTERNS {
+                    if pattern.ends_with('/') {
+                        // This is a directory pattern
+                        let dir_name = pattern.trim_end_matches('/');
+                        if path.to_string_lossy().contains(&format!("/{}/", dir_name)) {
+                            return true;
+                        }
+                    } else if file_name_str == *pattern {
+                        // Direct file name match
                         return true;
                     }
                 }
