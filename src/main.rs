@@ -4,7 +4,7 @@ use std::env;
 use std::path::PathBuf;
 use tracing::{error, info};
 
-use winx::{
+use winx_code_agent::{
     commands::tools::WinxTools,
     core::{state, types::ModeType},
 };
@@ -68,7 +68,7 @@ async fn main() -> Result<()> {
                 println!("  --version     Show version information and exit");
                 std::process::exit(0);
             } else if args[1] == "--version" {
-                println!("Winx version {}", winx::version());
+                println!("Winx version {}", winx_code_agent::version());
                 std::process::exit(0);
             } else {
                 // Unrecognized flag
@@ -86,12 +86,12 @@ async fn main() -> Result<()> {
 
     // Initialize with ANSI colors explicitly disabled for MCP compatibility
     // and provide workspace path for terminal and memory components
-    winx::init_with_logger(false)?;
-    winx::init_with_workspace(&workspace_path.to_string_lossy())
+    winx_code_agent::init_with_logger(false)?;
+    winx_code_agent::init_with_workspace(&workspace_path.to_string_lossy())
         .context("Failed to initialize Winx agent")?;
 
     // Initialize plugins in the existing async context
-    winx::init_plugins_async(&workspace_path.to_string_lossy())
+    winx_code_agent::init_plugins_async(&workspace_path.to_string_lossy())
         .await
         .context("Failed to initialize plugins")?;
 
@@ -100,14 +100,14 @@ async fn main() -> Result<()> {
         .context("Failed to create state for file tracking")?;
 
     // Auto-initialize important project files
-    winx::init_file_tracking(&state, &[])
+    winx_code_agent::init_file_tracking(&state, &[])
         .await
         .context("Failed to initialize file tracking")?;
 
     // Log version and environment information
     info!(
         "Starting Winx v{} on {}",
-        winx::version(),
+        winx_code_agent::version(),
         std::env::consts::OS
     );
 
@@ -115,8 +115,8 @@ async fn main() -> Result<()> {
 
     // Test ANSI stripping and JSON sanitization
     let test_string = "\u{001B}[2m2025-04-17T08:08:46.729Z [winx] [info] Server started and connected successfully\u{001B}[0m";
-    let sanitized = winx::strip_ansi_codes(test_string);
-    let json_safe = winx::sanitize_json_text(&sanitized);
+    let sanitized = winx_code_agent::strip_ansi_codes(test_string);
+    let json_safe = winx_code_agent::sanitize_json_text(&sanitized);
     info!(
         "ANSI stripping test - Original contains escape codes: {}",
         test_string.contains('\u{001B}')
@@ -163,8 +163,8 @@ async fn main() -> Result<()> {
         }
     };
 
-    // Registrar ferramentas e marcar como inicializado
-    winx::commands::tools::register_tools(state.clone()).context("Failed to register tools")?;
+    winx_code_agent::commands::tools::register_tools(state.clone())
+        .context("Failed to register tools")?;
     info!("Tools registered and initialized successfully");
 
     // Create WinxTools instance
