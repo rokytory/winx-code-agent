@@ -228,24 +228,40 @@ impl PathImportanceAnalyzer {
 
         // Helper function to check if a path is important
         fn is_important(path: &Path) -> bool {
-            // Check the file name against important patterns
+            // First, check if the path directly matches any important file pattern
             if let Some(file_name) = path.file_name() {
                 let file_name_str = file_name.to_string_lossy();
 
-                // First check exact file name matches
+                // Direct filename comparison for non-directory patterns
                 for pattern in IMPORTANT_PATTERNS {
-                    if pattern.ends_with('/') {
-                        // This is a directory pattern
-                        let dir_name = pattern.trim_end_matches('/');
-                        if path.to_string_lossy().contains(&format!("/{}/", dir_name)) {
-                            return true;
-                        }
-                    } else if file_name_str == *pattern {
-                        // Direct file name match
+                    if !pattern.ends_with('/') && file_name_str == *pattern {
+                        debug!("Found important file by name: {}", path.display());
                         return true;
                     }
                 }
             }
+
+            // Then check for directory patterns - this needs to be platform-agnostic
+            let path_str = path.to_string_lossy();
+            for pattern in IMPORTANT_PATTERNS {
+                if let Some(dir_name) = pattern.strip_suffix('/') {
+                    // We need to handle path separators in a cross-platform way
+                    let path_with_separators = path_str.replace('\\', "/"); // Normalize Windows paths
+
+                    // Check if the path contains this directory pattern
+                    if path_with_separators.contains(&format!("/{}/", dir_name))
+                        || path_with_separators.ends_with(&format!("/{}", dir_name))
+                    {
+                        debug!(
+                            "Found important directory pattern: {} in {}",
+                            pattern,
+                            path.display()
+                        );
+                        return true;
+                    }
+                }
+            }
+
             false
         }
 
@@ -395,6 +411,20 @@ mod tests {
         analyzer.initialize().unwrap();
 
         let important_paths = analyzer.get_important_paths(10);
+
+        // Print debug information if test might fail
+        if !important_paths.contains(&temp_path.join("README.md")) {
+            println!("DEBUG: README.md not found in important paths");
+            println!("DEBUG: temp_path = {}", temp_path.display());
+            println!(
+                "DEBUG: Looking for: {}",
+                temp_path.join("README.md").display()
+            );
+            println!("DEBUG: Found paths:");
+            for path in &important_paths {
+                println!("  - {}", path.display());
+            }
+        }
 
         // Check that README.md, Cargo.toml, src/main.rs, and src/lib.rs are all included
         assert!(important_paths.contains(&temp_path.join("README.md")));
