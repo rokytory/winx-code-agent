@@ -140,8 +140,16 @@ impl SyntaxValidator {
     }
 
     /// Validate syntax for a given language extension and content
-    pub fn validate(&mut self, _extension: &str, _content: &str) -> SyntaxValidationResult {
+    pub fn validate(&mut self, extension: &str, content: &str) -> SyntaxValidationResult {
         // If syntax validation is disabled, always return valid
+        warn!(
+            extension = extension,
+            "Validating syntax for extension: {}", extension
+        );
+        warn!(
+            content = content,
+            "Validating syntax for content: {}", content
+        );
         if !SYNTAX_VALIDATION_ENABLED {
             return SyntaxValidationResult {
                 is_valid: true,
@@ -281,16 +289,15 @@ pub fn get_syntax_validator() -> Result<Arc<std::sync::Mutex<SyntaxValidator>>> 
     }
 
     // Try to initialize a syntax validator
-    let validator_arc = Arc::new(std::sync::Mutex::new(match SyntaxValidator::new() {
-        Ok(validator) => validator,
-        Err(e) => {
+    let validator_arc = Arc::new(std::sync::Mutex::new(
+        SyntaxValidator::new().unwrap_or_else(|e| {
             debug!(
                 "Failed to initialize syntax validator: {}. Using dummy validator.",
                 e
             );
             SyntaxValidator::create_dummy()
-        }
-    }));
+        }),
+    ));
 
     Ok(validator_arc)
 }
