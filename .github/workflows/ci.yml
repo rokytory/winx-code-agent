@@ -17,7 +17,33 @@ jobs:
     strategy:
       matrix:
         os: [ ubuntu-latest, macos-latest ]
-    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.86.0
+          components: rustfmt, clippy
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check
+        run: cargo check --all-features
+
+      - name: Format
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --all-features -- -D warnings
+
+      - name: Build
+        run: cargo build --all-features
+
+      - name: Test
+        run: cargo test --all-features
+  
   build-tag:
     name: Build Tag Release
     # Only run this job when a tag is pushed
@@ -65,30 +91,3 @@ jobs:
           name: ${{ matrix.asset_name }}
           path: ${{ matrix.artifact_name }}
           retention-days: 5
-    
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: 1.86.0
-          components: rustfmt, clippy
-
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
-
-      - name: Check
-        run: cargo check --all-features
-
-      - name: Format
-        run: cargo fmt --all -- --check
-
-      - name: Clippy
-        run: cargo clippy --all-features -- -D warnings
-
-      - name: Build
-        run: cargo build --all-features
-
-      - name: Test
-        run: cargo test --all-features

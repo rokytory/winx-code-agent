@@ -6,8 +6,26 @@ on:
       - 'v*'
 
 jobs:
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+    steps:
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          
   build:
     name: Build Release
+    needs: create-release
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -46,9 +64,12 @@ jobs:
             cp target/release/winx_openai ${{ matrix.artifact_name }}
           fi
 
-      - name: Upload binaries to release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: ${{ matrix.artifact_name }}
+      - name: Upload release asset
+        uses: actions/upload-release-asset@v1
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./${{ matrix.artifact_name }}
+          asset_name: ${{ matrix.asset_name }}
+          asset_content_type: application/octet-stream
