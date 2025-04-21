@@ -108,7 +108,7 @@ impl BashCommand {
         })?;
 
         if runner.is_none() {
-            // Obter o diretório de trabalho do inicializador
+            // Get the workspace path from initializer
             let workspace_path = match crate::tools::initialize::Initialize::get_workspace_path() {
                 Ok(path) => {
                     if path.exists() {
@@ -136,7 +136,7 @@ impl BashCommand {
             let mut cmd_runner = CommandRunner::new(&workspace_path);
             if let Err(e) = cmd_runner.start_shell() {
                 log::error!("Failed to start shell in '{}': {}", workspace_path, e);
-                // Tente novamente com o diretório home como fallback
+                // Try again with home directory as fallback
                 let home_dir = dirs::home_dir()
                     .unwrap_or_else(|| std::path::PathBuf::from("."))
                     .to_string_lossy()
@@ -228,12 +228,27 @@ impl BashCommand {
         // Check if initialization has been done
         crate::ensure_initialized!("You must call 'initialize' before executing bash commands.");
 
+        // Log para fins de diagnóstico
+        log::info!("BashCommand: Executing command with params: {:?}", params);
+
         // Check permission
-        Initialize::check_permission(Action::ExecuteCommand, None).map_err(|e| e.to_mcp_error())?;
+        Initialize::check_permission(Action::ExecuteCommand, None).map_err(|e| {
+            log::error!("Permission check failed: {:?}", e);
+            e.to_mcp_error()
+        })?;
 
-        self.ensure_initialized().map_err(|e| e.to_mcp_error())?;
+        self.ensure_initialized().map_err(|e| {
+            log::error!("Shell initialization failed: {:?}", e);
+            e.to_mcp_error()
+        })?;
 
-        let runner = self.get_runner().map_err(|e| e.to_mcp_error())?;
+        let runner = match self.get_runner() {
+            Ok(r) => r,
+            Err(e) => {
+                log::error!("Failed to get command runner: {:?}", e);
+                return Err(e.to_mcp_error());
+            }
+        };
 
         let timeout = params.wait_for_seconds.unwrap_or(5.0);
 
@@ -352,27 +367,49 @@ impl BashCommand {
                         stderr
                     );
 
-                    // Verifica se a saída está vazia e adiciona uma nota
+                    // Check if output is empty and add a note
                     if stdout.trim().is_empty() && stderr.trim().is_empty() {
-                        // Execute um pwd para verificar o diretório atual
+                        // Log detalhado do comando executado e seu resultado
+                        log::info!(
+                            "Command '{}' produced no output - checking PWD",
+                            cmd.command
+                        );
+
+                        // Execute pwd to verify current directory
                         runner.execute("pwd").await.map_err(|e| e.to_mcp_error())?;
                         tokio::time::sleep(Duration::from_secs_f64(1.0)).await;
                         let (pwd_out, _) = runner.get_output();
 
-                        // Se o comando inclui ls, vamos executá-lo diretamente usando Command para diagnóstico
-                        if cmd.command.contains("ls") {
+                        log::info!("Current directory: {}", pwd_out.trim());
+
+                        // Additional attempt to execute common commands directly
+                        if cmd.command.contains("ls")
+                            || cmd.command.contains("find")
+                            || cmd.command.contains("cat")
+                        {
                             // Tente executar o comando diretamente para verificação
-                            log::info!("Attempting direct command execution for: {}", cmd.command);
+                            log::info!("Attempting direct execution for: {}", cmd.command);
                             let parts: Vec<&str> = cmd.command.split_whitespace().collect();
-                            if parts.len() >= 2 && parts[0] == "ls" {
-                                let output =
-                                    std::process::Command::new("ls").args(&parts[1..]).output();
+                            if !parts.is_empty() {
+                                let cmd_name = parts[0];
+                                let args = &parts[1..];
+
+                                let output = std::process::Command::new(cmd_name)
+                                    .args(args)
+                                    .current_dir(pwd_out.trim())
+                                    .output();
 
                                 match output {
                                     Ok(output) => {
-                                        let ls_output = String::from_utf8_lossy(&output.stdout);
-                                        if !ls_output.is_empty() {
-                                            format!("{}\n\n{}", ls_output, status_info)
+                                        let cmd_output = String::from_utf8_lossy(&output.stdout);
+                                        let cmd_error = String::from_utf8_lossy(&output.stderr);
+                                        log::info!("Direct command stdout: {}", cmd_output);
+                                        log::info!("Direct command stderr: {}", cmd_error);
+
+                                        if !cmd_output.is_empty() {
+                                            format!("{}\n\n{}", cmd_output, status_info)
+                                        } else if !cmd_error.is_empty() {
+                                            format!("{}\n\n{}", cmd_error, status_info)
                                         } else {
                                             format!("Command executed successfully but produced no output. Current directory: {}\n\n{}", 
                                                 pwd_out.trim(), status_info)
@@ -380,8 +417,8 @@ impl BashCommand {
                                     }
                                     Err(e) => {
                                         log::warn!("Direct command execution failed: {}", e);
-                                        format!("Command executed successfully but produced no output. Current directory: {}\n\n{}", 
-                                            pwd_out.trim(), status_info)
+                                        format!("Command execution attempt: {}. Current directory: {}\n\n{}", 
+                                            e, pwd_out.trim(), status_info)
                                     }
                                 }
                             } else {
@@ -389,7 +426,7 @@ impl BashCommand {
                                     pwd_out.trim(), status_info)
                             }
                         } else if cmd.command.contains("echo") {
-                            // Se é um comando echo, vamos mostrar o que está sendo ecoado
+                            // If it's an echo command, show what's being echoed
                             let echo_text = cmd.command.trim_start_matches("echo").trim();
                             format!(
                                 "{}\n\n{}",

@@ -233,9 +233,9 @@ impl WriteIfEmpty {
         }
     }
 
-    // Verifica se deve redirecionar para um caminho temporário
+    // Check if it should redirect to a temporary path
     fn check_and_redirect(&self, path: &Path) -> Option<PathBuf> {
-        // Se o caminho está na raiz mas não está em /tmp ou no home do usuário
+        // If the path is at the root but not in /tmp or in the user's home
         if path.starts_with("/")
             && !path.starts_with("/tmp")
             && !path.starts_with("/Users")
@@ -455,14 +455,14 @@ impl FileOperations {
 
             let range_path = PathBuf::from(effective_path);
 
-            // Usar uma operação de leitura que evita o cache para garantir dados mais frescos
+            // Use a read operation that avoids cache to ensure more fresh data
             match fs::read(&range_path) {
                 Ok(bytes) => {
                     // Converter bytes para string
                     let content = match String::from_utf8(bytes.clone()) {
                         Ok(text) => text,
                         Err(_) => {
-                            // Se não for UTF-8 válido, use uma representação mais segura
+                            // If not valid UTF-8, use a safer representation
                             String::from_utf8_lossy(&bytes).to_string()
                         }
                     };
@@ -995,7 +995,7 @@ impl WriteIfEmpty {
                     if e.kind() == std::io::ErrorKind::PermissionDenied
                         || e.kind() == std::io::ErrorKind::Other
                     {
-                        // Tente criar em /tmp como última opção
+                        // Try to create in /tmp as a last option
                         let tmp_path =
                             PathBuf::from("/tmp").join(path.file_name().unwrap_or_default());
                         let tmp_parent = tmp_path.parent().unwrap_or(&tmp_path);
@@ -1005,7 +1005,7 @@ impl WriteIfEmpty {
                             return Err(McpError::new(
                                 ErrorCode::INVALID_PARAMS,
                                 format!(
-                                    "Não foi possível criar diretório nem mesmo em /tmp: {}. Por favor, especifique um caminho onde você tenha permissões de escrita.",
+                                    "Could not create directory even in /tmp: {}. Please specify a path where you have write permissions.",
                                     tmp_err
                                 ),
                                 Some(json!({"error": tmp_err.to_string()})),
@@ -1181,7 +1181,7 @@ impl WriteIfEmpty {
         // Construir mensagem de resultado
         let mut result = String::new();
 
-        // Adicionar aviso se necessário
+        // Add warning if necessary
         if let Some(warn_msg) = warning {
             result.push_str(&format!("{}\n\n", warn_msg));
         }

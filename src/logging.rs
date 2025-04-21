@@ -8,10 +8,10 @@ pub fn init_logging() {
         return;
     }
 
-    // Definir a variável de ambiente para evitar inicialização dupla
+    // Set environment variable to avoid double initialization
     std::env::set_var("WINX_LOGGER_INITIALIZED", "true");
 
-    // Create a custom environment that defaults to debug level if RUST_LOG não estiver definido
+    // Create a custom environment that defaults to debug level if RUST_LOG is not defined
     let env = Env::default().filter_or("RUST_LOG", "debug");
 
     // Create and configure a custom builder
@@ -48,12 +48,12 @@ pub fn init_logging() {
 
     // Initialize the logger
     if let Err(e) = builder.try_init() {
-        // Se falhar, provavelmente o logger já está inicializado
+        // If it fails, the logger is probably already initialized
         eprintln!("Warning: Logger initialization failed: {}", e);
         return;
     }
 
-    // Criar arquivo de log no diretório home do usuário para debug
+    // Create log file in user's home directory for debug
     let home_dir = dirs::home_dir()
         .unwrap_or_else(|| std::path::PathBuf::from("."))
         .join("Library/Logs/Claude/winx-debug.log");
@@ -64,6 +64,25 @@ pub fn init_logging() {
         log::max_level()
     );
     log::debug!("Debug log file location: {}", home_dir.to_string_lossy());
+
+    // Log environment information
+    if let Ok(workspace) = std::env::var("WINX_WORKSPACE") {
+        log::info!(
+            "WINX_WORKSPACE environment variable is set to: {}",
+            workspace
+        );
+    } else {
+        log::info!("WINX_WORKSPACE environment variable is not set");
+    }
+
+    // Log Claude configuration file location
+    let claude_config = dirs::home_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join("Library/Application Support/Claude/claude_desktop_config.json");
+    log::info!(
+        "Claude configuration file: {}",
+        claude_config.to_string_lossy()
+    );
 }
 
 /// Log an error with context and source code location

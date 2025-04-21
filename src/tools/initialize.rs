@@ -306,10 +306,13 @@ impl Initialize {
 
     // Implementation with custom error handling
     async fn initialize_impl(&self, params: InitializeParams) -> WinxResult<CallToolResult> {
-        // Se any_workspace_path estiver vazio, tente usar a variável de ambiente WINX_WORKSPACE
+        // If any_workspace_path is empty, try to use the WINX_WORKSPACE environment variable
         let workspace_path = if params.any_workspace_path.trim().is_empty() {
             if let Ok(env_workspace) = std::env::var("WINX_WORKSPACE") {
-                log::info!("Using WINX_WORKSPACE environment variable: {}", env_workspace);
+                log::info!(
+                    "Using WINX_WORKSPACE environment variable: {}",
+                    env_workspace
+                );
                 PathBuf::from(env_workspace)
             } else {
                 PathBuf::from(&params.any_workspace_path)
@@ -373,7 +376,7 @@ impl Initialize {
                                 );
 
                                 // Obter novamente o estado bash para atualizar
-                                // Isso evita o erro de variável não encontrada
+                                // This avoids the variable not found error
                                 let bash_state_tmp = self.get_bash_state(&params.mode_name)?;
                                 let mut state_tmp = bash_state_tmp.lock().map_err(|e2| {
                                     WinxError::lock_error(format!(
@@ -400,7 +403,7 @@ impl Initialize {
                                     e2.kind()
                                 );
 
-                                // Tente um segundo local temporário se o primeiro falhar
+                                // Try a second temporary location if the first one fails
                                 let user_tmp = std::env::var("TMPDIR")
                                     .ok()
                                     .map(PathBuf::from)
@@ -446,7 +449,7 @@ impl Initialize {
                     // Use the fallback directory for the rest of the function
                     if fallback_dir.exists() {
                         // Obter novamente o estado bash para atualizar
-                        // Isso evita o erro de variável não encontrada
+                        // This avoids the variable not found error
                         let bash_state_fb = self.get_bash_state(&params.mode_name)?;
                         let mut state_fb = bash_state_fb.lock().map_err(|e2| {
                             WinxError::lock_error(format!(
@@ -488,7 +491,7 @@ impl Initialize {
             state.set_workspace_root(workspace_path.clone());
             self.update_workspace_path(workspace_path.clone())?;
         } else {
-            // Tente usar o diretório atual como fallback
+            // Try to use the current directory as fallback
             match std::env::current_dir() {
                 Ok(current_dir) => {
                     state.update_cwd(current_dir.clone());

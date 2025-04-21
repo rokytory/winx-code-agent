@@ -1,8 +1,7 @@
 pub mod bash;
+
 pub mod error;
 pub mod file;
-// Comentando temporariamente o módulo LSP que está causando erros
-// pub mod lsp;
 pub mod reinforcement;
 pub mod server;
 pub mod tools;
@@ -26,16 +25,16 @@ macro_rules! log_error {
 #[macro_export]
 macro_rules! ensure_initialized {
     () => {
-        if !crate::tools::initialize::Initialize::was_initialized() {
-            return Err(crate::error::WinxError::initialization_required(
+        if !$crate::tools::initialize::Initialize::was_initialized() {
+            return Err($crate::error::WinxError::initialization_required(
                 "You must call 'initialize' before using this tool.",
             )
             .to_mcp_error());
         }
     };
     ($message:expr) => {
-        if !crate::tools::initialize::Initialize::was_initialized() {
-            return Err(crate::error::WinxError::initialization_required($message).to_mcp_error());
+        if !$crate::tools::initialize::Initialize::was_initialized() {
+            return Err($crate::error::WinxError::initialization_required($message).to_mcp_error());
         }
     };
 }

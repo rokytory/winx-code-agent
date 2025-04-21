@@ -149,7 +149,7 @@ impl CommandRunner {
             cmd.current_dir(&cwd)
                 .env("PS1", PROMPT_CONST)
                 .env("TERM", "dumb") // Simpler terminal that doesn't require advanced features
-                .arg("-c")           // Non-interactive mode
+                .arg("-c") // Non-interactive mode
                 .arg("echo 'Shell initialized in non-interactive mode'") // Initial test command
                 .stdin(Stdio::piped())
                 .stdout(Stdio::piped())
@@ -298,9 +298,22 @@ impl CommandRunner {
 
     /// Execute a command
     pub async fn execute(&self, command: &str) -> WinxResult<()> {
+        // Log the command for diagnostic purposes
+        log::info!("Executing bash command: {}", command);
+
+        // Always try direct execution first for better reliability
+        let direct_result = self.execute_direct_command(command);
+
+        if direct_result.is_ok() {
+            log::debug!("Direct command execution successful");
+            return direct_result;
+        }
+
+        log::debug!("Direct command execution failed, falling back to shell execution");
+
         if self.tx_input.is_none() {
-            // Try direct execution to work around terminal problems
-            return self.execute_direct_command(command);
+            log::error!("Shell not initialized - cannot execute command");
+            return Err(WinxError::ShellNotStarted);
         }
 
         // Check if it's a directory change command
@@ -343,15 +356,7 @@ impl CommandRunner {
             return Ok(());
         }
 
-        // Try to execute directly to avoid terminal issues
-        if command.starts_with("ls ") || command.starts_with("find ") || command.starts_with("cat ") {
-            return self.execute_direct_command(command);
-        }
-
         // For non-background commands or if screen is not available
-        // Log the command that will be executed for diagnostics
-        log::debug!("Executing bash command: {}", command);
-
         // Clear previous output
         {
             let mut stdout = self.stdout_buffer.lock().unwrap();
@@ -408,12 +413,10 @@ impl CommandRunner {
                 }
                 Err(e) => {
                     log::warn!("Failed to canonicalize path {}: {}", new_path.display(), e);
-                    
+
                     // Try to execute pwd directly
-                    let output = Command::new("pwd")
-                        .current_dir(&new_path)
-                        .output();
-                    
+                    let output = Command::new("pwd").current_dir(&new_path).output();
+
                     if let Ok(output) = output {
                         let pwd_output = String::from_utf8_lossy(&output.stdout).trim().to_string();
                         if !pwd_output.is_empty() {
@@ -435,58 +438,226 @@ impl CommandRunner {
 
         Ok(())
     }
-    
+
     /// Executes a command directly using std::process::Command instead of interactive shell
     /// This works around the "Must be connected to a terminal" problem
     fn execute_direct_command(&self, command: &str) -> WinxResult<()> {
         log::info!("Attempting direct command execution for: {}", command);
-        
+
+        // Verifica se o comando é composto (contém && ou ||)
+        if command.contains("&&") || command.contains("||") || command.contains(";") {
+            // Vamos executar em um shell para usar operadores compostos
+            log::info!("Detected compound command, using shell execution");
+
+            // Get current working directory
+            let cwd = self.cwd.lock().unwrap().clone();
+
+            // Executa o comando em um shell
+            let output = std::process::Command::new("bash")
+                .arg("-c")
+                .arg(command)
+                .current_dir(&cwd)
+                .env(
+                    "PATH",
+                    std::env::var("PATH").unwrap_or_else(|_| {
+                        "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin".to_string()
+                    }),
+                )
+                .env(
+                    "HOME",
+                    dirs::home_dir()
+                        .unwrap_or_else(|| std::path::PathBuf::from("/tmp"))
+                        .to_string_lossy()
+                        .to_string(),
+                )
+                .output()
+                .map_err(|e| {
+                    WinxError::bash_error(format!("Failed to execute compound command: {}", e))
+                })?;
+
+            // Processa saída
+            let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+
+            // Update buffers
+            {
+                let mut stdout_buf = self.stdout_buffer.lock().unwrap();
+                *stdout_buf = stdout;
+            }
+
+            {
+                let mut stderr_buf = self.stderr_buffer.lock().unwrap();
+                *stderr_buf = stderr;
+            }
+
+            // Update status
+            {
+                let mut status = self.status.lock().unwrap();
+                *status = ProcessStatus::Exited(output.status.code().unwrap_or(0));
+            }
+
+            // Store the command
+            {
+                let mut last_cmd = self.last_command.lock().unwrap();
+                *last_cmd = command.to_string();
+            }
+
+            // Se for um comando cd, precisamos atualizar o diretório após execução
+            if command.contains("cd ") {
+                // Executar pwd para descobrir o diretório atual
+                let pwd_output = std::process::Command::new("bash")
+                    .arg("-c")
+                    .arg("pwd")
+                    .current_dir(&cwd)
+                    .output();
+
+                if let Ok(pwd_output) = pwd_output {
+                    let new_dir = String::from_utf8_lossy(&pwd_output.stdout)
+                        .trim()
+                        .to_string();
+                    if !new_dir.is_empty() {
+                        self.update_cwd(new_dir);
+                        log::info!("Updated working directory to: {}", self.get_cwd());
+
+                        // Atualiza a saída para mostrar a mudança de diretório
+                        let mut stdout_buf = self.stdout_buffer.lock().unwrap();
+                        *stdout_buf =
+                            format!("Changed directory to: {}\n{}", self.get_cwd(), stdout_buf);
+                    }
+                }
+            }
+
+            return Ok(());
+        }
+
+        // Special handling for cd commands - update internal state only
+        if command.trim().starts_with("cd ") {
+            let dir = command.trim()[3..].trim();
+            let cwd = self.get_cwd();
+            let new_path = if dir.starts_with("/") {
+                std::path::PathBuf::from(dir)
+            } else {
+                std::path::PathBuf::from(&cwd).join(dir)
+            };
+
+            // Update the internal working directory
+            match std::fs::canonicalize(&new_path) {
+                Ok(canonical_path) => {
+                    self.update_cwd(canonical_path.to_string_lossy().to_string());
+
+                    // Update buffers with success message
+                    {
+                        let mut stdout_buf = self.stdout_buffer.lock().unwrap();
+                        *stdout_buf = format!("Changed directory to: {}\n", self.get_cwd());
+                    }
+
+                    {
+                        let mut stderr_buf = self.stderr_buffer.lock().unwrap();
+                        *stderr_buf = String::new();
+                    }
+
+                    // Update status
+                    {
+                        let mut status = self.status.lock().unwrap();
+                        *status = ProcessStatus::Exited(0);
+                    }
+
+                    // Store the command
+                    {
+                        let mut last_cmd = self.last_command.lock().unwrap();
+                        *last_cmd = command.to_string();
+                    }
+
+                    return Ok(());
+                }
+                Err(e) => {
+                    // Failed to change directory
+                    {
+                        let mut stderr_buf = self.stderr_buffer.lock().unwrap();
+                        *stderr_buf = format!("cd: {}: {}\n", dir, e);
+                    }
+
+                    // Update status
+                    {
+                        let mut status = self.status.lock().unwrap();
+                        *status = ProcessStatus::Exited(1);
+                    }
+
+                    return Err(WinxError::bash_error(format!(
+                        "Failed to change directory: {}",
+                        e
+                    )));
+                }
+            }
+        }
+
+        // For regular commands, use process execution
         // Extract command and arguments
         let parts: Vec<&str> = command.split_whitespace().collect();
         if parts.is_empty() {
             return Err(WinxError::bash_error("Empty command"));
         }
-        
+
         let cmd_name = parts[0];
         let args = &parts[1..];
-        
+
         // Get current working directory
         let cwd = self.cwd.lock().unwrap().clone();
-        
-        // Execute command
-        let output = std::process::Command::new(cmd_name)
-            .args(args)
-            .current_dir(cwd)
+
+        // Execute command with explicit environment variables
+        let mut cmd = std::process::Command::new(cmd_name);
+        cmd.args(args)
+            .current_dir(&cwd)
+            .env(
+                "PATH",
+                std::env::var("PATH")
+                    .unwrap_or_else(|_| "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin".to_string()),
+            )
+            .env(
+                "HOME",
+                dirs::home_dir()
+                    .unwrap_or_else(|| std::path::PathBuf::from("/tmp"))
+                    .to_string_lossy()
+                    .to_string(),
+            );
+
+        // Execute and capture output
+        let output = cmd
             .output()
             .map_err(|e| WinxError::bash_error(format!("Failed to execute command: {}", e)))?;
-        
+
         // Process output
         let stdout = String::from_utf8_lossy(&output.stdout).to_string();
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-        
+
+        log::debug!("Direct command stdout: {}", stdout);
+        if !stderr.is_empty() {
+            log::debug!("Direct command stderr: {}", stderr);
+        }
+
         // Update buffers
         {
             let mut stdout_buf = self.stdout_buffer.lock().unwrap();
             *stdout_buf = stdout;
         }
-        
+
         {
             let mut stderr_buf = self.stderr_buffer.lock().unwrap();
             *stderr_buf = stderr;
         }
-        
+
         // Update status
         {
             let mut status = self.status.lock().unwrap();
             *status = ProcessStatus::Exited(output.status.code().unwrap_or(0));
         }
-        
+
         // Store the command
         {
             let mut last_cmd = self.last_command.lock().unwrap();
             *last_cmd = command.to_string();
         }
-        
+
         Ok(())
     }
 
