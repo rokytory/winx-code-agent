@@ -364,7 +364,7 @@ impl Default for FileOperations {
 
 #[derive(Debug, Deserialize, Serialize, schemars::JsonSchema)]
 pub struct ReadFilesParams {
-    #[schemars(description = "Paths of files to read")]
+    #[schemars(description = "Paths of files to read", required = ["file_paths"])]
     pub file_paths: Vec<String>,
 
     #[schemars(description = "Reason for showing line numbers")]
@@ -433,6 +433,18 @@ impl FileOperations {
         // Convert WinxError to McpError for permissions
         if let Err(e) = Initialize::check_permission(Action::ReadFile, None) {
             return Err(e.to_mcp_error());
+        }
+
+        // Validate that file_paths is not empty
+        if params.file_paths.is_empty() {
+            return Err(McpError::new(
+                ErrorCode::INVALID_PARAMS,
+                "The 'file_paths' parameter is required and cannot be empty".to_string(),
+                Some(json!({
+                    "error": "missing_file_paths",
+                    "message": "You must provide at least one file path to read"
+                })),
+            ));
         }
 
         let mut result = String::new();
@@ -558,6 +570,18 @@ impl FileOperations {
         &self,
         #[tool(aggr)] params: FileWriteOrEditParams,
     ) -> Result<CallToolResult, McpError> {
+        // Validate file_path is not empty
+        if params.file_path.trim().is_empty() {
+            return Err(McpError::new(
+                ErrorCode::INVALID_PARAMS,
+                "The 'file_path' parameter is required and cannot be empty".to_string(),
+                Some(json!({
+                    "error": "missing_file_path",
+                    "message": "You must provide a file path to write or edit"
+                })),
+            ));
+        }
+
         let path = PathBuf::from(&params.file_path);
 
         // Create parent directories if they don't exist

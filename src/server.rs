@@ -251,6 +251,7 @@ impl CodeAgent {
         &self,
         #[tool(aggr)] params: crate::tools::file_operations::ReadFilesParams,
     ) -> Result<CallToolResult, McpError> {
+        log::debug!("read_files called with params: {:?}", params);
         self.file_ops.read_files(params).await
     }
 
@@ -340,7 +341,7 @@ impl ServerHandler for CodeAgent {
             capabilities: ServerCapabilities::builder().enable_tools().build(),
             server_info: Implementation::from_build_env(),
             instructions: Some(
-                "A code agent that provides shell and coding tools for AI assistants, enabling safe execution of commands and file operations".to_string(),
+                "A code agent that provides shell and coding tools for AI assistants, enabling safe execution of commands and file operations. Note: All tools require proper parameter structures as defined in their documentation.".to_string(),
             ),
         }
     }

@@ -4,6 +4,7 @@ use rmcp::Error as McpError;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -13,6 +14,16 @@ pub struct PluginConfig {
     pub name: String,
     pub path: String,
     pub runtime_config: Option<RuntimeConfig>,
+    #[serde(default)]
+    pub oci_reference: Option<String>,
+    #[serde(default)]
+    pub language: Option<String>,
+    #[serde(default)]
+    pub version: Option<String>,
+    #[serde(default)]
+    pub checksum: Option<String>,
+    #[serde(default)]
+    pub enabled: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
@@ -31,6 +42,12 @@ pub struct PluginManager {
     plugins: Arc<RwLock<HashMap<String, PluginMetadata>>>,
     // Maps tool names to their plugin names
     tool_plugin_map: Arc<RwLock<HashMap<String, String>>>,
+    // Cache directory for plugin downloads
+    #[allow(dead_code)]
+    cache_dir: PathBuf,
+    // Whether to verify plugin signatures
+    #[allow(dead_code)]
+    verify_signatures: bool,
 }
 
 #[derive(Clone)]
@@ -42,9 +59,16 @@ struct PluginMetadata {
 
 impl PluginManager {
     pub fn new() -> Self {
+        // Use system cache directory or fallback to local .cache
+        let cache_dir = dirs::cache_dir()
+            .map(|d| d.join("winx-code-agent").join("plugins"))
+            .unwrap_or_else(|| PathBuf::from(".cache/plugins"));
+
         Self {
             plugins: Arc::new(RwLock::new(HashMap::new())),
             tool_plugin_map: Arc::new(RwLock::new(HashMap::new())),
+            cache_dir,
+            verify_signatures: true,
         }
     }
 
