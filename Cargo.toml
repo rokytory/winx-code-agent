@@ -2,57 +2,53 @@
 name = "winx-code-agent"
 version = "0.1.0"
 edition = "2021"
-authors = ["Gabriel Maia"]
-description = "A performant code agent written in Rust"
-license = "MIT"
-
-# Feature flags
-[features]
-default = ["syntax_validation"]
-syntax_validation = [] # Habilita validação de sintaxe usando tree-sitter
+authors = ["Maia"]
+description = "A Rust-based code agent that provides tools for code manipulation and execution with reinforcement learning capabilities"
 
 [dependencies]
-# Error handling
-anyhow = "1.0"
-
-# Logging
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-
-# Database
-rusqlite = { version = "0.34.0", features = ["bundled"] }
-
-# OpenAI
-async-openai = "0.28.1"
-
-# Shell and terminal interaction
-once_cell = "1.8"
-sha2 = "0.10"
-
-# UUID generation
-uuid = { version = "1.6", features = ["v4", "serde"] }
-
-# Model Context Protocol dependencies
-rmcp = { git = "https://github.com/modelcontextprotocol/rust-sdk", branch = "main", features = ["client", "server", "macros", "transport-child-process", "transport-io"] }
-tokio = { version = "1.32", features = ["full"] }
+rmcp = { version = "0.1", features = ["server", "transport-io", "transport-sse-server"] }
+tokio = { version = "1", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-
-# HTTP client and date/time handling
-chrono = { version = "0.4", features = ["serde"] }
-clap = { version = "4.4", features = ["derive"] }
-
-
-# For file operations and diff/edit
-similar = "2.2"
-regex = "1.10"
+thiserror = "2.0.12"
+anyhow = "1.0"
+backtrace = "0.3"
+async-trait = "0.1"
+futures = "0.3"
+log = "0.4"
+env_logger = "0.11.8"
+sha2 = "0.10"
+regex = "1"
 glob = "0.3"
-globset = "0.4.10"
-tree-sitter = "0.25.3"  # Keep the original version
+tempfile = "3"
+base64 = "0.22.1"
+mime_guess = "2.0"
 dirs = "6.0.0"
-tempfile = "3.19.1"
-lazy_static = "1.4.0"
-rayon = "1.10.0"
-async-trait = "0.1.88"
-defer = "0.1"
-walkdir = "2.4.0"  # For recursive directory traversal
+lazy_static = "1.4"
+chrono = "0.4"
+tree-sitter = "0.20"
+rand = "0.9.1"
+lru = "0.10"
+# Novas dependências
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+extism = "^1.0.0"
+hex = "0.4"
+reqwest = { version = "0.11", features = ["json"] }
+clap = { version = "4.4", features = ["derive", "env"] }
+config = "0.13"
+serde_yaml = "0.9"
+once_cell = "1.18"
+uuid = { version = "1.6.1", features = ["v4"] }
+# LSP dependencies for semantic code understanding
+lsp-types = "0.97.0"
+tower-lsp = "0.20.0"
+lsp-server = "0.7.4"
+
+[lib]
+name = "winx_code_agent"
+path = "src/lib.rs"
+
+[[bin]]
+name = "winx-code-agent"
+path = "src/main.rs"

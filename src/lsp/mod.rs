@@ -1,9 +1,6 @@
-pub mod client;
-pub mod server;
-pub mod symbol;
-pub mod types;
+// LSP module for semantic code understanding
+// This module implements integration with Language Server Protocol
 
-pub use client::*;
-pub use server::*;
-pub use symbol::*;
-pub use types::*;
+pub mod client;
+pub mod symbol;
+pub mod utils;

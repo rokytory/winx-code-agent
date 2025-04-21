@@ -1,161 +1,195 @@
-<table style="width:100%" align="center" border="0">
-  <tr>
-    <td><img src="./.github/assets/fairy.png" alt="Winx" width="300"></td>
-    <td><h1>✨ Ｗｉｎｘ Ａｇｅｎｔ ✨</h1></td>
-  </tr>
-</table>
+# Winx Code Agent
 
-<p align="center">
-  <strong>✨ A high-performance code agent written in Rust, combining the best features of WCGW for maximum efficiency and semantic capabilities. 🦀</strong>
-</p>
+A Rust implementation of a code agent that provides tools for code manipulation, bash execution, and file operations.
+This project is inspired by the Python WCGW (What Could Go Wrong) project and implements similar functionality using the
+RMCP protocol.
 
-<p align="center">
-  <img src="https://img.shields.io/badge/language-Rust-orange?style=flat&logo=rust" alt="Language" />
-  <img src="https://img.shields.io/badge/license-MIT-blue?style=flat" alt="License" />
-  <img src="https://img.shields.io/github/last-commit/gabrielmaialva33/winx-code-agent?style=flat" alt="Last Commit" >
-  <img src="https://img.shields.io/badge/made%20by-Maia-15c3d6?style=flat" alt="Made by Maia" >
-  <img src="https://github.com/gabrielmaialva33/winx-code-agent/actions/workflows/ci.yml/badge.svg" alt="CI Status" />
-</p>
+## Features
 
----
+- **Bash Command Execution**: Execute bash commands and interact with running processes
+- **Screen Support**: Run long-running commands in background using `screen` sessions
+- **File Operations**:
+    - Read files with line range support and chunking for large files
+    - Write new files with syntax validation
+    - Edit existing files with search/replace functionality
+    - Syntax checking for code files
+- **Operational Modes**:
+    - `wcgw`: Complete access to all features
+    - `architect`: Read-only mode for planning and repository analysis
+    - `code_writer`: Restricted access for controlled code modifications
+- **Repository Analysis**: Analyze repository structure and get context information
+- **Context Management**: Save task context and restore at a later time
+- **Task Checkpointing**: Resume tasks where they were left off
+- **Image Support**: Read images and encode them as base64 for display
 
-## 🌟 Features
+## Requirements
 
-- ⚡ **High Performance**: Implemented in Rust for speed and efficiency
-- ⚡ **Semantic Code Analysis**: Integration with Language Server Protocol (LSP) for code symbol understanding
-- ⚡ **Optimized File Editing**: Efficient diff, edit and insert with optimized algorithms
-- ⚡ **Project Memory**: Memory system inspired by Serena to maintain context between sessions
-- ⚡ **Advanced Sequential Thinking**: Tools for reasoning about task adherence and completion
-- ⚡ **Syntax Validation**: Code syntax validation before applying modifications
-- ⚡ **SQL Support**: Integrated interface for executing SQL queries
-- ⚡ **MCP Integration**: Functions as an MCP server for Claude and other LLMs
-- ⚡ **Interactive Terminal**: Support for interactive commands with real-time feedback
-- ⚡ **Multiple Operation Modes**: Support for `wcgw`, `architect` and `code_writer` modes
-- ⚡ **Large File Handling**: Incremental editing of large files to avoid token limit issues
+- Rust 1.70 or higher
+- Tokio runtime
+- RMCP SDK
 
----
+## Installation
 
-## 🚀 Installation
-
-To compile the project from source:
+### Clone the repository
 
 ```bash
-git clone https://github.com/gabrielmaialva33/winx-code-agent.git
-cd winx
-cargo build --release
+git clone https://github.com/yourusername/winx-code-agent.git
+cd winx-code-agent
 ```
 
-For basic usage:
+### Build the project
 
 ```bash
-./target/release/winx [workspace_path]
+cargo build
 ```
 
-If no path is provided, the current directory will be used as the workspace.
+## Usage
 
----
+### Running the server
 
-## 🔧 Integration with Claude
+```bash
+cargo run
+```
 
-Winx is inspired by the [WCGW project](https://github.com/rusiaaman/wcgw) but reimplemented in Rust for enhanced
-performance. To integrate with Claude Desktop, configure the file `claude_desktop_config.json` (located in
-`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+This will start the code agent server using stdio for communication.
 
-```json
-{
-  "mcpServers": {
-    "winx": {
-      "command": "/path/to/winx",
-      "args": [],
-      "env": {
-        "NO_COLOR": "1",
-        "RUST_LOG": "error"
-      }
-    }
-  }
+### As a library
+
+You can also use Winx Code Agent as a library in your Rust projects:
+
+```rust
+use anyhow::Result;
+use rmcp::{transport::io, ServiceExt};
+use winx_code_agent::CodeAgent;
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    let agent = CodeAgent::new();
+    let transport = io::stdio();
+
+    let server = agent.serve(transport).await?;
+    server.waiting().await?;
+
+    Ok(())
 }
 ```
 
-Then restart the Claude app. You should be able to see the MCP icon if everything is set up correctly.
+### Example Usage
 
----
+Check the examples directory for more examples:
 
-## 🛠️ Available Tools
+```bash
+# Run basic example
+cargo run --example basic_usage
 
-Winx offers the following tools for interaction with the system:
+# Run advanced example
+cargo run --example advanced_usage
+```
 
-- **BashCommand**: Execute shell commands with support for interactivity
-- **ReadFiles**: Read content from one or more files
-- **FileWriteOrEdit**: Write or edit files with support for partial edits
-- **SqlQuery**: Execute SQL queries interactively
-- **SequentialThinking**: Sequential thought processor for problem solving
-- **SymbolTools**: Tools for code symbol manipulation (inspired by Serena)
-- **MemoryTools**: Tools for storing and retrieving project memories
-- **TaskAdherence**: Tools for evaluating task adherence and completion
-- **InteractiveTerminal**: Interactive terminal for commands with real-time I/O
+## API Reference
 
----
+The code agent provides the following tools via the RMCP protocol:
 
-## 🔀 Operation Modes
+### Initialize
 
-- **wcgw**: Default mode with all permissions
-- **architect**: Read-only mode for planning
-- **code_writer**: Restricted mode for writing code in specific paths
+- Always call this at the start of the conversation before using any of the shell tools.
+- Use `any_workspace_path` to initialize the shell in the appropriate project directory.
+- If the user has mentioned a workspace or project root or any other file or folder use it to set `any_workspace_path`.
+- If user has mentioned any files use `initial_files_to_read` to read, use absolute paths only (~ allowed)
+- By default use mode "wcgw"
+- In "code-writer" mode, set the commands and globs which user asked to set, otherwise use 'all'.
+- Use type="first_call" if it's the first call to this tool.
+- Use type="user_asked_mode_change" if in a conversation user has asked to change mode.
+- Use type="reset_shell" if in a conversation shell is not working after multiple tries.
+- Use type="user_asked_change_workspace" if in a conversation user asked to change workspace
 
----
+Parameters:
 
-## 👨‍💻 Usage Examples
+- `type`: Type of initialization ("first_call", "user_asked_mode_change", "reset_shell", "user_asked_change_workspace")
+- `any_workspace_path`: Path to the workspace directory
+- `initial_files_to_read`: List of files to read initially
+- `task_id_to_resume`: ID of a task to resume (if any)
+- `mode_name`: Mode to operate in ("wcgw", "architect", "code_writer")
+- `code_writer_config`: Configuration for code_writer mode
 
-- Ask Claude to explore and understand your codebase
-- Request code analysis and semantic understanding
-- Have Claude edit files with optimized algorithms
-- Execute SQL queries and analyze results
-- Run commands with real-time feedback
-- Implement the sequential thinking process for complex problems
-- Validate syntax before applying code changes
-- Work with large files incrementally to avoid token limits
+### BashCommand
 
----
+- Execute a bash command. This is stateful (beware with subsequent calls).
+- Status of the command and the current working directory will always be returned at the end.
+- The first or the last line might be `(...truncated)` if the output is too long.
+- Always run `pwd` if you get any file or directory not found error to make sure you're not lost.
+- Run long running commands in background using screen instead of "&".
+- Do not use 'cat' to read files, use ReadFiles tool instead
+- In order to check status of previous command, use `status_check` with empty command argument.
+- Only command is allowed to run at a time. You need to wait for any previous command to finish before running a new
+  one.
+- Programs don't hang easily, so most likely explanation for no output is usually that the program is still running, and
+  you need to check status again.
+- Do not send Ctrl-c before checking for status till 10 minutes or whatever is appropriate for the program to finish.
 
-## 🏷 Need Support or Assistance?
+Parameters:
 
-If you need help or have any questions about Winx, feel free to reach out via the following channels:
+- `action_json`: Action to perform (Command, StatusCheck, SendText, SendSpecials)
+- `wait_for_seconds`: Time to wait for output
 
-- [GitHub Issues](https://github.com/gabrielmaialva33/winx-code-agent/issues/new): Open a support issue on GitHub.
-- Email: gabrielmaialva33@gmail.com
+### ReadFiles
 
----
+- Read full file content of one or more files.
+- Provide absolute paths only (~ allowed)
+- Only if the task requires line numbers understanding:
+    - You may populate "show_line_numbers_reason" with your reason, by default null/empty means no line numbers are
+      shown.
+    - You may extract a range of lines. E.g., `/path/to/file:1-10` for lines 1-10. You can drop start or end like
+      `/path/to/file:1-` or `/path/to/file:-10`
 
-## ❣️ Support the Project
+Parameters:
 
-If you enjoy **Winx Agent** and want to support its development, consider:
+- `file_paths`: Paths of files to read (supports line ranges like "file.txt:10-20")
+- `show_line_numbers_reason`: Reason for showing line numbers
 
-- ⭐ Starring the repository on GitHub.
-- 🍴 Forking the repository and contributing improvements.
-- 📝 Sharing your experience with tutorials or articles.
+### WriteIfEmpty
 
-Together, we can make **Winx Agent** even better!
+Create new files or write to empty files only.
 
----
+Parameters:
 
-## 🔐 Security
+- `file_path`: Path of the file to write
+- `file_content`: Content to write to the file
 
-- The agent verifies file permissions before operations
-- Configurable restrictions for commands and paths
-- Verification of changes before applying file edits
-- Syntax checking to prevent malformed code
+### FileEdit
 
----
+- Edits existing files using search/replace blocks.
+- Uses Aider-like search and replace syntax.
+- File edit has spacing tolerant matching, with warning on issues like indentation mismatch.
+- If there's no match, the closest match is returned to help fix mistakes.
 
-## 🙏 Special Thanks
+Parameters:
 
-A huge thank you to [rusiaaman](https://github.com/rusiaaman) for the inspiring work
-on [WCGW](https://github.com/rusiaaman/wcgw), which served as a primary inspiration for this project. Winx reimplements
-many of WCGW's best features in Rust for enhanced performance while adding additional capabilities for semantic code
-understanding.
+- `file_path`: Path of the file to edit
+- `file_edit_using_search_replace_blocks`: Edit using search/replace blocks
 
----
+### ReadImage
 
-## 📜 License
+Read an image file and return its base64-encoded content.
+
+Parameters:
+
+- `file_path`: Path of the image file
+
+### ContextSave
+
+Saves provided description and file contents of all the relevant file paths or globs in a single text file.
+
+- Provide random unqiue id or whatever user provided.
+- Leave project path as empty string if no project path
+
+Parameters:
+
+- `id`: ID to assign to the saved context
+- `project_root_path`: Root path of the project
+- `description`: Description of the context
+- `relevant_file_globs`: Glob patterns to match relevant files
+
+## License
 
 MIT
