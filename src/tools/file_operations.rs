@@ -1026,7 +1026,7 @@ impl WriteIfEmpty {
                             )
                         })?;
 
-                            // Add to whitelist for future edits
+                        // Add to whitelist for future edits
                         let lines = params.file_content.lines().count();
 
                         // Create content hash
