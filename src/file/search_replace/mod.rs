@@ -3,7 +3,8 @@ use regex::Regex;
 use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 
-// Regular expressions for various search/replace block formats
+// Regular expressions for detecting various search/replace block formats
+// The module supports multiple syntax formats to accommodate different user preferences
 lazy_static::lazy_static! {
     // Standard/official format
     static ref SEARCH_MARKER: Regex = Regex::new(r"^<<<<<<+\s*SEARCH\s*$").unwrap();
@@ -22,32 +23,43 @@ lazy_static::lazy_static! {
     static ref MARKDOWN_CODE_BLOCK: Regex = Regex::new(r"^```+\s*$").unwrap();
 }
 
+/// Represents a single search/replace operation with patterns to find and replace
 #[derive(Debug, Clone, PartialEq)]
 pub struct SearchReplaceBlock {
+    /// Lines of text to search for in the target file
     pub search_lines: Vec<String>,
+
+    /// Lines of text to replace the matched content with
     pub replace_lines: Vec<String>,
 }
 
-/// Error types for search/replace operations
+/// Error types specific to search/replace operations
+/// Provides detailed context about what went wrong during parsing or matching
 #[derive(Debug, thiserror::Error)]
 pub enum SearchReplaceError {
+    /// Error indicating incorrect syntax in search/replace blocks
     #[error("Search/Replace syntax error: {0}")]
     SyntaxError(String),
 
+    /// Error indicating the search pattern wasn't found in the content
     #[error("Search block not found: {0}")]
     MatchError(String),
 
+    /// Error indicating multiple matches found for a pattern that should be unique
     #[error("Multiple matches found: {0}")]
     MultipleMatchesError(String),
 
+    /// Error indicating an ambiguous match requiring clarification
     #[error("Ambiguous match: {0}")]
     AmbiguousMatchError(String),
 
+    /// Error indicating insufficient context to identify a unique match
     #[error("Missing context for unique match: {0}")]
     MissingContextError(String),
 }
 
-/// Result of uniqueness check
+/// Result of checking whether a search block uniquely identifies a section of content
+/// Provides detailed information about match status and suggestions for improvement
 #[derive(Debug)]
 pub enum UniquenessCheck {
     /// Block is unique with match info
@@ -64,7 +76,8 @@ pub enum UniquenessCheck {
     },
 }
 
-/// Tolerance levels for matching
+/// Tolerance levels for pattern matching, with increasing flexibility
+/// These allow for successful matches despite minor formatting differences
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ToleranceLevel {
     /// Exact match
@@ -78,7 +91,8 @@ pub enum ToleranceLevel {
 }
 
 impl ToleranceLevel {
-    /// Apply tolerance to a line
+    /// Applies the tolerance rules to process a line for comparison
+    /// Different tolerance levels transform the string in different ways
     pub fn process_line(&self, line: &str) -> String {
         match *self {
             Self::Exact => line.to_string(),
@@ -88,7 +102,8 @@ impl ToleranceLevel {
         }
     }
 
-    /// Get the severity of this tolerance level
+    /// Gets the severity level of this tolerance for warning purposes
+    /// Higher tolerance levels generate more prominent warnings
     pub fn severity(&self) -> &'static str {
         match self {
             Self::Exact => "SILENT",
@@ -98,7 +113,8 @@ impl ToleranceLevel {
         }
     }
 
-    /// Get the score multiplier for this tolerance level (lower is better)
+    /// Gets the score multiplier for this tolerance level (lower is better)
+    /// Used to rank matches when multiple tolerance levels produce results
     pub fn score_multiplier(&self) -> f64 {
         match self {
             Self::Exact => 1.0,
@@ -108,7 +124,8 @@ impl ToleranceLevel {
         }
     }
 
-    /// Get the warning message for this tolerance level
+    /// Gets the user-facing warning message for this tolerance level
+    /// Explains what adjustments were made to achieve the match
     pub fn warning_message(&self) -> Option<&'static str> {
         match self {
             Self::Exact => None,
@@ -144,7 +161,14 @@ pub struct MatchResult {
     pub score: f64,
 }
 
-/// Parse search/replace blocks from input text, supporting multiple formats
+/// Parses search/replace blocks from input text, supporting multiple syntax formats
+///
+/// This function attempts to parse the input using different formats in order:
+/// 1. Standard format (`<<<<<<< SEARCH`, `=======`, `>>>>>>> REPLACE`)
+/// 2. Simple format (`<<<`, `>>>`)
+/// 3. Markdown code blocks format (pairs of "```" blocks)
+///
+/// If parsing fails, it provides helpful error messages with format examples.
 pub fn parse_search_replace_blocks(
     input: &str,
 ) -> Result<Vec<SearchReplaceBlock>, SearchReplaceError> {
@@ -168,10 +192,10 @@ pub fn parse_search_replace_blocks(
         return Ok(markdown_blocks);
     }
 
-    // Check for common syntax errors in the input
+    // Check for common syntax errors in the input to provide targeted help
     let input_str = lines.join("\n");
     if input_str.contains("<<<<<<< ORIGINAL") || input_str.contains(">>>>>>> UPDATED") {
-        // Detect specific syntax mistake
+        // Detect specific common syntax mistakes (likely from git merge conflict style)
         let error_msg = if input_str.contains("<<<<<<< ORIGINAL") {
             "Syntax error: Found '<<<<<<< ORIGINAL' which is incorrect. Use '<<<<<<< SEARCH' instead."
         } else {
@@ -232,7 +256,10 @@ pub fn parse_search_replace_blocks(
     }
 }
 
-/// Verify if a search block is unique in the given content
+/// Verifies if a search block uniquely identifies a section in the given content
+///
+/// This function checks whether a search pattern matches exactly one location
+/// in the content, and provides helpful diagnostics when uniqueness issues arise.
 pub fn verify_search_block_uniqueness(content: &str, search_block: &str) -> UniquenessCheck {
     let content_lines: Vec<String> = content.lines().map(|s| s.to_string()).collect();
     let search_lines: Vec<String> = search_block.lines().map(|s| s.to_string()).collect();
@@ -297,8 +324,13 @@ pub fn verify_search_block_uniqueness(content: &str, search_block: &str) -> Uniq
     }
 }
 
-/// Find the closest match for a search block that wasn't found exactly
-/// Returns a tuple with the match result and similarity score if found
+/// Finds the closest approximate match for a search block when exact matching fails
+///
+/// When a search block isn't found exactly, this function attempts to find similar
+/// content using various fuzzy matching strategies. This helps provide useful
+/// suggestions to the user about why their search pattern failed.
+///
+/// Returns a tuple with the match result and similarity score if a close match is found
 fn find_closest_match(
     content_lines: &[String],
     search_lines: &[String],
@@ -409,7 +441,16 @@ fn find_closest_match(
     best_match
 }
 
-/// Parse blocks using the standard format
+/// Parses blocks using the standard format with explicit SEARCH/REPLACE markers
+///
+/// Standard format example:
+/// ```
+/// <<<<<<< SEARCH
+/// search content
+/// =======
+/// replace content
+/// >>>>>>> REPLACE
+/// ```
 fn parse_standard_format(lines: &[&str]) -> Vec<SearchReplaceBlock> {
     let mut blocks: Vec<SearchReplaceBlock> = Vec::new();
     let mut i = 0;
@@ -493,7 +534,17 @@ fn parse_standard_format(lines: &[&str]) -> Vec<SearchReplaceBlock> {
     blocks
 }
 
-/// Parse blocks using the simple format (<<<...>>>)
+/// Parses blocks using the simplified format with minimal markers
+///
+/// Simple format example:
+/// ```
+/// <<<
+/// search content
+/// >>>
+/// <<<
+/// replace content
+/// >>>
+/// ```
 fn parse_simple_format(lines: &[&str]) -> Vec<SearchReplaceBlock> {
     // Find all block markers
     let mut markers = Vec::new();
@@ -582,7 +633,18 @@ fn parse_simple_format(lines: &[&str]) -> Vec<SearchReplaceBlock> {
     blocks
 }
 
-/// Parse blocks using markdown code blocks format
+/// Parses blocks using markdown code blocks for search/replace pairs
+///
+/// Markdown format example:
+/// ```
+/// ```
+/// search content
+/// ```
+///
+/// ```
+/// replace content
+/// ```
+/// ```
 fn parse_markdown_format(lines: &[&str]) -> Vec<SearchReplaceBlock> {
     let mut blocks: Vec<SearchReplaceBlock> = Vec::new();
     let mut i = 0;
@@ -657,7 +719,10 @@ fn parse_markdown_format(lines: &[&str]) -> Vec<SearchReplaceBlock> {
     blocks
 }
 
-/// Determine if content is a search/replace block based on markers and content
+/// Determines if content is a search/replace block based on markers and structure
+///
+/// This heuristic function analyzes the content to detect whether it's intended
+/// as a search/replace operation rather than a complete file replacement.
 pub fn is_search_replace_content(content: &str, percentage_to_change: i32) -> bool {
     // Check for any search marker in the first few lines
     let lines: Vec<&str> = content.lines().take(10).collect();
@@ -698,7 +763,11 @@ pub fn is_search_replace_content(content: &str, percentage_to_change: i32) -> bo
     false
 }
 
-/// Find all possible matches for a search block with different tolerance levels
+/// Finds all possible matches for a search block using multiple tolerance levels
+///
+/// This function tries to match the search block against the content using
+/// increasingly flexible tolerance levels, collecting all matches found.
+/// This helps handle formatting inconsistencies while still finding the right content.
 fn find_matches(
     content_lines: &[String],
     search_lines: &[String],

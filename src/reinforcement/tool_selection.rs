@@ -1,5 +1,5 @@
 // Adaptive tool selection system
-// This uses reinforcement learning to select the optimal tool for a given context
+// Uses reinforcement learning to intelligently select the optimal tool based on context and past performance
 
 use crate::reinforcement::{
     action::{
@@ -13,7 +13,8 @@ use crate::reinforcement::{
 };
 use crate::WinxResult;
 
-/// System for adaptively selecting tools based on RL
+/// System for adaptively selecting tools based on reinforcement learning
+/// Uses Q-learning to improve tool selection based on previous outcomes
 #[derive(Debug, Clone)]
 pub struct AdaptiveToolSystem {
     /// Q-learning system for action selection
@@ -27,7 +28,7 @@ pub struct AdaptiveToolSystem {
 }
 
 impl AdaptiveToolSystem {
-    /// Create a new adaptive tool system
+    /// Creates a new adaptive tool system with the provided Q-learning system
     pub fn new(q_learning: QLearningSystem) -> Self {
         Self {
             q_learning,
@@ -37,12 +38,14 @@ impl AdaptiveToolSystem {
         }
     }
 
-    /// Enable or disable reinforcement learning
+    /// Enables or disables the reinforcement learning functionality
+    /// When disabled, the system falls back to the default tool selection strategy
     pub fn set_rl_enabled(&mut self, enabled: bool) {
         self.rl_enabled = enabled;
     }
 
-    /// Select the optimal tool for a given context
+    /// Selects the optimal tool for a given context based on reinforcement learning
+    /// Uses the current state extracted from context to determine the best action
     pub fn select_tool(&mut self, context: &crate::tools::AgentContext) -> WinxResult<ToolAction> {
         // Extract the current state from the context
         let current_state = self.state_tracker.extract_state(context);
@@ -61,7 +64,8 @@ impl AdaptiveToolSystem {
         }
     }
 
-    /// Default tool selection strategy (fallback when RL is disabled)
+    /// Default tool selection strategy that serves as a fallback when reinforcement learning is disabled
+    /// Uses a simple heuristic approach instead of learned behaviors
     fn default_tool_selection(
         &self,
         _context: &crate::tools::AgentContext,
@@ -69,14 +73,17 @@ impl AdaptiveToolSystem {
         // This is a simplified version - in a real implementation,
         // this would be based on heuristics or the existing selection logic
 
-        // For demonstration, just return a simple command
+        // For demonstration, just return a directory listing command
+        // This provides a safe, informative fallback action that helps understand
+        // the current environment state
         Ok(ToolAction::BashCommand {
             action_json: String::from("{\"command\": \"ls -la\"}"),
             wait_for_seconds: None,
         })
     }
 
-    /// Process the result of a tool execution and update the RL model
+    /// Processes the result of a tool execution and updates the reinforcement learning model
+    /// Updates Q-values based on the observed reward and stores transitions for experience replay
     pub fn process_result(
         &mut self,
         context: &crate::tools::AgentContext,
@@ -100,20 +107,23 @@ impl AdaptiveToolSystem {
         // Calculate the reward
         let reward = calculate_reward(&previous_state, &action, &current_state, &action_result);
 
-        // Update the Q-learning model
+        // Update the Q-learning model with the new state transition information
         self.q_learning
             .update_q_value(&previous_state, &action, reward, &current_state);
 
-        // Store for experience replay
+        // Store this transition for future experience replay training
+        // This allows the agent to learn from past experiences multiple times
         self.action_history
             .push((previous_state, action, reward, current_state));
 
-        // Keep history at a reasonable size
+        // Keep history at a reasonable size to prevent memory issues
+        // Using a sliding window of 1000 recent transitions
         if self.action_history.len() > 1000 {
             self.action_history.remove(0);
         }
 
-        // Perform experience replay occasionally
+        // Perform experience replay occasionally (every 100 actions)
+        // This helps stabilize learning by revisiting past experiences
         if self.action_history.len() % 100 == 0 {
             self.q_learning.experience_replay(10);
         }
@@ -121,7 +131,8 @@ impl AdaptiveToolSystem {
         Ok(())
     }
 
-    /// Convert a tool to an action
+    /// Converts a ToolAction back to an AgentAction
+    /// This is the inverse of map_action_to_tool and is needed for the learning process
     fn convert_tool_to_action(&self, tool: &ToolAction) -> AgentAction {
         match tool {
             ToolAction::ReadFiles { file_paths, .. } => {
@@ -142,7 +153,8 @@ impl AdaptiveToolSystem {
                 file_edit_using_search_replace_blocks: _,
             } => {
                 // This is a simplified conversion - in a real implementation,
-                // we would need to parse the search/replace blocks
+                // we would parse the search/replace blocks to extract the actual patterns
+                // Currently using placeholder values since we can't easily recover the original
                 AgentAction::EditFile(
                     std::path::PathBuf::from(file_path),
                     String::from("search"),
@@ -154,6 +166,8 @@ impl AdaptiveToolSystem {
                 // Try to extract the command from the action_json
                 if let Ok(json) = serde_json::from_str::<serde_json::Value>(action_json) {
                     if let Some(cmd) = json.get("command").and_then(|c| c.as_str()) {
+                        // Heuristic mapping based on command content
+                        // Identifies special command types like test or build commands
                         if cmd.contains("test") {
                             AgentAction::RunTests
                         } else if cmd.contains("build") || cmd.contains("make") {
@@ -173,13 +187,15 @@ impl AdaptiveToolSystem {
         }
     }
 
-    /// Get tool details for a given action
+    /// Gets the tool details (name and parameters) for a given action
+    /// Used to interface with the actual tool execution system
     pub fn get_tool_for_action(&self, action: &AgentAction) -> Option<(String, serde_json::Value)> {
         let tool = map_action_to_tool(action);
         get_tool_details(&tool)
     }
 
-    /// Reset the system
+    /// Resets the system state
+    /// Clears history and resets the state tracker to initial conditions
     pub fn reset(&mut self) {
         self.state_tracker = StateTracker::new();
         self.action_history.clear();

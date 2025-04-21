@@ -1,5 +1,14 @@
 use std::path::Path;
 
+/// Performs basic syntax checking on a file's content based on its file extension
+///
+/// This function analyzes code files and reports common syntax issues without
+/// requiring a full compiler or language server. It's meant to catch simple
+/// mistakes quickly rather than provide comprehensive validation.
+///
+/// @param file_path - Path to the file being checked (used to determine file type)
+/// @param content - The content to analyze for syntax issues
+/// @return A vector of warning messages if issues are found
 pub fn check_syntax(file_path: &Path, content: &str) -> Vec<String> {
     let mut warnings = Vec::new();
 
@@ -12,7 +21,7 @@ pub fn check_syntax(file_path: &Path, content: &str) -> Vec<String> {
                 // Basic Rust syntax checks
                 if !content.contains("fn ") && content.contains("pub fn") {
                     warnings
-                        .push("Warning: File contains pub fn but no fn declarations".to_string());
+                        .push("Warning: File contains 'pub fn' but no regular 'fn' declarations. Check function visibility.".to_string());
                 }
 
                 // Check for unbalanced brackets
@@ -63,10 +72,10 @@ pub fn check_syntax(file_path: &Path, content: &str) -> Vec<String> {
 
                 // Check for colons in control structures
                 if content.contains("if ") && !content.contains("if:") {
-                    warnings.push("Warning: 'if' statement without colon".to_string());
+                    warnings.push("Warning: 'if' statement without colon. Python requires a colon after condition statements.".to_string());
                 }
                 if content.contains("def ") && !content.contains("def:") {
-                    warnings.push("Warning: 'def' statement without colon".to_string());
+                    warnings.push("Warning: 'def' statement without colon. Python functions require a colon after parameter list.".to_string());
                 }
             }
             "js" | "ts" | "jsx" | "tsx" => {
@@ -96,7 +105,7 @@ pub fn check_syntax(file_path: &Path, content: &str) -> Vec<String> {
                         && !line.contains("function")
                     {
                         warnings.push(format!(
-                            "Warning: Possible missing semicolon at line {}",
+                            "Warning: Possible missing semicolon at line {}. Most JavaScript statements should end with a semicolon.",
                             i + 1
                         ));
                     }
@@ -116,7 +125,7 @@ pub fn check_syntax(file_path: &Path, content: &str) -> Vec<String> {
                 }
 
                 if !content.contains("package ") {
-                    warnings.push("Warning: Missing package declaration".to_string());
+                    warnings.push("Warning: Missing 'package' declaration. All Go files must declare their package name.".to_string());
                 }
             }
             "html" => {
@@ -128,7 +137,7 @@ pub fn check_syntax(file_path: &Path, content: &str) -> Vec<String> {
                 let has_body = content.contains("<body") || content.contains("<BODY");
 
                 if has_html && (!has_head || !has_body) {
-                    warnings.push("Warning: HTML file missing head or body tag".to_string());
+                    warnings.push("Warning: HTML file contains <html> tag but is missing <head> or <body> tags. Standard HTML documents require both.".to_string());
                 }
 
                 // Check for unbalanced tags (very basic)
@@ -137,7 +146,7 @@ pub fn check_syntax(file_path: &Path, content: &str) -> Vec<String> {
                     let close_tags = content.matches(&format!("</{}", tag)).count();
                     if open_tags != close_tags {
                         warnings.push(format!(
-                            "Warning: Unbalanced <{}> tags - {} open vs {} closed",
+                            "Warning: Unbalanced <{}> tags - {} opening tags vs {} closing tags. Each opening tag requires a matching closing tag.",
                             tag, open_tags, close_tags
                         ));
                     }
@@ -163,7 +172,7 @@ pub fn check_syntax(file_path: &Path, content: &str) -> Vec<String> {
                 match serde_json::from_str::<serde_json::Value>(content) {
                     Ok(_) => {} // Valid JSON
                     Err(e) => {
-                        warnings.push(format!("Warning: Invalid JSON - {}", e));
+                        warnings.push(format!("Warning: Invalid JSON structure - {}. Check for missing commas, brackets, or quotes.", e));
                     }
                 }
             }
@@ -174,7 +183,7 @@ pub fn check_syntax(file_path: &Path, content: &str) -> Vec<String> {
                 for (i, line) in content.lines().enumerate() {
                     if line.len() > 120 {
                         warnings.push(format!(
-                            "Warning: Line {} is very long ({} characters)",
+                            "Warning: Line {} is very long ({} characters). Consider breaking it into multiple lines for better readability.",
                             i + 1,
                             line.len()
                         ));

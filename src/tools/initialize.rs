@@ -115,7 +115,10 @@ impl Initialize {
     }
 
     // Check if an action is allowed in the current mode
-    /// Check if a directory has write permissions
+    /// Checks if a directory has write permissions by attempting to create a temporary file
+    ///
+    /// This is more reliable than just checking permission bits since it tests actual
+    /// write capability, accounting for complex filesystem permissions and mount options.
     pub fn check_directory_writable(dir_path: &Path) -> bool {
         // Log the directory being checked for debugging
         log::debug!(
@@ -258,11 +261,13 @@ impl Default for Initialize {
 
 #[derive(Debug, Deserialize, Serialize, schemars::JsonSchema)]
 pub struct InitializeParams {
-    #[schemars(description = "Type of initialization")]
-    pub r#type: String,
+    #[schemars(
+        description = "Type of initialization (first_call, user_asked_mode_change, reset_shell, user_asked_change_workspace)"
+    )]
+    pub initialization_type: String,
 
-    #[schemars(description = "Workspace path")]
-    pub any_workspace_path: String,
+    #[schemars(description = "Target workspace path to initialize the environment")]
+    pub workspace_path: String,
 
     #[schemars(description = "Files to read initially")]
     pub initial_files_to_read: Vec<String>,
@@ -306,8 +311,8 @@ impl Initialize {
 
     // Implementation with custom error handling
     async fn initialize_impl(&self, params: InitializeParams) -> WinxResult<CallToolResult> {
-        // If any_workspace_path is empty, try to use the WINX_WORKSPACE environment variable
-        let workspace_path = if params.any_workspace_path.trim().is_empty() {
+        // If workspace_path is empty, try to use the WINX_WORKSPACE environment variable as fallback
+        let workspace_path = if params.workspace_path.trim().is_empty() {
             if let Ok(env_workspace) = std::env::var("WINX_WORKSPACE") {
                 log::info!(
                     "Using WINX_WORKSPACE environment variable: {}",
@@ -315,30 +320,29 @@ impl Initialize {
                 );
                 PathBuf::from(env_workspace)
             } else {
-                PathBuf::from(&params.any_workspace_path)
+                PathBuf::from(&params.workspace_path)
             }
         } else {
-            PathBuf::from(&params.any_workspace_path)
+            PathBuf::from(&params.workspace_path)
         };
 
         // Create directory if it doesn't exist and isn't empty
-        if !workspace_path.exists() && params.any_workspace_path.trim() != "" {
+        if !workspace_path.exists() && params.workspace_path.trim() != "" {
             // Expand any home directory symbol (~) in the path
-            let expanded_path = if params.any_workspace_path.starts_with("~/")
-                || params.any_workspace_path == "~"
-            {
-                if let Some(home_dir) = dirs::home_dir() {
-                    if params.any_workspace_path == "~" {
-                        home_dir
+            let expanded_path =
+                if params.workspace_path.starts_with("~/") || params.workspace_path == "~" {
+                    if let Some(home_dir) = dirs::home_dir() {
+                        if params.workspace_path == "~" {
+                            home_dir
+                        } else {
+                            home_dir.join(params.workspace_path.strip_prefix("~/").unwrap())
+                        }
                     } else {
-                        home_dir.join(params.any_workspace_path.strip_prefix("~/").unwrap())
+                        workspace_path.clone()
                     }
                 } else {
                     workspace_path.clone()
-                }
-            } else {
-                workspace_path.clone()
-            };
+                };
 
             // Try to create the directory but don't fail initialization if it fails
             let create_result = std::fs::create_dir_all(&expanded_path);
@@ -499,7 +503,7 @@ impl Initialize {
                     self.update_workspace_path(current_dir.clone())?;
                     log::warn!(
                         "Workspace path '{}' doesn't exist, using current directory: '{}'",
-                        params.any_workspace_path,
+                        params.workspace_path,
                         current_dir.display()
                     );
                 }
@@ -538,7 +542,7 @@ impl Initialize {
         } else {
             format!(
                 "Workspace path doesn't exist: {}",
-                params.any_workspace_path
+                params.workspace_path
             )
         };
 
@@ -650,7 +654,8 @@ impl Initialize {
             String::new()
         };
 
-        // Parse and set the current mode
+        // Parse and set the current mode based on the requested mode name
+        // Each mode has different permissions and capabilities
         let current_mode = match params.mode_name.as_str() {
             "wcgw" => Mode::Wcgw,
             "architect" => Mode::Architect,

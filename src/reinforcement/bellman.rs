@@ -1,12 +1,20 @@
 // Bellman equations implementation
-// These equations are the foundation of value-based reinforcement learning methods
+// These equations form the mathematical foundation of value-based reinforcement learning methods,
+// enabling the calculation of expected future rewards for state-action pairs
 
 use crate::reinforcement::{action::AgentAction, state::CodebaseState, Policy};
 use std::collections::HashMap;
 
-/// Transition model interface for environment dynamics
+/// Transition model interface for representing environment dynamics
+///
+/// A transition model captures how agent actions affect state changes and rewards.
+/// It provides methods to calculate expected returns and transition probabilities,
+/// which are essential components of the Bellman equations.
 pub trait TransitionModel {
-    /// Calculate the expected return for a state-action pair
+    /// Calculates the expected return (cumulative future reward) for a state-action pair
+    ///
+    /// This computes the expected value of taking action in state, considering all
+    /// possible next states and their associated rewards, weighted by transition probabilities.
     fn expected_return(
         &self,
         state: &CodebaseState,
@@ -14,7 +22,11 @@ pub trait TransitionModel {
         discount_factor: f64,
     ) -> f64;
 
-    /// Calculate the expected return for a state-action pair with a given policy
+    /// Calculates the expected return for a state-action pair following a specific policy
+    ///
+    /// This computes the expected value of taking action in state and then following
+    /// the provided policy for all subsequent steps, using the discount factor to
+    /// weight future rewards appropriately.
     fn expected_return_with_policy(
         &self,
         state: &CodebaseState,
@@ -23,7 +35,10 @@ pub trait TransitionModel {
         discount_factor: f64,
     ) -> f64;
 
-    /// Get the probability of transitioning to a new state and receiving a reward
+    /// Gets the probability of transitioning to a specified next state and receiving a specific reward
+    ///
+    /// Returns the probability P(s',r|s,a) of reaching next_state and receiving reward
+    /// after taking action in current_state.
     fn transition_probability(
         &self,
         current_state: &CodebaseState,
@@ -33,7 +48,10 @@ pub trait TransitionModel {
     ) -> f64;
 }
 
-/// Simple transition model based on historical data
+/// A transition model implementation that learns from historical state transitions
+///
+/// This model builds an empirical transition probability distribution based on
+/// observed transitions from the agent's interaction history.
 #[derive(Default)]
 pub struct HistoricalTransitionModel {
     /// History of transitions (s, a, r, s')
@@ -41,12 +59,15 @@ pub struct HistoricalTransitionModel {
 }
 
 impl HistoricalTransitionModel {
-    /// Create a new historical transition model
+    /// Creates a new empty historical transition model
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Add a transition to the history
+    /// Adds a state-action-reward-nextstate transition tuple to the history
+    ///
+    /// These recorded transitions are used to estimate transition probabilities
+    /// and expected returns based on empirical data.
     pub fn add_transition(
         &mut self,
         state: CodebaseState,
@@ -57,7 +78,10 @@ impl HistoricalTransitionModel {
         self.history.push((state, action, reward, next_state));
     }
 
-    /// Get all transitions for a state-action pair
+    /// Gets all historical transitions (reward and next state) for a specific state-action pair
+    ///
+    /// Returns a vector of (reward, next_state) pairs that were observed after
+    /// taking action in state.
     fn get_transitions_for(
         &self,
         state: &CodebaseState,
@@ -84,11 +108,12 @@ impl TransitionModel for HistoricalTransitionModel {
             return 0.0;
         }
 
-        // Calculate average reward
+        // Calculate the average immediate reward observed for this state-action pair
         let total_reward: f64 = transitions.iter().map(|(r, _)| r).sum();
 
-        // This is a simplified version - in a real implementation,
-        // we would calculate the expected value of future rewards as well
+        // This is a simplified implementation that only considers immediate rewards
+        // A complete implementation would also account for the expected future rewards
+        // from each possible next state, weighted by their occurrence probability
         total_reward / transitions.len() as f64
     }
 
@@ -153,9 +178,11 @@ impl TransitionModel for HistoricalTransitionModel {
     }
 }
 
-/// Get all possible actions for a state
-/// This is a simplified version - in a real implementation,
-/// this would be based on the specific state
+/// Gets all possible actions that can be taken from a given state
+///
+/// This is a simplified implementation that returns a fixed set of actions.
+/// In a complete implementation, available actions would depend on the specific
+/// state properties (e.g., current file permissions, project structure).
 fn get_possible_actions(state: &CodebaseState) -> Vec<AgentAction> {
     vec![
         AgentAction::RunTests,
@@ -167,8 +194,17 @@ fn get_possible_actions(state: &CodebaseState) -> Vec<AgentAction> {
     ]
 }
 
-/// Calculate the state-value function V_π(s) using the Bellman equation
-/// V_π(s) = Σ_a π(a|s) Σ_{s',r} p(s',r|s,a)[r + γV_π(s')]
+/// Calculates the state-value function V_π(s) using the Bellman equation
+///
+/// The state-value function represents the expected cumulative future reward
+/// starting from state s and following policy π thereafter.
+///
+/// Mathematically: V_π(s) = Σ_a π(a|s) Σ_{s',r} p(s',r|s,a)[r + γV_π(s')]
+///
+/// where:
+/// - π(a|s) is the probability of taking action a in state s under policy π
+/// - p(s',r|s,a) is the probability of transitioning to state s' and receiving reward r
+/// - γ is the discount factor for future rewards
 pub fn state_value_function(
     state: &CodebaseState,
     policy: &dyn Policy,
@@ -189,8 +225,17 @@ pub fn state_value_function(
     value
 }
 
-/// Calculate the action-value function Q_π(s,a) using the Bellman equation
-/// Q_π(s,a) = Σ_{s',r} p(s',r|s,a)[r + γ Σ_{a'} π(a'|s')Q_π(s',a')]
+/// Calculates the action-value function Q_π(s,a) using the Bellman equation
+///
+/// The action-value function represents the expected cumulative future reward
+/// starting from state s, taking action a, and following policy π thereafter.
+///
+/// Mathematically: Q_π(s,a) = Σ_{s',r} p(s',r|s,a)[r + γ Σ_{a'} π(a'|s')Q_π(s',a')]
+///
+/// where:
+/// - p(s',r|s,a) is the probability of transitioning to state s' and receiving reward r
+/// - π(a'|s') is the probability of taking action a' in state s' under policy π
+/// - γ is the discount factor for future rewards
 pub fn action_value_function(
     state: &CodebaseState,
     action: &AgentAction,
@@ -202,7 +247,19 @@ pub fn action_value_function(
     transitions.expected_return_with_policy(state, action, policy, discount_factor)
 }
 
-/// Perform value iteration to find the optimal value function
+/// Performs value iteration algorithm to compute the optimal value function
+///
+/// Value iteration is a dynamic programming algorithm that iteratively improves
+/// the estimate of the optimal value function until convergence, allowing the
+/// agent to find the policy that maximizes expected future rewards.
+///
+/// Parameters:
+/// - states: All possible states in the environment
+/// - actions: All possible actions in the environment
+/// - transitions: The transition model for environment dynamics
+/// - discount_factor: Weight for future rewards (between 0 and 1)
+/// - theta: Convergence threshold for terminating iteration
+/// - max_iterations: Maximum number of iterations to prevent infinite loops
 pub fn value_iteration(
     states: &[CodebaseState],
     actions: &[AgentAction],
@@ -230,6 +287,8 @@ pub fn value_iteration(
 
                 // For each possible next state and reward
                 for next_state in states {
+                    // Check for transitions with standard reward values
+                    // These values should ideally be derived from a reward model or configuration
                     for &reward in &[0.0, 1.0, -1.0, 5.0, -5.0, 10.0, -10.0] {
                         let prob =
                             transitions.transition_probability(state, action, next_state, reward);

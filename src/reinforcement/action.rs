@@ -1,9 +1,9 @@
-// Actions that the RL agent can take
-// These map to the tools available in the winx-code-agent
+// Actions available to the reinforcement learning agent
+// Each action maps directly to a specific tool in the winx-code-agent codebase
 
 use std::path::PathBuf;
 
-/// Actions that the agent can take
+/// Defines all possible actions that the agent can take within the codebase
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AgentAction {
     /// Read a file
@@ -12,8 +12,8 @@ pub enum AgentAction {
     /// Write to a new/empty file
     WriteFile(PathBuf, String),
 
-    /// Edit a file using search/replace
-    EditFile(PathBuf, String, String), // path, search, replace
+    /// Edit a file using search/replace patterns
+    EditFile(PathBuf, String, String), // (file path, search pattern, replacement text)
 
     /// Execute a bash command
     ExecuteCommand(String),
@@ -37,7 +37,8 @@ pub enum AgentAction {
     NoOp,
 }
 
-/// Map an AgentAction to a tool that can be executed
+/// Maps an AgentAction to the corresponding executable ToolAction
+/// This converts abstract agent actions into concrete tool implementations
 pub fn map_action_to_tool(action: &AgentAction) -> ToolAction {
     match action {
         AgentAction::ReadFile(path) => ToolAction::ReadFiles {
@@ -83,7 +84,8 @@ pub fn map_action_to_tool(action: &AgentAction) -> ToolAction {
     }
 }
 
-/// Map a tool result back to an action result
+/// Processes a tool's execution result and converts it back to an appropriate ActionResult
+/// This interprets the string output from tools and classifies the outcome as success, failure, etc.
 pub fn map_tool_result_to_action_result(action: &AgentAction, result: &str) -> ActionResult {
     match action {
         AgentAction::ReadFile(_) => ActionResult::FileContent(result.to_string()),
@@ -113,6 +115,7 @@ pub fn map_tool_result_to_action_result(action: &AgentAction, result: &str) -> A
         }
 
         AgentAction::RunTests => {
+            // Check for standard success patterns in test output across different frameworks
             if result.contains("test result: ok") || result.contains("passing") {
                 ActionResult::Success(result.to_string())
             } else {
@@ -121,6 +124,8 @@ pub fn map_tool_result_to_action_result(action: &AgentAction, result: &str) -> A
         }
 
         AgentAction::RunBuild => {
+            // For build commands, "Finished" without "error" typically indicates success
+            // This is a heuristic that works for Cargo and similar build systems
             if result.contains("Finished") && !result.contains("error") {
                 ActionResult::Success(result.to_string())
             } else {
@@ -129,6 +134,10 @@ pub fn map_tool_result_to_action_result(action: &AgentAction, result: &str) -> A
         }
 
         AgentAction::AnalyzeCode(_) => {
+            // Handle code analysis results:
+            // - No command available or empty result → Neutral (no effect)
+            // - Contains "error" → Failure
+            // - Otherwise → Success
             if result.contains("No analysis command found") || result.is_empty() {
                 ActionResult::Neutral
             } else if result.contains("error") {
@@ -152,7 +161,8 @@ pub fn map_tool_result_to_action_result(action: &AgentAction, result: &str) -> A
     }
 }
 
-/// Available tools for the agent
+/// Available concrete tool implementations that can be executed
+/// These represent the actual implementation mechanisms for agent actions
 #[derive(Debug, Clone)]
 pub enum ToolAction {
     /// Read one or more files
@@ -183,7 +193,8 @@ pub enum ToolAction {
     NoOp,
 }
 
-/// Result of an action
+/// Represents the outcome of an action after execution
+/// Provides classification and details about how an action completed
 #[derive(Debug, Clone)]
 pub enum ActionResult {
     /// Action succeeded
@@ -199,7 +210,8 @@ pub enum ActionResult {
     FileContent(String),
 }
 
-/// Convert a tool action to the corresponding tool name and parameters
+/// Converts a ToolAction into the specific tool name and parameter structure
+/// required by the execution system
 pub fn get_tool_details(action: &ToolAction) -> Option<(String, serde_json::Value)> {
     match action {
         ToolAction::ReadFiles {
