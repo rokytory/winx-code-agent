@@ -1,54 +1,63 @@
-// Módulo para garantir compatibilidade entre diferentes versões do protocolo MCP
+// Module to ensure compatibility between different versions of the MCP protocol
 
 use log::{debug, error, info, warn};
 use std::env;
 use std::path::PathBuf;
 
-/// Detecta e retorna o caminho do workspace com base nas configurações disponíveis
+/// Detects and returns the workspace path based on available configurations
 pub fn detect_workspace() -> PathBuf {
-    // Prioridade 1: Variável de ambiente WINX_WORKSPACE
+    // Priority 1: WINX_WORKSPACE environment variable
     if let Ok(workspace) = env::var("WINX_WORKSPACE") {
         info!("Using workspace from WINX_WORKSPACE env var: {}", workspace);
         return PathBuf::from(workspace);
     }
-    
-    // Prioridade 2: Configuração do Claude
+
+    // Priority 2: Claude configuration
     if let Some(claude_workspace) = get_claude_config_workspace() {
-        info!("Using workspace from Claude config: {}", claude_workspace.display());
+        info!(
+            "Using workspace from Claude config: {}",
+            claude_workspace.display()
+        );
         return claude_workspace;
     }
-    
-    // Prioridade 3: Diretório atual
+
+    // Priority 3: Current directory
     if let Ok(current_dir) = std::env::current_dir() {
-        info!("Using current directory as workspace: {}", current_dir.display());
+        info!(
+            "Using current directory as workspace: {}",
+            current_dir.display()
+        );
         return current_dir;
     }
-    
-    // Fallback: Home do usuário
+
+    // Fallback: User's home directory
     let home_dir = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
-    warn!("No workspace configured, using home directory: {}", home_dir.display());
-    
+    warn!(
+        "No workspace configured, using home directory: {}",
+        home_dir.display()
+    );
+
     home_dir
 }
 
-/// Tenta obter a configuração de workspace do arquivo de configuração do Claude
+/// Attempts to get workspace configuration from Claude's configuration file
 fn get_claude_config_workspace() -> Option<PathBuf> {
     let config_path = dirs::home_dir()
         .map(|home| home.join("Library/Application Support/Claude/claude_desktop_config.json"))?;
-    
+
     if !config_path.exists() {
         debug!("Claude config file not found at {}", config_path.display());
         return None;
     }
-    
+
     debug!("Found Claude config at {}", config_path.display());
-    
-    // Tenta ler o arquivo de configuração
+
+    // Tries to read the configuration file
     match std::fs::read_to_string(&config_path) {
         Ok(content) => {
             match serde_json::from_str::<serde_json::Value>(&content) {
                 Ok(config) => {
-                    // Tenta extrair o workspace da configuração do winx
+                    // Tries to extract workspace from winx configuration
                     if let Some(env) = config
                         .get("mcpServers")
                         .and_then(|servers| servers.get("winx"))
@@ -59,7 +68,7 @@ fn get_claude_config_workspace() -> Option<PathBuf> {
                         debug!("Found WINX_WORKSPACE in Claude config: {}", env);
                         return Some(PathBuf::from(env));
                     }
-                    
+
                     debug!("No WINX_WORKSPACE found in Claude config");
                     None
                 }
@@ -76,37 +85,35 @@ fn get_claude_config_workspace() -> Option<PathBuf> {
     }
 }
 
-/// Detecta o nível de log preferido ou usa o padrão
+/// Detects preferred log level or uses default
 pub fn detect_log_level() -> String {
     env::var("RUST_LOG").unwrap_or_else(|_| {
-        // Tenta obter do arquivo de configuração do Claude
+        // Tries to get from Claude's configuration file
         match dirs::home_dir()
             .map(|home| home.join("Library/Application Support/Claude/claude_desktop_config.json"))
         {
             Some(config_path) if config_path.exists() => {
                 match std::fs::read_to_string(&config_path) {
-                    Ok(content) => {
-                        match serde_json::from_str::<serde_json::Value>(&content) {
-                            Ok(config) => {
-                                if let Some(log_level) = config
-                                    .get("mcpServers")
-                                    .and_then(|servers| servers.get("winx"))
-                                    .and_then(|winx| winx.get("env"))
-                                    .and_then(|env| env.get("RUST_LOG"))
-                                    .and_then(|level| level.as_str())
-                                {
-                                    return log_level.to_string();
-                                }
+                    Ok(content) => match serde_json::from_str::<serde_json::Value>(&content) {
+                        Ok(config) => {
+                            if let Some(log_level) = config
+                                .get("mcpServers")
+                                .and_then(|servers| servers.get("winx"))
+                                .and_then(|winx| winx.get("env"))
+                                .and_then(|env| env.get("RUST_LOG"))
+                                .and_then(|level| level.as_str())
+                            {
+                                return log_level.to_string();
                             }
-                            Err(_) => {}
                         }
-                    }
+                        Err(_) => {}
+                    },
                     Err(_) => {}
                 }
             }
             _ => {}
         }
-        
+
         // Valor padrão
         "info".to_string()
     })

@@ -1,10 +1,9 @@
 use std::path::{Path, PathBuf};
 
-use anyhow::Result;
 use lsp_types::{Position, Range};
 
 use crate::error::WinxError;
-use crate::lsp::symbol::{Symbol, SymbolLocation, SymbolPosition, SymbolRange};
+use crate::lsp::symbol::{Symbol, SymbolPosition, SymbolRange};
 use crate::WinxResult;
 
 /// Convert a relative path to an absolute path
@@ -22,20 +21,19 @@ pub fn get_file_extension(path: impl AsRef<Path>) -> Option<String> {
 
 /// Read the content of a file
 pub fn read_file_content(path: impl AsRef<Path>) -> WinxResult<String> {
-    std::fs::read_to_string(path.as_ref())
-        .map_err(|e| WinxError::IoError(e.to_string()))
+    std::fs::read_to_string(path.as_ref()).map_err(|e| WinxError::IoError(e.to_string()))
 }
 
 /// Write content to a file
 pub fn write_file_content(path: impl AsRef<Path>, content: &str) -> WinxResult<()> {
     let path = path.as_ref();
-    
+
     // Create parent directories if they don't exist
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)
             .map_err(|e| WinxError::IoError(format!("Failed to create directory: {}", e)))?;
     }
-    
+
     std::fs::write(path, content)
         .map_err(|e| WinxError::IoError(format!("Failed to write file: {}", e)))
 }
@@ -43,12 +41,12 @@ pub fn write_file_content(path: impl AsRef<Path>, content: &str) -> WinxResult<(
 /// Extract a range of content from a file
 pub fn extract_range(content: &str, range: &Range) -> String {
     let lines: Vec<&str> = content.lines().collect();
-    
+
     let start_line = range.start.line as usize;
     let start_char = range.start.character as usize;
     let end_line = range.end.line as usize;
     let end_char = range.end.character as usize;
-    
+
     if start_line == end_line {
         // Single line range
         let line = lines.get(start_line).unwrap_or(&"");
@@ -58,10 +56,10 @@ pub fn extract_range(content: &str, range: &Range) -> String {
         let end_pos = end_char.min(line.len());
         return line[start_char..end_pos].to_string();
     }
-    
+
     // Multi-line range
     let mut result = String::new();
-    
+
     // First line (partial)
     if let Some(line) = lines.get(start_line) {
         if start_char < line.len() {
@@ -69,7 +67,7 @@ pub fn extract_range(content: &str, range: &Range) -> String {
         }
         result.push('\n');
     }
-    
+
     // Middle lines (full)
     for line_idx in (start_line + 1)..end_line {
         if let Some(line) = lines.get(line_idx) {
@@ -77,49 +75,49 @@ pub fn extract_range(content: &str, range: &Range) -> String {
             result.push('\n');
         }
     }
-    
+
     // Last line (partial)
     if let Some(line) = lines.get(end_line) {
         let end_pos = end_char.min(line.len());
         result.push_str(&line[..end_pos]);
     }
-    
+
     result
 }
 
 /// Replace a range of content in a file
 pub fn replace_range(content: &str, range: &Range, replacement: &str) -> String {
     let lines: Vec<&str> = content.lines().collect();
-    
+
     let start_line = range.start.line as usize;
     let start_char = range.start.character as usize;
     let end_line = range.end.line as usize;
     let end_char = range.end.character as usize;
-    
+
     let mut result = String::new();
-    
+
     // Add lines before the range
-    for (i, line) in lines.iter().enumerate().take(start_line) {
+    for (_i, line) in lines.iter().enumerate().take(start_line) {
         result.push_str(line);
         result.push('\n');
     }
-    
+
     // Add the start of the first affected line
     if let Some(line) = lines.get(start_line) {
         let prefix_len = start_char.min(line.len());
         result.push_str(&line[..prefix_len]);
     }
-    
+
     // Add the replacement text
     result.push_str(replacement);
-    
+
     // Add the end of the last affected line
     if let Some(line) = lines.get(end_line) {
         let suffix_start = end_char.min(line.len());
         result.push_str(&line[suffix_start..]);
         result.push('\n');
     }
-    
+
     // Add lines after the range
     for (i, line) in lines.iter().enumerate().skip(end_line + 1) {
         result.push_str(line);
@@ -127,22 +125,22 @@ pub fn replace_range(content: &str, range: &Range, replacement: &str) -> String 
             result.push('\n');
         }
     }
-    
+
     result
 }
 
 /// Insert text at a specific position in the content
 pub fn insert_at_position(content: &str, position: &Position, text: &str) -> String {
     let mut lines: Vec<String> = content.lines().map(|s| s.to_string()).collect();
-    
+
     let line_idx = position.line as usize;
     let char_idx = position.character as usize;
-    
+
     // Ensure we have enough lines
     while lines.len() <= line_idx {
         lines.push(String::new());
     }
-    
+
     // Insert the text at the specified position
     let line = &mut lines[line_idx];
     if char_idx > line.len() {
@@ -150,12 +148,17 @@ pub fn insert_at_position(content: &str, position: &Position, text: &str) -> Str
         line.push_str(&" ".repeat(char_idx - line.len()));
     }
     line.insert_str(char_idx, text);
-    
+
     lines.join("\n")
 }
 
 /// Format symbol information for display
-pub fn format_symbol_info(symbol: &Symbol, include_children: bool, depth: usize, indent: &str) -> String {
+pub fn format_symbol_info(
+    symbol: &Symbol,
+    include_children: bool,
+    depth: usize,
+    indent: &str,
+) -> String {
     let kind_str = match symbol.kind {
         lsp_types::SymbolKind::FILE => "File",
         lsp_types::SymbolKind::MODULE => "Module",
@@ -185,25 +188,28 @@ pub fn format_symbol_info(symbol: &Symbol, include_children: bool, depth: usize,
         lsp_types::SymbolKind::TYPE_PARAMETER => "TypeParameter",
         _ => "Unknown",
     };
-    
+
     let mut result = format!(
         "{}{} {} ({}:{}:{})",
-        indent, kind_str, symbol.name,
+        indent,
+        kind_str,
+        symbol.name,
         symbol.location.relative_path,
         symbol.location.line + 1,
         symbol.location.column + 1
     );
-    
+
     if include_children && depth > 0 && !symbol.children.is_empty() {
         result.push('\n');
-        
+
         for child in &symbol.children {
-            let child_info = format_symbol_info(child, include_children, depth - 1, &format!("{}  ", indent));
+            let child_info =
+                format_symbol_info(child, include_children, depth - 1, &format!("{}  ", indent));
             result.push_str(&child_info);
             result.push('\n');
         }
     }
-    
+
     result
 }
 

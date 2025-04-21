@@ -3,7 +3,7 @@ use std::io::Write;
 
 /// Initialize logging with enhanced formatting and error tracking
 pub fn init_logging() {
-    // Verifique se já foi inicializado para evitar múltiplas inicializações
+    // Check if already initialized to avoid multiple initializations
     if std::env::var("WINX_LOGGER_INITIALIZED").is_ok() {
         return;
     }

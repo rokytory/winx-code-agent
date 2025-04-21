@@ -55,6 +55,9 @@ pub enum WinxError {
 
     #[error("{0}")]
     Other(String),
+
+    #[error("IO error: {0}")]
+    IoError(String),
 }
 
 impl WinxError {
@@ -293,6 +296,14 @@ impl WinxError {
                     "details": message
                 })),
             ),
+            WinxError::IoError(message) => McpError::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("IO error: {}", message),
+                Some(json!({
+                    "error_type": "io_error",
+                    "details": message
+                })),
+            ),
         }
     }
 }
@@ -333,4 +344,32 @@ impl<T, E: fmt::Display> ErrorExt<T> for Result<T, E> {
 pub fn map_io_err<P: Into<PathBuf>>(path: P) -> impl FnOnce(std::io::Error) -> WinxError {
     let path = path.into();
     move |err| WinxError::io_error(err, Some(path))
+}
+
+/// Map any error to a WinxError
+pub fn map_error<T>(result: Result<T, impl std::fmt::Display>) -> Result<T, WinxError> {
+    result.map_err(|e| WinxError::other(e.to_string()))
+}
+
+/// Try an operation and map any error to a WinxError
+pub fn try_operation<T, E: std::fmt::Display + std::error::Error>(
+    operation: impl FnOnce() -> Result<T, E>,
+) -> Result<T, WinxError> {
+    operation().map_err(|e| WinxError::other(e.to_string()))
+}
+
+/// Add context to an error message
+pub fn with_context<T, E: std::fmt::Display + std::error::Error>(
+    result: Result<T, E>,
+    context: impl AsRef<str>,
+) -> Result<T, WinxError> {
+    result.map_err(|e| WinxError::other(format!("{}: {}", context.as_ref(), e)))
+}
+
+/// Handle file operations with proper context
+pub fn with_file_context<T>(
+    operation: impl FnOnce() -> Result<T, std::io::Error>,
+    path: impl AsRef<std::path::Path>,
+) -> Result<T, WinxError> {
+    operation().map_err(|e| WinxError::io_error(e, Some(path.as_ref())))
 }

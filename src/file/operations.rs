@@ -1,12 +1,12 @@
 use anyhow::Result;
+use log::{debug, warn};
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
-use log::{debug, warn, info};
 
-use crate::cache::{cached_read_file, invalidate_cached_file};
-use crate::error_handling::{with_file_context, with_context};
+use crate::cache::cached_read_file;
+use crate::with_file_context;
 
 pub struct FileState {
     // Track file hashes and permissions
@@ -61,13 +61,14 @@ impl FileState {
             read_timestamps: std::collections::HashMap::new(),
         }
     }
-    
+
     /// Record file read timestamp
     pub fn track_file_read(&mut self, file_path: &Path) {
-        self.read_timestamps.insert(file_path.to_path_buf(), Instant::now());
+        self.read_timestamps
+            .insert(file_path.to_path_buf(), Instant::now());
         debug!("Tracked read of file: {}", file_path.display());
     }
-    
+
     /// Check if a file was read recently (within the last 5 minutes)
     pub fn was_read_recently(&self, file_path: &Path) -> bool {
         if let Some(timestamp) = self.read_timestamps.get(file_path) {
@@ -84,35 +85,39 @@ impl FileState {
     ) -> Result<()> {
         // Record that this file was read
         self.track_file_read(file_path);
-        
+
         // Try to use cached content if available
         let content = match cached_read_file(file_path) {
             Ok(content) => content.into_bytes(),
-            Err(_) => fs::read(file_path)?
+            Err(_) => fs::read(file_path)?,
         };
-        
+
         let mut hasher = Sha256::new();
         hasher.update(&content);
         let file_hash = format!("{:x}", hasher.finalize());
         let total_lines = content.iter().filter(|&&b| b == b'\n').count() + 1;
-        
+
         let entry = self
             .whitelist_for_overwrite
             .entry(file_path.to_path_buf())
             .or_insert_with(|| FileWhitelistData::new(file_hash.clone(), Vec::new(), total_lines));
-        
+
         // Update hash if changed
         entry.file_hash = file_hash;
-        
+
         // Add the new ranges
         for range in ranges {
             entry.line_ranges_read.push(range);
         }
-        
+
         // Log progress
-        debug!("File {} added to whitelist with {} ranges, {}% read", 
-               file_path.display(), entry.line_ranges_read.len(), entry.get_percentage_read());
-        
+        debug!(
+            "File {} added to whitelist with {} ranges, {}% read",
+            file_path.display(),
+            entry.line_ranges_read.len(),
+            entry.get_percentage_read()
+        );
+
         Ok(())
     }
 
@@ -121,23 +126,29 @@ impl FileState {
         if let Some(data) = self.whitelist_for_overwrite.get(file_path) {
             // First check if the file has been read enough
             if !data.is_read_enough() {
-                debug!("File {} not read enough ({}%)", 
-                      file_path.display(), data.get_percentage_read());
+                debug!(
+                    "File {} not read enough ({}%)",
+                    file_path.display(),
+                    data.get_percentage_read()
+                );
                 return false;
             }
-            
+
             // Then verify its contents haven't changed
             match with_file_context(|| fs::read(file_path), file_path) {
                 Ok(content) => {
                     let mut hasher = Sha256::new();
                     hasher.update(&content);
                     let current_hash = format!("{:x}", hasher.finalize());
-                    
+
                     let unchanged = current_hash == data.file_hash;
                     if !unchanged {
-                        warn!("File {} has been modified since it was read", file_path.display());
+                        warn!(
+                            "File {} has been modified since it was read",
+                            file_path.display()
+                        );
                     }
-                    
+
                     return unchanged;
                 }
                 Err(e) => {
@@ -146,12 +157,12 @@ impl FileState {
                 }
             }
         }
-        
+
         // Special case for new files
         if !file_path.exists() {
             return true;
         }
-        
+
         debug!("File {} not in whitelist", file_path.display());
         false
     }

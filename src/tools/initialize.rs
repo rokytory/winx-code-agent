@@ -95,7 +95,7 @@ impl Initialize {
         Ok(current_mode.clone())
     }
 
-    // Obter o caminho do workspace atual
+    // Get the current workspace path
     pub fn get_workspace_path() -> WinxResult<PathBuf> {
         let workspace_path = WORKSPACE_PATH.lock().map_err(|e| {
             WinxError::lock_error(format!("Failed to acquire WORKSPACE_PATH lock: {}", e))
@@ -104,7 +104,7 @@ impl Initialize {
         Ok(workspace_path.clone())
     }
 
-    // Atualizar o caminho do workspace
+    // Update the workspace path
     fn update_workspace_path(&self, path: PathBuf) -> WinxResult<()> {
         let mut workspace_path = WORKSPACE_PATH.lock().map_err(|e| {
             WinxError::lock_error(format!("Failed to acquire WORKSPACE_PATH lock: {}", e))
@@ -375,7 +375,7 @@ impl Initialize {
                                     tmp_project_dir.display()
                                 );
 
-                                // Obter novamente o estado bash para atualizar
+                                // Get bash state again to update
                                 // This avoids the variable not found error
                                 let bash_state_tmp = self.get_bash_state(&params.mode_name)?;
                                 let mut state_tmp = bash_state_tmp.lock().map_err(|e2| {
@@ -448,7 +448,7 @@ impl Initialize {
 
                     // Use the fallback directory for the rest of the function
                     if fallback_dir.exists() {
-                        // Obter novamente o estado bash para atualizar
+                        // Get bash state again to update
                         // This avoids the variable not found error
                         let bash_state_fb = self.get_bash_state(&params.mode_name)?;
                         let mut state_fb = bash_state_fb.lock().map_err(|e2| {

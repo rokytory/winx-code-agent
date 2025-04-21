@@ -2,7 +2,7 @@ pub mod bash_command;
 pub mod context_save;
 pub mod file_operations;
 pub mod initialize;
-// Comentando temporariamente o módulo semantic_code
+// Temporarily commenting the semantic_code module
 // pub mod semantic_code;
 
 // Context for the agent

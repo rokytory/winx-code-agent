@@ -591,7 +591,7 @@ fn parse_markdown_format(lines: &[&str]) -> Vec<SearchReplaceBlock> {
         // Look for opening markdown code block ```
         if MARKDOWN_CODE_BLOCK.is_match(lines[i]) {
             let search_start = i + 1;
-            // Já atualizamos i acima, não precisamos incrementar novamente
+            // We've already updated i above, no need to increment again
             // Find the closing markdown code block ```
             let mut search_end = search_start;
             while search_end < lines.len() && !MARKDOWN_CODE_BLOCK.is_match(lines[search_end]) {
@@ -623,7 +623,7 @@ fn parse_markdown_format(lines: &[&str]) -> Vec<SearchReplaceBlock> {
             }
 
             let replace_start = i + 1;
-            // Já atualizamos i acima, não precisamos incrementar novamente
+            // We already updated i above, no need to increment again
             // Find the next closing markdown code block
             let mut replace_end = replace_start;
             while replace_end < lines.len() && !MARKDOWN_CODE_BLOCK.is_match(lines[replace_end]) {
@@ -705,7 +705,7 @@ fn find_matches(
     tolerance_levels: &[ToleranceLevel],
 ) -> Vec<MatchResult> {
     let mut matches = Vec::new();
-    // Rastrear posições já encontradas para evitar duplicação
+    // Track positions already found to avoid duplication
     let mut found_positions = HashSet::new();
 
     // Log search context for debugging
@@ -726,11 +726,11 @@ fn find_matches(
         );
     }
 
-    // Primeiro, verifique se estamos buscando um arquivo inteiro
+    // First, check if we're searching for an entire file
     let search_text = search_lines.join("\n");
     let content_text = content_lines.join("\n");
 
-    // Se o bloco de pesquisa é o arquivo inteiro, trate como caso especial
+    // If the search block is the entire file, treat it as a special case
     if search_text == content_text {
         log::debug!("Exact full file match detected");
         return vec![MatchResult {
@@ -787,7 +787,7 @@ fn find_matches(
                 first_line_positions.len()
             );
             for &pos in first_line_positions {
-                // Verificar se já encontramos uma correspondência nesta posição
+                // Check if we've already found a match at this position
                 if found_positions.contains(&pos) {
                     log::debug!("Skipping already found position at line {}", pos);
                     continue;
@@ -817,7 +817,7 @@ fn find_matches(
                 }
 
                 if all_match {
-                    // Adicione a posição ao conjunto de posições encontradas
+                    // Add the position to the set of found positions
                     found_positions.insert(pos);
 
                     matches.push(MatchResult {
@@ -829,7 +829,7 @@ fn find_matches(
                         score: tolerance.score_multiplier() * tolerance_count as f64,
                     });
 
-                    // Se este é o conteúdo completo do arquivo, não precisamos de mais correspondências
+                    // If this is the complete file content, we don't need more matches
                     if search_lines.len() == content_lines.len() && pos == 0 {
                         log::debug!("Found full file match - no need to continue searching");
                         return matches;
@@ -845,7 +845,7 @@ fn find_matches(
     matches
 }
 
-// A função find_closest_match já foi definida anteriormente
+// The find_closest_match function was defined previously
 
 /// Fix indentation in replace lines based on matched content
 fn fix_indentation(
@@ -1010,11 +1010,11 @@ pub fn apply_search_replace(
         // For tests, allow multiple matches of the same section
         #[cfg(not(test))]
         {
-            // Verificar se o bloco de pesquisa é o arquivo inteiro
+            // Check if the search block is the entire file
             let search_content = block.search_lines.join("\n");
             let full_content = content_lines.join("\n");
 
-            // Se estamos procurando exatamente o arquivo inteiro, apenas usar a primeira correspondência
+            // If we're searching for exactly the whole file, just use the first match
             if search_content == full_content {
                 log::debug!("Search block is the entire file content - using first match");
             } else {
@@ -1024,7 +1024,7 @@ pub fn apply_search_replace(
                     .filter(|m| (m.score - best_score).abs() < 1e-6)
                     .collect();
 
-                // Verificar se temos correspondências em diferentes posições (não apenas duplicatas)
+                // Check if we have matches at different positions (not just duplicates)
                 let unique_positions: HashSet<_> = matches_with_best_score
                     .iter()
                     .map(|m| (m.range.start, m.range.end))
@@ -1034,10 +1034,10 @@ pub fn apply_search_replace(
                     // Multiple matches found with the same score at different positions
                     let block_content = block.search_lines.join("\n");
 
-                    // Analisar contexto para cada correspondência para ajudar o usuário
+                    // Analyze context for each match to help the user
                     let mut match_contexts = Vec::new();
                     for m in matches_with_best_score.iter().take(4) {
-                        // Obter algumas linhas antes e depois da correspondência para mostrar o contexto
+                        // Get some lines before and after the match to show context
                         let start = m.range.start.saturating_sub(3); // 3 linhas antes
                         let end = (m.range.end + 3).min(content_lines.len()); // 3 linhas depois
 

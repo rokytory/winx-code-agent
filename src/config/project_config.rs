@@ -4,28 +4,28 @@ use std::path::{Path, PathBuf};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct WinxProjectConfig {
-    // Informações básicas do projeto
+    // Basic project information
     pub project_name: String,
     pub project_type: ProjectType,
     pub main_language: String,
-    
-    // Estrutura de arquivos e pastas importantes
+
+    // Structure of important files and directories
     pub important_files: Vec<ImportantFile>,
     pub important_directories: Vec<ImportantDirectory>,
-    
-    // Padrões de codificação detectados
+
+    // Detected coding patterns
     pub coding_patterns: HashMap<String, CodingPattern>,
-    
-    // Comandos úteis para este projeto
+
+    // Useful commands for this project
     pub useful_commands: HashMap<String, UsefulCommand>,
-    
-    // Histórico de interações bem-sucedidas
+
+    // History of successful interactions
     pub successful_interactions: Vec<SuccessfulInteraction>,
-    
-    // Vocabulário de domínio específico do projeto
+
+    // Project-specific domain vocabulary
     pub domain_vocabulary: HashSet<String>,
-    
-    // Metadados de tokens e economia
+
+    // Token usage and economy metadata
     pub token_economy: TokenEconomyConfig,
 }
 
@@ -46,7 +46,7 @@ pub struct ImportantFile {
     pub purpose: FilePurpose,
     pub last_read: Option<u64>, // timestamp
     pub important_sections: Vec<FileSection>,
-    pub read_frequency: usize,  // quantas vezes foi lido
+    pub read_frequency: usize, // how many times it was read
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -101,7 +101,7 @@ pub struct CodingPattern {
     pub pattern_name: String,
     pub description: String,
     pub example_files: Vec<PathBuf>,
-    pub confidence: f64, // 0.0 a 1.0
+    pub confidence: f64, // 0.0 to 1.0
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -118,7 +118,7 @@ pub struct SuccessfulInteraction {
     pub task_description: String,
     pub sequence_of_actions: Vec<ActionRecord>,
     pub user_feedback: Option<String>,
-    pub success_rating: f64, // 0.0 a 1.0
+    pub success_rating: f64, // 0.0 to 1.0
     pub timestamp: u64,
 }
 
@@ -141,11 +141,11 @@ pub struct TokenEconomyConfig {
 
 impl WinxProjectConfig {
     pub fn new(project_name: String, project_path: &Path) -> Self {
-        // Detectar o tipo de projeto com base nos arquivos presentes
+        // Detect project type based on present files
         let project_type = detect_project_type(project_path);
         let main_language = detect_main_language(project_path);
-        
-        // Inicializar com valores padrão
+
+        // Initialize with default values
         Self {
             project_name,
             project_type,
@@ -165,103 +165,112 @@ impl WinxProjectConfig {
             },
         }
     }
-    
-    // Carregar a configuração de um arquivo .winx
+
+    // Load configuration from a .winx file
     pub fn load(project_path: &Path) -> Result<Self, std::io::Error> {
         let config_path = project_path.join(".winx/project.json");
         if !config_path.exists() {
-            // Criar um novo arquivo de configuração padrão
-            let project_name = project_path.file_name()
+            // Create a new default configuration file
+            let project_name = project_path
+                .file_name()
                 .and_then(|n| n.to_str())
                 .unwrap_or("unknown_project")
                 .to_string();
-            
+
             let config = Self::new(project_name, project_path);
             config.save(project_path)?;
             return Ok(config);
         }
-        
+
         let content = std::fs::read_to_string(config_path)?;
         let config: Self = serde_json::from_str(&content)?;
         Ok(config)
     }
-    
-    // Salvar a configuração em um arquivo .winx
+
+    // Save configuration to a .winx file
     pub fn save(&self, project_path: &Path) -> Result<(), std::io::Error> {
         let winx_dir = project_path.join(".winx");
         if !winx_dir.exists() {
             std::fs::create_dir_all(&winx_dir)?;
         }
-        
+
         let config_path = winx_dir.join("project.json");
         let content = serde_json::to_string_pretty(self)?;
         std::fs::write(config_path, content)?;
         Ok(())
     }
-    
-    // Adicionar um arquivo importante
-    pub fn add_important_file(&mut self, 
-                             path: PathBuf, 
-                             description: String, 
-                             purpose: FilePurpose) {
-        // Verificar se o arquivo já existe
-        if let Some(existing) = self.important_files.iter_mut()
-            .find(|f| f.path == path) {
-            // Atualizar informações existentes
+
+    // Add an important file
+    pub fn add_important_file(&mut self, path: PathBuf, description: String, purpose: FilePurpose) {
+        // Check if the file already exists
+        if let Some(existing) = self.important_files.iter_mut().find(|f| f.path == path) {
+            // Update existing information
             existing.description = description;
             existing.purpose = purpose;
             existing.read_frequency += 1;
-            existing.last_read = Some(std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs());
+            existing.last_read = Some(
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs(),
+            );
             return;
         }
-        
-        // Adicionar novo arquivo
+
+        // Add new file
         self.important_files.push(ImportantFile {
             path,
             description,
             purpose,
-            last_read: Some(std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs()),
+            last_read: Some(
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs(),
+            ),
             important_sections: Vec::new(),
             read_frequency: 1,
         });
     }
-    
-    // Registrar um comando útil
-    pub fn record_useful_command(&mut self, 
-                                command: String, 
-                                description: String, 
-                                context: String,
-                                success: bool) {
+
+    // Register a useful command
+    pub fn record_useful_command(
+        &mut self,
+        command: String,
+        description: String,
+        context: String,
+        success: bool,
+    ) {
         let cmd_key = command.clone();
-        
-        // Atualizar comando existente ou criar novo
-        let entry = self.useful_commands.entry(cmd_key).or_insert(UsefulCommand {
-            command,
-            description,
-            success_rate: if success { 1.0 } else { 0.0 },
-            usage_count: 0,
-            context,
-        });
-        
-        // Atualizar estatísticas
+
+        // Update existing command or create new one
+        let entry = self
+            .useful_commands
+            .entry(cmd_key)
+            .or_insert(UsefulCommand {
+                command,
+                description,
+                success_rate: if success { 1.0 } else { 0.0 },
+                usage_count: 0,
+                context,
+            });
+
+        // Update statistics
         entry.usage_count += 1;
         let success_value = if success { 1.0 } else { 0.0 };
-        entry.success_rate = ((entry.success_rate * (entry.usage_count - 1) as f64) + success_value) 
+        entry.success_rate = ((entry.success_rate * (entry.usage_count - 1) as f64)
+            + success_value)
             / entry.usage_count as f64;
     }
-    
-    // Adicionar uma interação bem-sucedida
-    pub fn add_successful_interaction(&mut self, 
-                                     task: String, 
-                                     actions: Vec<ActionRecord>,
-                                     feedback: Option<String>,
-                                     rating: f64) {
+
+    // Add a successful interaction
+    pub fn add_successful_interaction(
+        &mut self,
+        task: String,
+        actions: Vec<ActionRecord>,
+        feedback: Option<String>,
+        rating: f64,
+    ) {
         self.successful_interactions.push(SuccessfulInteraction {
             task_description: task,
             sequence_of_actions: actions,
@@ -273,56 +282,58 @@ impl WinxProjectConfig {
                 .as_secs(),
         });
     }
-    
-    // Registrar consumo de tokens
+
+    // Record token usage
     pub fn record_token_usage(&mut self, tokens: usize) {
         self.token_economy.tokens_spent += tokens;
     }
-    
-    // Verificar se um arquivo já foi lido antes
+
+    // Check if a file has been read before
     pub fn is_file_known(&self, path: &Path) -> bool {
         self.important_files.iter().any(|f| f.path == path)
     }
-    
-    // Obter arquivos mais importantes para entender o projeto
+
+    // Get the most important files to understand the project
     pub fn get_key_files(&self, max_count: usize) -> Vec<&ImportantFile> {
         let mut files: Vec<&ImportantFile> = self.important_files.iter().collect();
-        
-        // Ordenar por importância implícita (combinação de propósito e frequência)
+
+        // Sort by implicit importance (combination of purpose and frequency)
         files.sort_by(|a, b| {
             let a_score = file_importance_score(a);
             let b_score = file_importance_score(b);
-            b_score.partial_cmp(&a_score).unwrap_or(std::cmp::Ordering::Equal)
+            b_score
+                .partial_cmp(&a_score)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
-        
+
         files.truncate(max_count);
         files
     }
-    
-    // Obter comandos mais úteis para este projeto
+
+    // Get the most useful commands for this project
     pub fn get_useful_commands(&self, context: &str, max_count: usize) -> Vec<&UsefulCommand> {
         let mut commands: Vec<&UsefulCommand> = self.useful_commands.values().collect();
-        
-        // Filtrar por contexto se fornecido
+
+        // Filter by context if provided
         if !context.is_empty() {
-            commands = commands.into_iter()
-                .filter(|cmd| cmd.context.contains(context))
-                .collect();
+            commands.retain(|cmd| cmd.context.contains(context));
         }
-        
-        // Ordenar por utilidade (taxa de sucesso * contagem de uso)
+
+        // Sort by utility (success rate * usage count)
         commands.sort_by(|a, b| {
             let a_score = a.success_rate * (a.usage_count as f64).sqrt();
             let b_score = b.success_rate * (b.usage_count as f64).sqrt();
-            b_score.partial_cmp(&a_score).unwrap_or(std::cmp::Ordering::Equal)
+            b_score
+                .partial_cmp(&a_score)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
-        
+
         commands.truncate(max_count);
         commands
     }
 }
 
-// Função auxiliar para calcular pontuação de importância de arquivo
+// Helper function to calculate file importance score
 fn file_importance_score(file: &ImportantFile) -> f64 {
     let purpose_score = match file.purpose {
         FilePurpose::MainEntry => 1.0,
@@ -334,23 +345,23 @@ fn file_importance_score(file: &ImportantFile) -> f64 {
         FilePurpose::Documentation => 0.4,
         FilePurpose::Other(_) => 0.3,
     };
-    
-    // Combinar propósito com frequência de leitura normalizada
+
+    // Combine purpose with normalized reading frequency
     purpose_score * (0.1 + 0.9 * (1.0 - 1.0 / (file.read_frequency as f64 + 1.0)))
 }
 
-// Detectar tipo de projeto baseado nos arquivos presentes
+// Detect project type based on files present
 fn detect_project_type(project_path: &Path) -> ProjectType {
     if project_path.join("Cargo.toml").exists() {
         ProjectType::RustProject
     } else if project_path.join("package.json").exists() {
         ProjectType::NodeJsProject
-    } else if project_path.join("pyproject.toml").exists() 
-        || project_path.join("setup.py").exists() 
-        || project_path.join("requirements.txt").exists() {
+    } else if project_path.join("pyproject.toml").exists()
+        || project_path.join("setup.py").exists()
+        || project_path.join("requirements.txt").exists()
+    {
         ProjectType::PythonProject
-    } else if project_path.join("pom.xml").exists() 
-        || project_path.join("build.gradle").exists() {
+    } else if project_path.join("pom.xml").exists() || project_path.join("build.gradle").exists() {
         ProjectType::JavaProject
     } else if project_path.join("go.mod").exists() {
         ProjectType::GoProject
@@ -359,19 +370,19 @@ fn detect_project_type(project_path: &Path) -> ProjectType {
     }
 }
 
-// Detectar linguagem principal baseado nos arquivos
+// Detect main language based on files
 fn detect_main_language(project_path: &Path) -> String {
-    // Função simplificada - numa implementação real faria contagem de arquivos
+    // Simplified function - in a real implementation would count files
     if project_path.join("Cargo.toml").exists() {
         "Rust".to_string()
     } else if project_path.join("package.json").exists() {
         "JavaScript/TypeScript".to_string()
-    } else if project_path.join("pyproject.toml").exists() 
-        || project_path.join("setup.py").exists() 
-        || project_path.join("requirements.txt").exists() {
+    } else if project_path.join("pyproject.toml").exists()
+        || project_path.join("setup.py").exists()
+        || project_path.join("requirements.txt").exists()
+    {
         "Python".to_string()
-    } else if project_path.join("pom.xml").exists() 
-        || project_path.join("build.gradle").exists() {
+    } else if project_path.join("pom.xml").exists() || project_path.join("build.gradle").exists() {
         "Java".to_string()
     } else if project_path.join("go.mod").exists() {
         "Go".to_string()

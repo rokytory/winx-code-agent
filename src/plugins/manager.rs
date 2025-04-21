@@ -35,6 +35,7 @@ pub struct PluginManager {
 
 #[derive(Clone)]
 struct PluginMetadata {
+    #[allow(dead_code)]
     config: PluginConfig,
     tools: Vec<Tool>,
 }
@@ -55,22 +56,22 @@ impl PluginManager {
         let mut tool_map = self.tool_plugin_map.write().await;
         for tool in &tools {
             // Check for name collisions
-            if let Some(existing_plugin) = tool_map.get(&tool.name) {
+            let tool_name = tool.name.to_string();
+            if let Some(existing_plugin) = tool_map.get(&tool_name) {
                 if existing_plugin != &plugin_name {
                     return Err(anyhow::anyhow!(
                         "Tool name collision: '{}' is provided by both '{}' and '{}'",
-                        tool.name, existing_plugin, plugin_name
+                        tool_name,
+                        existing_plugin,
+                        plugin_name
                     ));
                 }
             }
-            tool_map.insert(tool.name.clone(), plugin_name.clone());
+            tool_map.insert(tool_name, plugin_name.clone());
         }
 
         // Add plugin to registry
-        let metadata = PluginMetadata {
-            config,
-            tools,
-        };
+        let metadata = PluginMetadata { config, tools };
 
         let mut plugins = self.plugins.write().await;
         plugins.insert(plugin_name, metadata);
@@ -98,7 +99,11 @@ impl PluginManager {
 
     /// Implementation placeholder for calling a tool
     /// This will be implemented when we add the actual plugin execution system
-    pub async fn call_tool(&self, _tool_name: &str, _params: serde_json::Value) -> Result<CallToolResult, McpError> {
+    pub async fn call_tool(
+        &self,
+        _tool_name: &str,
+        _params: serde_json::Value,
+    ) -> Result<CallToolResult, McpError> {
         // This is just a placeholder - we'll implement actual plugin execution later
         Err(McpError::new(
             ErrorCode::INTERNAL_ERROR,

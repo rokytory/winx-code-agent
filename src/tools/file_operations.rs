@@ -241,7 +241,7 @@ impl WriteIfEmpty {
             && !path.starts_with("/Users")
             && !path.starts_with("/home")
         {
-            // Redirecionar para /tmp com o mesmo nome de arquivo
+            // Redirect to /tmp with the same filename
             let file_name = path.file_name().unwrap_or_default();
             let redirected = PathBuf::from("/tmp").join(file_name);
 
@@ -458,7 +458,7 @@ impl FileOperations {
             // Use a read operation that avoids cache to ensure more fresh data
             match fs::read(&range_path) {
                 Ok(bytes) => {
-                    // Converter bytes para string
+                    // Convert bytes to string
                     let content = match String::from_utf8(bytes.clone()) {
                         Ok(text) => text,
                         Err(_) => {
@@ -967,15 +967,15 @@ impl WriteIfEmpty {
 
         let original_path = PathBuf::from(&params.file_path);
 
-        // Verificar se o caminho precisa ser redirecionado (sistema de arquivos somente leitura)
+        // Check if the path needs to be redirected (read-only filesystem)
         let path = if let Some(redirected_path) = self.check_and_redirect(&original_path) {
-            // Se redirecionou, vamos usar o novo caminho
+            // If redirected, let's use the new path
             redirected_path
         } else {
             original_path.clone()
         };
 
-        // Criar mensagem de aviso se houve redirecionamento
+        // Create warning message if there was a redirection
         let warning = if path != original_path {
             Some(format!(
                 "Warning: Using {} instead of {} because the target may be in a read-only location",
@@ -1001,7 +1001,7 @@ impl WriteIfEmpty {
                         let tmp_parent = tmp_path.parent().unwrap_or(&tmp_path);
 
                         if let Err(tmp_err) = fs::create_dir_all(tmp_parent) {
-                            // Se nem /tmp funciona, retorne erro melhorado
+                            // If even /tmp doesn't work, return improved error
                             return Err(McpError::new(
                                 ErrorCode::INVALID_PARAMS,
                                 format!(
@@ -1012,7 +1012,7 @@ impl WriteIfEmpty {
                             ));
                         }
 
-                        // Use o caminho em /tmp diretamente, em vez de chamar recursivamente
+                        // Use the path in /tmp directly, instead of calling recursively
                         let warning = format!(
                             "Warning: Could not create directory '{}' due to permission error: {}. Using '{}' instead.",
                             path.display(), e, tmp_path.display()
@@ -1026,10 +1026,10 @@ impl WriteIfEmpty {
                             )
                         })?;
 
-                        // Adicione ao whitelist para edições futuras
+                            // Add to whitelist for future edits
                         let lines = params.file_content.lines().count();
 
-                        // Criar hash do conteúdo
+                        // Create content hash
                         let mut hasher = Sha256::new();
                         hasher.update(params.file_content.as_bytes());
                         let file_hash = format!("{:x}", hasher.finalize());
@@ -1097,15 +1097,15 @@ impl WriteIfEmpty {
                     || e.kind() == std::io::ErrorKind::Other
                 {
                     // Covers "Read-only file system"
-                    // Tente escrever em /tmp como último recurso
+                    // Try writing to /tmp as a last resort
                     let tmp_path = PathBuf::from("/tmp").join(path.file_name().unwrap_or_default());
 
                     match fs::write(&tmp_path, &params.file_content) {
                         Ok(_) => {
-                            // Adicione ao whitelist para edições futuras
+                            // Add to whitelist for future edits
                             let lines = params.file_content.lines().count();
 
-                            // Criar hash do conteúdo
+                            // Create content hash
                             let mut hasher = Sha256::new();
                             hasher.update(params.file_content.as_bytes());
                             let file_hash = format!("{:x}", hasher.finalize());
@@ -1178,7 +1178,7 @@ impl WriteIfEmpty {
             );
         }
 
-        // Construir mensagem de resultado
+        // Build result message
         let mut result = String::new();
 
         // Add warning if necessary

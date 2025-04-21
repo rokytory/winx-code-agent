@@ -4,7 +4,7 @@ use crate::tools::{
     context_save::ContextSave,
     file_operations::{FileEdit, FileOperations, WriteIfEmpty},
     initialize::Initialize,
-    // Comentando temporariamente os módulos LSP que estão causando erros
+    // Temporarily commenting out LSP modules that are causing errors
     // semantic_code::{AddSymbolTool, EditSymbolTool, FindReferencesTool, FindSymbolTool},
 };
 use rmcp::{
@@ -21,7 +21,7 @@ pub struct CodeAgent {
     write_if_empty: WriteIfEmpty,
     file_edit: FileEdit,
     context_save: ContextSave,
-    // Comentando temporariamente os campos relacionados ao LSP
+    // Temporarily commenting out LSP-related fields
     // find_symbol: FindSymbolTool,
     // find_references: FindReferencesTool,
     // edit_symbol: EditSymbolTool,
@@ -48,7 +48,7 @@ impl CodeAgent {
             write_if_empty: WriteIfEmpty::new(),
             file_edit: FileEdit::new(),
             context_save: ContextSave::new(),
-            // Comentando temporariamente as inicializações relacionadas ao LSP
+            // Temporarily commenting out LSP-related initializations
             // find_symbol: FindSymbolTool::new(),
             // find_references: FindReferencesTool::new(),
             // edit_symbol: EditSymbolTool::new(),
@@ -290,7 +290,7 @@ impl CodeAgent {
         self.context_save.context_save(params).await
     }
 
-    // Comentando temporariamente os métodos relacionados ao LSP
+    // Temporarily commenting out LSP-related methods
     // #[tool(
     //     description = "Find symbols by name in the codebase with semantic understanding."
     // )]

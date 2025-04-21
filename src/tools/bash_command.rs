@@ -5,7 +5,6 @@ use std::sync::{Arc, Mutex};
 use tokio::time::Duration;
 
 use crate::bash::runner::{CommandRunner, ProcessStatus};
-use crate::bash::security::{check_command_safety, DangerLevel};
 use crate::tools::initialize::{Action, Initialize};
 
 // Global command runner instance
@@ -229,7 +228,7 @@ impl BashCommand {
         // Check if initialization has been done
         crate::ensure_initialized!("You must call 'initialize' before executing bash commands.");
 
-        // Log para fins de diagnóstico
+        // Log for diagnostic purposes
         log::info!("BashCommand: Executing command with params: {:?}", params);
 
         // Check permission
@@ -324,62 +323,30 @@ impl BashCommand {
 
         let result = match action_json {
             ActionJson::Command(cmd) => {
-                // Check command safety first
-                match check_command_safety(&cmd.command) {
-                    DangerLevel::Dangerous(reason) => {
-                        log::warn!("Dangerous command rejected: {}", cmd.command);
-                        return Ok(CallToolResult::success(vec![rmcp::model::Content::text(
-                            format!("Error: Command refused for security reasons.\n\nReason: {}\n\nPlease use a safer alternative.", reason)
-                        )]));
-                    },
-                    DangerLevel::Warning(reason) => {
-                        log::warn!("Suspicious command allowed with warning: {}", cmd.command);
-                        let warning = format!(
-                            "Warning: {}\n\nProceeding with caution.\n\n",
-                            reason
-                        );
-                        
-                        // Execute command but add warning to output
-                        runner
-                            .execute(&cmd.command)
-                            .await
-                            .map_err(|e| e.to_mcp_error())?;
+                // Verify if command needs terminal access before executing
+                if self.command_requires_terminal(&cmd.command) {
+                    let warning = format!(
+                        "Warning: Command '{}' may require an interactive terminal and might not work correctly.\n\n",
+                        cmd.command
+                    );
+                    log::warn!("Command requires terminal: {}", cmd.command);
 
-                        // Wait a bit to collect output
-                        tokio::time::sleep(Duration::from_secs_f64(timeout)).await;
+                    // Execute command but add warning to output
+                    runner
+                        .execute(&cmd.command)
+                        .await
+                        .map_err(|e| e.to_mcp_error())?;
 
-                        // Get output
-                        let (stdout, stderr) = runner.get_output();
-                        let status_info = runner.get_status_info();
+                    // Wait a bit to collect output
+                    tokio::time::sleep(Duration::from_secs_f64(timeout)).await;
 
-                        // Add warning to the output
-                        format!("{}{}\n{}\n\n{}", warning, stdout, stderr, status_info)
-                    },
-                    DangerLevel::Safe => {
-                        // Verify if command needs terminal access before executing
-                        if self.command_requires_terminal(&cmd.command) {
-                            let warning = format!(
-                                "Warning: Command '{}' may require an interactive terminal and might not work correctly.\n\n",
-                                cmd.command
-                            );
-                            log::warn!("Command requires terminal: {}", cmd.command);
+                    // Get output
+                    let (stdout, stderr) = runner.get_output();
+                    let status_info = runner.get_status_info();
 
-                            // Execute command but add warning to output
-                            runner
-                                .execute(&cmd.command)
-                                .await
-                                .map_err(|e| e.to_mcp_error())?;
-
-                            // Wait a bit to collect output
-                            tokio::time::sleep(Duration::from_secs_f64(timeout)).await;
-
-                            // Get output
-                            let (stdout, stderr) = runner.get_output();
-                            let status_info = runner.get_status_info();
-
-                            // Add warning to the output
-                            format!("{}{}\n{}\n\n{}", warning, stdout, stderr, status_info)
-                        } else {
+                    // Add warning to the output
+                    format!("{}{}\n{}\n\n{}", warning, stdout, stderr, status_info)
+                } else {
                     // Regular command execution
                     runner
                         .execute(&cmd.command)
@@ -393,7 +360,7 @@ impl BashCommand {
                     let (stdout, stderr) = runner.get_output();
                     let status_info = runner.get_status_info();
 
-                    // Primeiro, vamos registrar a saída para fins de diagnóstico
+                    // First, let's log the output for diagnostic purposes
                     log::debug!(
                         "Command output - stdout: {:?}, stderr: {:?}",
                         stdout,
@@ -402,7 +369,7 @@ impl BashCommand {
 
                     // Check if output is empty and add a note
                     if stdout.trim().is_empty() && stderr.trim().is_empty() {
-                        // Log detalhado do comando executado e seu resultado
+                        // Detailed log of the executed command and its result
                         log::info!(
                             "Command '{}' produced no output - checking PWD",
                             cmd.command
@@ -420,7 +387,7 @@ impl BashCommand {
                             || cmd.command.contains("find")
                             || cmd.command.contains("cat")
                         {
-                            // Tente executar o comando diretamente para verificação
+                            // Try to execute the command directly for verification
                             log::info!("Attempting direct execution for: {}", cmd.command);
                             let parts: Vec<&str> = cmd.command.split_whitespace().collect();
                             if !parts.is_empty() {
@@ -444,19 +411,19 @@ impl BashCommand {
                                         } else if !cmd_error.is_empty() {
                                             format!("{}\n\n{}", cmd_error, status_info)
                                         } else {
-                                            format!("Command executed successfully but produced no output. Current directory: {}\n\n{}", 
-                                                pwd_out.trim(), status_info)
+                                            format!("Command executed successfully but produced no output. Current directory: {}\n\n{}",
+                                                    pwd_out.trim(), status_info)
                                         }
                                     }
                                     Err(e) => {
                                         log::warn!("Direct command execution failed: {}", e);
-                                        format!("Command execution attempt: {}. Current directory: {}\n\n{}", 
-                                            e, pwd_out.trim(), status_info)
+                                        format!("Command execution attempt: {}. Current directory: {}\n\n{}",
+                                                e, pwd_out.trim(), status_info)
                                     }
                                 }
                             } else {
-                                format!("Command executed successfully but produced no output. Current directory: {}\n\n{}", 
-                                    pwd_out.trim(), status_info)
+                                format!("Command executed successfully but produced no output. Current directory: {}\n\n{}",
+                                        pwd_out.trim(), status_info)
                             }
                         } else if cmd.command.contains("echo") {
                             // If it's an echo command, show what's being echoed

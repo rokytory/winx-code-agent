@@ -157,7 +157,7 @@ impl CommandRunner {
 
             cmd
         } else {
-            // Abordagem original com screen
+            // Original approach with screen
             let use_screen = if Self::is_screen_available() {
                 match self.start_screen_session(&cwd) {
                     Ok(session) => {
@@ -444,15 +444,15 @@ impl CommandRunner {
     fn execute_direct_command(&self, command: &str) -> WinxResult<()> {
         log::info!("Attempting direct command execution for: {}", command);
 
-        // Verifica se o comando é composto (contém && ou ||)
+        // Check if the command is compound (contains && or ||)
         if command.contains("&&") || command.contains("||") || command.contains(";") {
-            // Vamos executar em um shell para usar operadores compostos
+            // Let's execute in a shell to use compound operators
             log::info!("Detected compound command, using shell execution");
 
             // Get current working directory
             let cwd = self.cwd.lock().unwrap().clone();
 
-            // Executa o comando em um shell
+            // Execute the command in a shell
             let output = std::process::Command::new("bash")
                 .arg("-c")
                 .arg(command)
@@ -475,7 +475,7 @@ impl CommandRunner {
                     WinxError::bash_error(format!("Failed to execute compound command: {}", e))
                 })?;
 
-            // Processa saída
+            // Process output
             let stdout = String::from_utf8_lossy(&output.stdout).to_string();
             let stderr = String::from_utf8_lossy(&output.stderr).to_string();
 
@@ -502,9 +502,9 @@ impl CommandRunner {
                 *last_cmd = command.to_string();
             }
 
-            // Se for um comando cd, precisamos atualizar o diretório após execução
+            // If it's a cd command, we need to update the directory after execution
             if command.contains("cd ") {
-                // Executar pwd para descobrir o diretório atual
+                // Run pwd to discover the current directory
                 let pwd_output = std::process::Command::new("bash")
                     .arg("-c")
                     .arg("pwd")
@@ -519,7 +519,7 @@ impl CommandRunner {
                         self.update_cwd(new_dir);
                         log::info!("Updated working directory to: {}", self.get_cwd());
 
-                        // Atualiza a saída para mostrar a mudança de diretório
+                        // Update output to show directory change
                         let mut stdout_buf = self.stdout_buffer.lock().unwrap();
                         *stdout_buf =
                             format!("Changed directory to: {}\n{}", self.get_cwd(), stdout_buf);
