@@ -306,7 +306,17 @@ impl Initialize {
 
     // Implementation with custom error handling
     async fn initialize_impl(&self, params: InitializeParams) -> WinxResult<CallToolResult> {
-        let workspace_path = PathBuf::from(&params.any_workspace_path);
+        // Se any_workspace_path estiver vazio, tente usar a variável de ambiente WINX_WORKSPACE
+        let workspace_path = if params.any_workspace_path.trim().is_empty() {
+            if let Ok(env_workspace) = std::env::var("WINX_WORKSPACE") {
+                log::info!("Using WINX_WORKSPACE environment variable: {}", env_workspace);
+                PathBuf::from(env_workspace)
+            } else {
+                PathBuf::from(&params.any_workspace_path)
+            }
+        } else {
+            PathBuf::from(&params.any_workspace_path)
+        };
 
         // Create directory if it doesn't exist and isn't empty
         if !workspace_path.exists() && params.any_workspace_path.trim() != "" {
