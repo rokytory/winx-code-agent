@@ -11,3 +11,5 @@ target/
 
 # RustRover
 .idea/
+
+.DS_Store
