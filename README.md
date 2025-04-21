@@ -1,195 +1,191 @@
-# Winx Code Agent
+<table style="width:100%" align="center" border="0">
+  <tr>
+    <td width="40%" align="center"><img src="./.github/assets/fairy.png" alt="Winx" width="300"></td>
+    <td><h1>✨ Ｗｉｎｘ Ｃｏｄｅ Ａｇｅｎｔ ✨</h1></td>
+  </tr>
+</table>
 
-A Rust implementation of a code agent that provides tools for code manipulation, bash execution, and file operations.
-This project is inspired by the Python WCGW (What Could Go Wrong) project and implements similar functionality using the
-RMCP protocol.
+<p align="center">
+  <strong>✨ A high-performance code agent written in Rust, combining the best features of WCGW with reinforcement learning capabilities. 🦀</strong>
+</p>
 
-## Features
+<p align="center">
+  <img src="https://img.shields.io/badge/language-Rust-orange?style=flat&logo=rust" alt="Language" />
+  <img src="https://img.shields.io/badge/license-MIT-blue?style=flat&logo=appveyor" alt="License" />
+  <img src="https://img.shields.io/github/languages/count/gabrielmaialva33/winx-code-agent?style=flat&logo=appveyor" alt="GitHub language count" >
+  <img src="https://img.shields.io/github/repo-size/gabrielmaialva33/winx-code-agent?style=flat&logo=appveyor" alt="Repository size" >
+  <a href="https://github.com/gabrielmaialva33/winx-code-agent/commits/master">
+    <img src="https://img.shields.io/github/last-commit/gabrielmaialva33/winx-code-agent?style=flat&logo=appveyor" alt="Last Commit" >
+  </a>
+  <img src="https://img.shields.io/badge/made%20by-Maia-15c3d6?style=flat&logo=appveyor" alt="Made by Maia" >
+</p>
 
-- **Bash Command Execution**: Execute bash commands and interact with running processes
-- **Screen Support**: Run long-running commands in background using `screen` sessions
-- **File Operations**:
-    - Read files with line range support and chunking for large files
-    - Write new files with syntax validation
-    - Edit existing files with search/replace functionality
-    - Syntax checking for code files
-- **Operational Modes**:
-    - `wcgw`: Complete access to all features
-    - `architect`: Read-only mode for planning and repository analysis
-    - `code_writer`: Restricted access for controlled code modifications
-- **Repository Analysis**: Analyze repository structure and get context information
-- **Context Management**: Save task context and restore at a later time
-- **Task Checkpointing**: Resume tasks where they were left off
-- **Image Support**: Read images and encode them as base64 for display
+---
 
-## Requirements
+## 🌟 Features
 
+- ⚡ **High Performance**: Implemented in Rust for maximum efficiency
+- 🔄 **Reinforcement Learning**: Adaptive tool selection based on context and success patterns
+- 📁 **Advanced File Operations**:
+  - 📖 Read files with line range support and chunking for large files
+  - ✏️ Write new files with syntax validation
+  - 🔍 Edit existing files with intelligent search/replace
+  - ✅ Syntax checking to prevent code errors
+- 🖥️ **Command Execution**:
+  - 🚀 Run shell commands with status tracking
+  - 📺 Screen support for long-running processes
+  - ⌨️ Interactive terminal commands with real-time feedback
+- 🔀 **Operational Modes**:
+  - 🔓 `wcgw`: Complete access to all features
+  - 🔎 `architect`: Read-only mode for planning and analysis
+  - 🔒 `code_writer`: Restricted access for controlled modifications
+- 📊 **Project Management**:
+  - 📝 Repository structure analysis
+  - 💾 Context saving and task resumption
+  - 🧠 Task memory system
+- 🖼️ **Media Support**: Read images and encode as base64
+- 🧩 **RMCP Protocol**: Seamless integration with Claude and other LLMs
+
+---
+
+## 🖇️ Installation & Setup
+
+### Prerequisites
 - Rust 1.70 or higher
 - Tokio runtime
 - RMCP SDK
 
-## Installation
-
-### Clone the repository
-
+### 1. Clone the Repository
 ```bash
-git clone https://github.com/yourusername/winx-code-agent.git
-cd winx-code-agent
+git clone https://github.com/gabrielmaialva33/winx-code-agent.git && cd winx-code-agent
 ```
 
-### Build the project
-
+### 2. Build the Project
 ```bash
+# For development
 cargo build
+
+# For production
+cargo build --release
 ```
 
-## Usage
-
-### Running the server
-
+### 3. Run the Agent
 ```bash
+# Using cargo
 cargo run
+
+# Or directly
+./target/release/winx-code-agent
 ```
 
-This will start the code agent server using stdio for communication.
+---
 
-### As a library
+## 🔧 Integration with Claude
 
-You can also use Winx Code Agent as a library in your Rust projects:
+Winx Code Agent is designed to work seamlessly with Claude via the MCP interface:
 
-```rust
-use anyhow::Result;
-use rmcp::{transport::io, ServiceExt};
-use winx_code_agent::CodeAgent;
+1. **Edit Claude's Configuration**
+   ```json
+   // In claude_desktop_config.json (Mac: ~/Library/Application Support/Claude/claude_desktop_config.json)
+   {
+     "mcpServers": {
+       "winx": {
+         "command": "/path/to/winx-code-agent",
+         "args": [],
+         "env": {
+           "RUST_LOG": "info"
+         }
+       }
+     }
+   }
+   ```
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    let agent = CodeAgent::new();
-    let transport = io::stdio();
+2. **Restart Claude** after configuration to see the Winx MCP integration icon.
 
-    let server = agent.serve(transport).await?;
-    server.waiting().await?;
+3. **Start using the tools** through Claude's interface.
 
-    Ok(())
-}
-```
+---
 
-### Example Usage
+## 🛠️ Available Tools
 
-Check the examples directory for more examples:
+### 🚀 Initialize
+Always call this first to set up your workspace environment.
 
-```bash
-# Run basic example
-cargo run --example basic_usage
+### 🖥️ BashCommand
+Execute shell commands with intelligent error handling and status tracking.
 
-# Run advanced example
-cargo run --example advanced_usage
-```
+### 📁 File Operations
+- **ReadFiles**: Read file content with line range support
+- **WriteIfEmpty**: Create new files safely
+- **FileEdit**: Edit existing files using intelligent search/replace
+- **ReadImage**: Process image files as base64
 
-## API Reference
+### 💾 ContextSave
+Save task context for later resumption.
 
-The code agent provides the following tools via the RMCP protocol:
+---
 
-### Initialize
+## 👨‍💻 Usage Workflow
 
-- Always call this at the start of the conversation before using any of the shell tools.
-- Use `any_workspace_path` to initialize the shell in the appropriate project directory.
-- If the user has mentioned a workspace or project root or any other file or folder use it to set `any_workspace_path`.
-- If user has mentioned any files use `initial_files_to_read` to read, use absolute paths only (~ allowed)
-- By default use mode "wcgw"
-- In "code-writer" mode, set the commands and globs which user asked to set, otherwise use 'all'.
-- Use type="first_call" if it's the first call to this tool.
-- Use type="user_asked_mode_change" if in a conversation user has asked to change mode.
-- Use type="reset_shell" if in a conversation shell is not working after multiple tries.
-- Use type="user_asked_change_workspace" if in a conversation user asked to change workspace
+1. **Initialize the workspace**
+   ```
+   initialize(path="/path/to/your/project")
+   ```
 
-Parameters:
+2. **Explore the codebase**
+   ```
+   bash_command(command="find . -type f -name '*.rs' | sort")
+   ```
 
-- `type`: Type of initialization ("first_call", "user_asked_mode_change", "reset_shell", "user_asked_change_workspace")
-- `any_workspace_path`: Path to the workspace directory
-- `initial_files_to_read`: List of files to read initially
-- `task_id_to_resume`: ID of a task to resume (if any)
-- `mode_name`: Mode to operate in ("wcgw", "architect", "code_writer")
-- `code_writer_config`: Configuration for code_writer mode
+3. **Read key files**
+   ```
+   read_files(files=["/path/to/important_file.rs"])
+   ```
 
-### BashCommand
+4. **Make changes**
+   ```
+   file_edit(file="/path/to/file.rs", edit_blocks="...")
+   ```
 
-- Execute a bash command. This is stateful (beware with subsequent calls).
-- Status of the command and the current working directory will always be returned at the end.
-- The first or the last line might be `(...truncated)` if the output is too long.
-- Always run `pwd` if you get any file or directory not found error to make sure you're not lost.
-- Run long running commands in background using screen instead of "&".
-- Do not use 'cat' to read files, use ReadFiles tool instead
-- In order to check status of previous command, use `status_check` with empty command argument.
-- Only command is allowed to run at a time. You need to wait for any previous command to finish before running a new
-  one.
-- Programs don't hang easily, so most likely explanation for no output is usually that the program is still running, and
-  you need to check status again.
-- Do not send Ctrl-c before checking for status till 10 minutes or whatever is appropriate for the program to finish.
+5. **Run tests**
+   ```
+   bash_command(command="cargo test")
+   ```
 
-Parameters:
+6. **Save context for later**
+   ```
+   context_save(id="my_task", description="Implementation of feature X")
+   ```
 
-- `action_json`: Action to perform (Command, StatusCheck, SendText, SendSpecials)
-- `wait_for_seconds`: Time to wait for output
+---
 
-### ReadFiles
+## 🏷 Need Support or Assistance?
 
-- Read full file content of one or more files.
-- Provide absolute paths only (~ allowed)
-- Only if the task requires line numbers understanding:
-    - You may populate "show_line_numbers_reason" with your reason, by default null/empty means no line numbers are
-      shown.
-    - You may extract a range of lines. E.g., `/path/to/file:1-10` for lines 1-10. You can drop start or end like
-      `/path/to/file:1-` or `/path/to/file:-10`
+If you need help or have any questions about Winx Code Agent, feel free to reach out via the following channels:
 
-Parameters:
+- [GitHub Issues](https://github.com/gabrielmaialva33/winx-code-agent/issues/new?assignees=&labels=question&title=support%3A+): Open a support issue on GitHub.
+- Email: gabrielmaialva33@gmail.com
 
-- `file_paths`: Paths of files to read (supports line ranges like "file.txt:10-20")
-- `show_line_numbers_reason`: Reason for showing line numbers
+---
 
-### WriteIfEmpty
+## ❣️ Support the Project
 
-Create new files or write to empty files only.
+If you enjoy **Winx Code Agent** and want to support its development, consider:
 
-Parameters:
+- ⭐ [Starring the repository](https://github.com/gabrielmaialva33/winx-code-agent) on GitHub.
+- 🍴 [Forking the repository](https://github.com/gabrielmaialva33/winx-code-agent) and contributing improvements.
+- 📝 Sharing your experience with tutorials or articles on [Dev.to](https://dev.to/), [Medium](https://medium.com/), or your personal blog.
 
-- `file_path`: Path of the file to write
-- `file_content`: Content to write to the file
+Together, we can make **Winx Code Agent** even better!
 
-### FileEdit
+---
 
-- Edits existing files using search/replace blocks.
-- Uses Aider-like search and replace syntax.
-- File edit has spacing tolerant matching, with warning on issues like indentation mismatch.
-- If there's no match, the closest match is returned to help fix mistakes.
+## 🙏 Special Thanks
 
-Parameters:
+A huge thank you to [rusiaaman](https://github.com/rusiaaman) for the inspiring work on [WCGW](https://github.com/rusiaaman/wcgw), which served as a primary inspiration for this project. Winx Code Agent reimplements many of WCGW's best features in Rust for enhanced performance while adding reinforcement learning capabilities.
 
-- `file_path`: Path of the file to edit
-- `file_edit_using_search_replace_blocks`: Edit using search/replace blocks
+---
 
-### ReadImage
-
-Read an image file and return its base64-encoded content.
-
-Parameters:
-
-- `file_path`: Path of the image file
-
-### ContextSave
-
-Saves provided description and file contents of all the relevant file paths or globs in a single text file.
-
-- Provide random unqiue id or whatever user provided.
-- Leave project path as empty string if no project path
-
-Parameters:
-
-- `id`: ID to assign to the saved context
-- `project_root_path`: Root path of the project
-- `description`: Description of the context
-- `relevant_file_globs`: Glob patterns to match relevant files
-
-## License
+## 📜 License
 
 MIT
