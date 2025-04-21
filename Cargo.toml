@@ -12,9 +12,6 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "2.0.12"
 anyhow = "1.0"
-backtrace = "0.3"
-async-trait = "0.1"
-futures = "0.3"
 log = "0.4"
 env_logger = "0.11.8"
 sha2 = "0.10"
@@ -26,24 +23,9 @@ mime_guess = "2.0"
 dirs = "6.0.0"
 lazy_static = "1.4"
 chrono = "0.4"
-tree-sitter = "0.20"
 rand = "0.9.1"
-lru = "0.10"
-# Novas dependências
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-extism = "^1.0.0"
-hex = "0.4"
-reqwest = { version = "0.11", features = ["json"] }
-clap = { version = "4.4", features = ["derive", "env"] }
-config = "0.15.11"
-serde_yaml = "0.9"
 once_cell = "1.18"
 uuid = { version = "1.6.1", features = ["v4"] }
-# LSP dependencies for semantic code understanding
-lsp-types = "0.97.0"
-tower-lsp = "0.20.0"
-lsp-server = "0.7.4"
 
 [lib]
 name = "winx_code_agent"
