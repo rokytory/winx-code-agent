@@ -139,60 +139,74 @@ impl CommandRunner {
     pub fn start_shell(&mut self) -> WinxResult<()> {
         let cwd = self.cwd.lock().unwrap().clone();
 
-        // Try to use screen if available
-        let use_screen = if Self::is_screen_available() {
-            match self.start_screen_session(&cwd) {
-                Ok(session) => {
-                    log::info!("Started screen session: {}", session);
-                    true
-                }
-                Err(e) => {
-                    log::warn!("Failed to start screen session: {}", e);
-                    log::debug!("Screen session error details: {:?}", e);
-                    false
-                }
-            }
-        } else {
-            log::info!("Screen not available, using direct bash");
-            false
-        };
+        // Simplified approach for command execution without interactive terminal
+        // To work around the "Must be connected to a terminal" problem
+        let use_non_interactive_shell = true;
 
-        let mut cmd = if use_screen {
-            let session = self.get_screen_session().unwrap();
-            let mut cmd = Command::new("screen");
-            cmd.args(["-r", &session, "-X", "stuff", ""]);
-            // We're not using this command directly, but setup for later interaction
-
-            // The actual command for I/O will attach to the session
-            let mut real_cmd = Command::new("screen");
-            real_cmd
-                .args(["-S", &session])
-                .current_dir(&cwd)
-                .stdin(Stdio::piped())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped());
-            real_cmd
-        } else {
+        let mut cmd = if use_non_interactive_shell {
+            // Non-interactive version that doesn't require a connected terminal
             let mut cmd = Command::new("bash");
             cmd.current_dir(&cwd)
                 .env("PS1", PROMPT_CONST)
-                .env("TERM", "xterm-256color") // Definir variável TERM para evitar erros de terminal
-                .arg("-i") // Modo interativo
+                .env("TERM", "dumb") // Simpler terminal that doesn't require advanced features
+                .arg("-c")           // Non-interactive mode
+                .arg("echo 'Shell initialized in non-interactive mode'") // Initial test command
                 .stdin(Stdio::piped())
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped());
 
-            // Verificar se o diretório existe
-            if !Path::new(&cwd).exists() {
-                log::warn!(
-                    "Directory does not exist: {}, using home directory instead",
-                    cwd
-                );
-                let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
-                cmd.current_dir(home);
-            }
-
             cmd
+        } else {
+            // Abordagem original com screen
+            let use_screen = if Self::is_screen_available() {
+                match self.start_screen_session(&cwd) {
+                    Ok(session) => {
+                        log::info!("Started screen session: {}", session);
+                        true
+                    }
+                    Err(e) => {
+                        log::warn!("Failed to start screen session: {}", e);
+                        log::debug!("Screen session error details: {:?}", e);
+                        false
+                    }
+                }
+            } else {
+                log::info!("Screen not available, using direct bash");
+                false
+            };
+
+            if use_screen {
+                let session = self.get_screen_session().unwrap();
+                let mut real_cmd = Command::new("screen");
+                real_cmd
+                    .args(["-S", &session])
+                    .current_dir(&cwd)
+                    .stdin(Stdio::piped())
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::piped());
+                real_cmd
+            } else {
+                let mut cmd = Command::new("bash");
+                cmd.current_dir(&cwd)
+                    .env("PS1", PROMPT_CONST)
+                    .env("TERM", "xterm-256color")
+                    .arg("-i") // Interactive mode
+                    .stdin(Stdio::piped())
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::piped());
+
+                // Check if directory exists
+                if !Path::new(&cwd).exists() {
+                    log::warn!(
+                        "Directory does not exist: {}, using home directory instead",
+                        cwd
+                    );
+                    let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
+                    cmd.current_dir(home);
+                }
+
+                cmd
+            }
         };
 
         let mut child = cmd
@@ -285,10 +299,11 @@ impl CommandRunner {
     /// Execute a command
     pub async fn execute(&self, command: &str) -> WinxResult<()> {
         if self.tx_input.is_none() {
-            return Err(WinxError::ShellNotStarted);
+            // Try direct execution to work around terminal problems
+            return self.execute_direct_command(command);
         }
 
-        // Verificar se é um comando de mudança de diretório
+        // Check if it's a directory change command
         let is_cd_command = command.trim().starts_with("cd ");
 
         // Check if the command contains a background operation indicator
@@ -328,8 +343,13 @@ impl CommandRunner {
             return Ok(());
         }
 
+        // Try to execute directly to avoid terminal issues
+        if command.starts_with("ls ") || command.starts_with("find ") || command.starts_with("cat ") {
+            return self.execute_direct_command(command);
+        }
+
         // For non-background commands or if screen is not available
-        // Log o comando que será executado para diagnóstico
+        // Log the command that will be executed for diagnostics
         log::debug!("Executing bash command: {}", command);
 
         // Clear previous output
@@ -346,12 +366,12 @@ impl CommandRunner {
             *last_cmd = command.to_string();
         }
 
-        // Log e envie o comando
+        // Log and send the command
         let tx = self.tx_input.as_ref().unwrap();
 
-        // Adicionar um comando que garante que a saída não seja truncada ou filtrada
+        // Add a command that ensures output is not truncated or filtered
         if !command.starts_with("cd ") && !command.contains("|") && !command.contains(">") {
-            // Comando normal com garantia de saída
+            // Normal command with guaranteed output
             let safe_command = format!("{} 2>&1; echo \"WINX_CMD_STATUS=$?\"", command);
             log::debug!("Safe command for execution: {}", safe_command);
 
@@ -359,54 +379,114 @@ impl CommandRunner {
                 WinxError::bash_error(format!("Failed to send command to shell: {}", e))
             })?;
         } else {
-            // Para comandos complexos, use a abordagem padrão
+            // For complex commands, use the standard approach
             tx.send(format!("{}\n", command)).await.map_err(|e| {
                 WinxError::bash_error(format!("Failed to send command to shell: {}", e))
             })?;
         }
 
-        // Se for um comando cd, vamos atualizar o diretório de trabalho depois
+        // If it's a cd command, update the working directory afterwards
         if is_cd_command {
-            // Espere um pouco para o comando ser executado
+            // Wait a bit for the command to be executed
             tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
-            // Vamos executar um pwd para descobrir o diretório atual
-            let tx = self.tx_input.as_ref().unwrap();
-            tx.send("pwd\n".to_string()).await.map_err(|e| {
-                WinxError::bash_error(format!("Failed to send pwd command to shell: {}", e))
-            })?;
+            // For cd commands, use the direct execution approach to update the directory
+            let dir = command.trim()[3..].trim();
+            let cwd = self.get_cwd();
+            let new_path = if dir.starts_with("/") {
+                PathBuf::from(dir)
+            } else {
+                PathBuf::from(&cwd).join(dir)
+            };
 
-            // Espere um pouco para o comando ser executado
-            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-
-            // Obtenha a saída (geralmente, o diretório atual estará no stdout)
-            let (stdout, _) = self.get_output();
-
-            // Processe a saída para obter o caminho
-            if let Some(pwd_output) = stdout.lines().next() {
-                let trimmed_path = pwd_output.trim();
-                if !trimmed_path.is_empty() {
-                    // Atualize o diretório de trabalho
-                    self.update_cwd(trimmed_path.to_string());
-                    log::info!("Updated working directory to: {}", trimmed_path);
+            // Try to get the canonical path
+            match std::fs::canonicalize(&new_path) {
+                Ok(canonical_path) => {
+                    // Directly update the working directory
+                    self.update_cwd(canonical_path.to_string_lossy().to_string());
+                    log::info!("Updated working directory to: {}", self.get_cwd());
+                }
+                Err(e) => {
+                    log::warn!("Failed to canonicalize path {}: {}", new_path.display(), e);
+                    
+                    // Try to execute pwd directly
+                    let output = Command::new("pwd")
+                        .current_dir(&new_path)
+                        .output();
+                    
+                    if let Ok(output) = output {
+                        let pwd_output = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                        if !pwd_output.is_empty() {
+                            self.update_cwd(pwd_output);
+                            log::info!("Updated working directory to: {}", self.get_cwd());
+                        }
+                    }
                 }
             }
 
-            // Limpe novamente a saída
+            // Clear the output
             {
                 let mut stdout = self.stdout_buffer.lock().unwrap();
-                *stdout = String::new();
+                *stdout = format!("Changed directory to: {}\n", self.get_cwd());
                 let mut stderr = self.stderr_buffer.lock().unwrap();
                 *stderr = String::new();
             }
-
-            // Reenvie o comando original
-            let tx = self.tx_input.as_ref().unwrap();
-            tx.send(format!("{}\n", command)).await.map_err(|e| {
-                WinxError::bash_error(format!("Failed to resend original command to shell: {}", e))
-            })?;
         }
 
+        Ok(())
+    }
+    
+    /// Executes a command directly using std::process::Command instead of interactive shell
+    /// This works around the "Must be connected to a terminal" problem
+    fn execute_direct_command(&self, command: &str) -> WinxResult<()> {
+        log::info!("Attempting direct command execution for: {}", command);
+        
+        // Extract command and arguments
+        let parts: Vec<&str> = command.split_whitespace().collect();
+        if parts.is_empty() {
+            return Err(WinxError::bash_error("Empty command"));
+        }
+        
+        let cmd_name = parts[0];
+        let args = &parts[1..];
+        
+        // Get current working directory
+        let cwd = self.cwd.lock().unwrap().clone();
+        
+        // Execute command
+        let output = std::process::Command::new(cmd_name)
+            .args(args)
+            .current_dir(cwd)
+            .output()
+            .map_err(|e| WinxError::bash_error(format!("Failed to execute command: {}", e)))?;
+        
+        // Process output
+        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        
+        // Update buffers
+        {
+            let mut stdout_buf = self.stdout_buffer.lock().unwrap();
+            *stdout_buf = stdout;
+        }
+        
+        {
+            let mut stderr_buf = self.stderr_buffer.lock().unwrap();
+            *stderr_buf = stderr;
+        }
+        
+        // Update status
+        {
+            let mut status = self.status.lock().unwrap();
+            *status = ProcessStatus::Exited(output.status.code().unwrap_or(0));
+        }
+        
+        // Store the command
+        {
+            let mut last_cmd = self.last_command.lock().unwrap();
+            *last_cmd = command.to_string();
+        }
+        
         Ok(())
     }
 
@@ -443,7 +523,7 @@ impl CommandRunner {
         let stdout = self.stdout_buffer.lock().unwrap().clone();
         let stderr = self.stderr_buffer.lock().unwrap().clone();
 
-        // Log a saída para diagnóstico
+        // Log the output for diagnostic purposes
         log::debug!(
             "Command output - stdout len: {}, stderr len: {}",
             stdout.len(),
