@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex};
 use tokio::time::Duration;
 
 use crate::bash::runner::{CommandRunner, ProcessStatus};
+use crate::bash::security::{check_command_safety, DangerLevel};
 use crate::tools::initialize::{Action, Initialize};
 
 // Global command runner instance
@@ -323,30 +324,62 @@ impl BashCommand {
 
         let result = match action_json {
             ActionJson::Command(cmd) => {
-                // Verify if command needs terminal access before executing
-                if self.command_requires_terminal(&cmd.command) {
-                    let warning = format!(
-                        "Warning: Command '{}' may require an interactive terminal and might not work correctly.\n\n",
-                        cmd.command
-                    );
-                    log::warn!("Command requires terminal: {}", cmd.command);
+                // Check command safety first
+                match check_command_safety(&cmd.command) {
+                    DangerLevel::Dangerous(reason) => {
+                        log::warn!("Dangerous command rejected: {}", cmd.command);
+                        return Ok(CallToolResult::success(vec![rmcp::model::Content::text(
+                            format!("Error: Command refused for security reasons.\n\nReason: {}\n\nPlease use a safer alternative.", reason)
+                        )]));
+                    },
+                    DangerLevel::Warning(reason) => {
+                        log::warn!("Suspicious command allowed with warning: {}", cmd.command);
+                        let warning = format!(
+                            "Warning: {}\n\nProceeding with caution.\n\n",
+                            reason
+                        );
+                        
+                        // Execute command but add warning to output
+                        runner
+                            .execute(&cmd.command)
+                            .await
+                            .map_err(|e| e.to_mcp_error())?;
 
-                    // Execute command but add warning to output
-                    runner
-                        .execute(&cmd.command)
-                        .await
-                        .map_err(|e| e.to_mcp_error())?;
+                        // Wait a bit to collect output
+                        tokio::time::sleep(Duration::from_secs_f64(timeout)).await;
 
-                    // Wait a bit to collect output
-                    tokio::time::sleep(Duration::from_secs_f64(timeout)).await;
+                        // Get output
+                        let (stdout, stderr) = runner.get_output();
+                        let status_info = runner.get_status_info();
 
-                    // Get output
-                    let (stdout, stderr) = runner.get_output();
-                    let status_info = runner.get_status_info();
+                        // Add warning to the output
+                        format!("{}{}\n{}\n\n{}", warning, stdout, stderr, status_info)
+                    },
+                    DangerLevel::Safe => {
+                        // Verify if command needs terminal access before executing
+                        if self.command_requires_terminal(&cmd.command) {
+                            let warning = format!(
+                                "Warning: Command '{}' may require an interactive terminal and might not work correctly.\n\n",
+                                cmd.command
+                            );
+                            log::warn!("Command requires terminal: {}", cmd.command);
 
-                    // Add warning to the output
-                    format!("{}{}\n{}\n\n{}", warning, stdout, stderr, status_info)
-                } else {
+                            // Execute command but add warning to output
+                            runner
+                                .execute(&cmd.command)
+                                .await
+                                .map_err(|e| e.to_mcp_error())?;
+
+                            // Wait a bit to collect output
+                            tokio::time::sleep(Duration::from_secs_f64(timeout)).await;
+
+                            // Get output
+                            let (stdout, stderr) = runner.get_output();
+                            let status_info = runner.get_status_info();
+
+                            // Add warning to the output
+                            format!("{}{}\n{}\n\n{}", warning, stdout, stderr, status_info)
+                        } else {
                     // Regular command execution
                     runner
                         .execute(&cmd.command)
