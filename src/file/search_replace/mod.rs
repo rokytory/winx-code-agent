@@ -444,7 +444,7 @@ fn find_closest_match(
 /// Parses blocks using the standard format with explicit SEARCH/REPLACE markers
 ///
 /// Standard format example:
-/// ```
+/// ```text
 /// <<<<<<< SEARCH
 /// search content
 /// =======
@@ -537,7 +537,7 @@ fn parse_standard_format(lines: &[&str]) -> Vec<SearchReplaceBlock> {
 /// Parses blocks using the simplified format with minimal markers
 ///
 /// Simple format example:
-/// ```
+/// ```text
 /// <<<
 /// search content
 /// >>>

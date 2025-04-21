@@ -14,7 +14,7 @@ lazy_static::lazy_static! {
 
 #[derive(Debug, Clone)]
 pub struct BashCommand {
-    // Empty struct as state is managed globally
+    // Empty struct as a state is managed globally
 }
 
 impl BashCommand {
@@ -41,7 +41,7 @@ impl BashCommand {
                     cmd_content.trim()
                 };
 
-                // Clean up quotes
+                // Cleanup quotes
                 let cmd_cleaned = cmd_str
                     .trim_start_matches('"')
                     .trim_start_matches('\'')
@@ -66,7 +66,7 @@ impl BashCommand {
                     return Ok(ActionJson::Command(command_request));
                 }
 
-                // If we can't handle it specially, just try to use the command directly
+                // If we can't handle it especially, just try to use the command directly
                 return Ok(ActionJson::Command(CommandRequest {
                     command: cmd_cleaned.to_string(),
                 }));
@@ -109,7 +109,7 @@ impl BashCommand {
 
         if runner.is_none() {
             // Get the workspace path from initializer
-            let workspace_path = match crate::tools::initialize::Initialize::get_workspace_path() {
+            let workspace_path = match Initialize::get_workspace_path() {
                 Ok(path) => {
                     if path.exists() {
                         path.to_string_lossy().to_string()
@@ -323,7 +323,7 @@ impl BashCommand {
 
         let result = match action_json {
             ActionJson::Command(cmd) => {
-                // Verify if command needs terminal access before executing
+                // Verify if the command needs terminal access before executing
                 if self.command_requires_terminal(&cmd.command) {
                     let warning = format!(
                         "Warning: Command '{}' may require an interactive terminal and might not work correctly.\n\n",
@@ -356,94 +356,120 @@ impl BashCommand {
                     // Wait a bit to collect output
                     tokio::time::sleep(Duration::from_secs_f64(timeout)).await;
 
+                    // Check if a process is still running
+                    let status = runner.check_status(0.5).await;
+                    if status == ProcessStatus::Running {
+                        // For long-running processes, try again with a longer wait
+                        tokio::time::sleep(Duration::from_secs_f64(timeout * 2.0)).await;
+                    }
+
                     // Get output
                     let (stdout, stderr) = runner.get_output();
                     let status_info = runner.get_status_info();
 
                     // First, let's log the output for diagnostic purposes
-                    log::debug!(
-                        "Command output - stdout: {:?}, stderr: {:?}",
+                    log::info!(
+                        "Command '{}' output - stdout: {:?}, stderr: {:?}",
+                        cmd.command,
                         stdout,
                         stderr
                     );
 
-                    // Check if output is empty and add a note
-                    if stdout.trim().is_empty() && stderr.trim().is_empty() {
+                    // Return the result
+                    let result = if stdout.trim().is_empty() && stderr.trim().is_empty() {
                         // Detailed log of the executed command and its result
                         log::info!(
-                            "Command '{}' produced no output - checking PWD",
+                            "Command '{}' produced no output - checking if still running",
                             cmd.command
                         );
 
-                        // Execute pwd to verify current directory
-                        runner.execute("pwd").await.map_err(|e| e.to_mcp_error())?;
-                        tokio::time::sleep(Duration::from_secs_f64(1.0)).await;
-                        let (pwd_out, _) = runner.get_output();
+                        // Check if a process is still running
+                        let final_status = runner.check_status(0.1).await;
+                        if final_status == ProcessStatus::Running {
+                            log::info!("Process is still running, output may not be available yet");
+                            "Process is still running, output may not be available yet\n"
+                                .to_string()
+                        } else {
+                            // If a process finished but no output, try secondary verification
+                            // Execute pwd to verify the current directory
+                            runner.execute("pwd").await.map_err(|e| e.to_mcp_error())?;
+                            tokio::time::sleep(Duration::from_secs_f64(1.0)).await;
+                            let (pwd_out, _) = runner.get_output();
 
-                        log::info!("Current directory: {}", pwd_out.trim());
+                            log::info!("Current directory: {}", pwd_out.trim());
 
-                        // Additional attempt to execute common commands directly
-                        if cmd.command.contains("ls")
-                            || cmd.command.contains("find")
-                            || cmd.command.contains("cat")
-                        {
-                            // Try to execute the command directly for verification
-                            log::info!("Attempting direct execution for: {}", cmd.command);
-                            let parts: Vec<&str> = cmd.command.split_whitespace().collect();
-                            if !parts.is_empty() {
-                                let cmd_name = parts[0];
-                                let args = &parts[1..];
+                            // Additional attempt to execute common commands directly
+                            if cmd.command.contains("ls")
+                                || cmd.command.contains("find")
+                                || cmd.command.contains("cat")
+                            {
+                                // Try to execute the command directly for verification
+                                log::info!("Attempting direct execution for: {}", cmd.command);
+                                let parts: Vec<&str> = cmd.command.split_whitespace().collect();
+                                if !parts.is_empty() {
+                                    let cmd_name = parts[0];
+                                    let args = &parts[1..];
 
-                                let output = std::process::Command::new(cmd_name)
-                                    .args(args)
-                                    .current_dir(pwd_out.trim())
-                                    .output();
+                                    let output = std::process::Command::new(cmd_name)
+                                        .args(args)
+                                        .current_dir(pwd_out.trim())
+                                        .output();
 
-                                match output {
-                                    Ok(output) => {
-                                        let cmd_output = String::from_utf8_lossy(&output.stdout);
-                                        let cmd_error = String::from_utf8_lossy(&output.stderr);
-                                        log::info!("Direct command stdout: {}", cmd_output);
-                                        log::info!("Direct command stderr: {}", cmd_error);
+                                    match output {
+                                        Ok(output) => {
+                                            let cmd_output =
+                                                String::from_utf8_lossy(&output.stdout);
+                                            let cmd_error = String::from_utf8_lossy(&output.stderr);
+                                            log::info!("Direct command stdout: {}", cmd_output);
+                                            log::info!("Direct command stderr: {}", cmd_error);
 
-                                        if !cmd_output.is_empty() {
-                                            format!("{}\n\n{}", cmd_output, status_info)
-                                        } else if !cmd_error.is_empty() {
-                                            format!("{}\n\n{}", cmd_error, status_info)
-                                        } else {
-                                            format!("Command executed successfully but produced no output. Current directory: {}\n\n{}",
-                                                    pwd_out.trim(), status_info)
+                                            if !cmd_output.is_empty() {
+                                                format!("{}\n\n{}", cmd_output, status_info)
+                                            } else if !cmd_error.is_empty() {
+                                                format!("{}\n\n{}", cmd_error, status_info)
+                                            } else {
+                                                format!("Command executed successfully but produced no output. Current directory: {}\n\n{}",
+                                                        pwd_out.trim(), status_info)
+                                            }
+                                        }
+                                        Err(e) => {
+                                            log::warn!("Direct command execution failed: {}", e);
+                                            format!("Command execution attempt: {}. Current directory: {}\n\n{}",
+                                                    e, pwd_out.trim(), status_info)
                                         }
                                     }
-                                    Err(e) => {
-                                        log::warn!("Direct command execution failed: {}", e);
-                                        format!("Command execution attempt: {}. Current directory: {}\n\n{}",
-                                                e, pwd_out.trim(), status_info)
-                                    }
+                                } else {
+                                    format!("Command executed successfully but produced no output. Current directory: {}\n\n{}",
+                                            pwd_out.trim(), status_info)
                                 }
+                            } else if cmd.command.contains("echo") {
+                                // If it's an echo command, show what's being echoed
+                                let echo_text = cmd.command.trim_start_matches("echo").trim();
+                                format!(
+                                    "{}\n\n{}",
+                                    echo_text.trim_matches('\'').trim_matches('"'),
+                                    status_info
+                                )
                             } else {
-                                format!("Command executed successfully but produced no output. Current directory: {}\n\n{}",
-                                        pwd_out.trim(), status_info)
+                                format!("Command executed successfully.\n\n{}", status_info)
                             }
-                        } else if cmd.command.contains("echo") {
-                            // If it's an echo command, show what's being echoed
-                            let echo_text = cmd.command.trim_start_matches("echo").trim();
-                            format!(
-                                "{}\n\n{}",
-                                echo_text.trim_matches('\'').trim_matches('"'),
-                                status_info
-                            )
-                        } else {
-                            format!("Command executed successfully.\n\n{}", status_info)
                         }
                     } else {
                         format!("{}\n{}\n\n{}", stdout, stderr, status_info)
-                    }
+                    };
+
+                    result
                 }
             }
             ActionJson::StatusCheck(_) => {
                 // Check status
                 let status = runner.check_status(timeout).await;
+
+                // Flush any pending output
+                runner.flush_output().await;
+
+                // Get any buffered output
+                let (stdout, stderr) = runner.get_output();
 
                 let status_str = match status {
                     ProcessStatus::Running => "status = still running".to_string(),
@@ -456,16 +482,20 @@ impl BashCommand {
                 };
 
                 let cwd = runner.get_cwd();
-                format!("{}\ncwd = {}", status_str, cwd)
+
+                // Include any output that might have been captured during the status check
+                if !stdout.is_empty() || !stderr.is_empty() {
+                    format!("{}\n{}\n\n{}\ncwd = {}", stdout, stderr, status_str, cwd)
+                } else {
+                    format!("{}\ncwd = {}", status_str, cwd)
+                }
             }
             ActionJson::SendText(text) => {
-                // Send text to process
-                {
-                    runner
-                        .send_text(&text.send_text)
-                        .await
-                        .map_err(|e| e.to_mcp_error())?;
-                }
+                // Send text to the process
+                runner
+                    .send_text(&text.send_text)
+                    .await
+                    .map_err(|e| e.to_mcp_error())?;
 
                 // Wait a bit to collect output
                 tokio::time::sleep(Duration::from_secs_f64(timeout)).await;
@@ -557,12 +587,10 @@ impl BashCommand {
             ActionJson::SendAscii { send_ascii } => {
                 for ascii in send_ascii {
                     let ch = char::from_u32(ascii as u32).unwrap_or(' ');
-                    {
-                        runner
-                            .send_text(&ch.to_string())
-                            .await
-                            .map_err(|e| e.to_mcp_error())?;
-                    }
+                    runner
+                        .send_text(&ch.to_string())
+                        .await
+                        .map_err(|e| e.to_mcp_error())?;
                 }
 
                 // Wait a bit to collect output

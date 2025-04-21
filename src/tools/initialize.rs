@@ -540,10 +540,7 @@ impl Initialize {
                 Err(e) => format!("Error analyzing workspace: {}{}", e, writable_status),
             }
         } else {
-            format!(
-                "Workspace path doesn't exist: {}",
-                params.workspace_path
-            )
+            format!("Workspace path doesn't exist: {}", params.workspace_path)
         };
 
         // Get recent files if any

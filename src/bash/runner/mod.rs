@@ -230,10 +230,13 @@ impl CommandRunner {
         let stdout_status = Arc::clone(&self.status);
         let stderr_status = Arc::clone(&self.status);
 
-        // Handle stdout
+        // Handle stdout with enhanced logging
         thread::spawn(move || {
             let reader = BufReader::new(stdout);
             for line in reader.lines().map_while(Result::ok) {
+                // Log each line immediately for better visibility
+                log::info!("STDOUT: {}", line);
+
                 let mut buffer = stdout_buffer.lock().unwrap();
                 *buffer += &line;
                 *buffer += "\n";
@@ -243,10 +246,13 @@ impl CommandRunner {
             *stdout_status.lock().unwrap() = ProcessStatus::Exited(0);
         });
 
-        // Handle stderr
+        // Handle stderr with enhanced logging
         thread::spawn(move || {
             let reader = BufReader::new(stderr);
             for line in reader.lines().map_while(Result::ok) {
+                // Log each line immediately for better visibility
+                log::info!("STDERR: {}", line);
+
                 let mut buffer = stderr_buffer.lock().unwrap();
                 *buffer += &line;
                 *buffer += "\n";
@@ -301,11 +307,34 @@ impl CommandRunner {
         // Log the command for diagnostic purposes
         log::info!("Executing bash command: {}", command);
 
+        // Enhanced logging for debugging
+        log::debug!("Command execution - Current directory: {}", self.get_cwd());
+
         // Always try direct execution first for better reliability
         let direct_result = self.execute_direct_command(command);
 
         if direct_result.is_ok() {
             log::debug!("Direct command execution successful");
+
+            // Wait a moment to let the output be fully captured
+            tokio::time::sleep(Duration::from_millis(100)).await;
+
+            // Print command output to log for debugging
+            let (stdout, stderr) = self.get_output();
+            log::debug!(
+                "Command output - stdout: {:?}, stderr: {:?}",
+                stdout,
+                stderr
+            );
+
+            // Ensure we preserve the output in the buffers
+            if !stdout.is_empty() || !stderr.is_empty() {
+                let mut stdout_buf = self.stdout_buffer.lock().unwrap();
+                let mut stderr_buf = self.stderr_buffer.lock().unwrap();
+                *stdout_buf = stdout;
+                *stderr_buf = stderr;
+            }
+
             return direct_result;
         }
 
@@ -313,7 +342,21 @@ impl CommandRunner {
 
         if self.tx_input.is_none() {
             log::error!("Shell not initialized - cannot execute command");
-            return Err(WinxError::ShellNotStarted);
+
+            // Try to reinitialize the shell on failure
+            log::info!("Attempting to reinitialize shell");
+            let cwd = self.get_cwd();
+            let mut new_runner = CommandRunner::new(&cwd);
+            if let Err(e) = new_runner.start_shell() {
+                log::error!("Failed to reinitialize shell: {}", e);
+                return Err(WinxError::ShellNotStarted);
+            }
+
+            // If we get here, we successfully reinitialized, but it's a new instance
+            // Return an error so that the caller can retry with the new instance
+            return Err(WinxError::bash_error(
+                "Shell reinitialized. Please retry command.",
+            ));
         }
 
         // Check if it's a directory change command
@@ -694,21 +737,36 @@ impl CommandRunner {
         let stdout = self.stdout_buffer.lock().unwrap().clone();
         let stderr = self.stderr_buffer.lock().unwrap().clone();
 
-        // Log the output for diagnostic purposes
-        log::debug!(
+        // Always log the output for debugging
+        log::info!(
             "Command output - stdout len: {}, stderr len: {}",
             stdout.len(),
             stderr.len()
         );
 
-        if stdout.len() < 100 {
-            log::debug!("Full stdout: {:?}", stdout);
+        // Log full output for better visibility and debugging
+        if stdout.len() < 500 {
+            log::info!("Full stdout: {:?}", stdout);
         } else {
-            log::debug!("Stdout preview: {:?}...", &stdout[..100]);
+            log::info!("Stdout preview: {:?}...", &stdout[..500]);
         }
 
         if !stderr.is_empty() {
-            log::debug!("Stderr: {:?}", stderr);
+            log::info!("Stderr: {:?}", stderr);
+        }
+
+        // If output is empty, check if the process is still running
+        if stdout.is_empty() && stderr.is_empty() {
+            if let Ok(status) = self.status.lock() {
+                if *status == ProcessStatus::Running {
+                    log::info!("Process still running, output may not be available yet");
+                    // Return a message indicating the process is still running
+                    return (
+                        "Process is still running, output may not be available yet".to_string(),
+                        String::new(),
+                    );
+                }
+            }
         }
 
         (stdout, stderr)
@@ -762,6 +820,23 @@ impl CommandRunner {
                 code, cwd
             ),
             ProcessStatus::NotRunning => format!("status = no process running\ncwd = {}\n", cwd),
+        }
+    }
+
+    /// Flush the output buffers and make sure we capture all pending output
+    pub async fn flush_output(&self) {
+        // Give the threads a moment to process any remaining output
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // Force a read of the buffers
+        let (stdout, stderr) = self.get_output();
+
+        // Log the output for visibility
+        if !stdout.is_empty() {
+            log::info!("Flushed stdout: {}", stdout);
+        }
+        if !stderr.is_empty() {
+            log::info!("Flushed stderr: {}", stderr);
         }
     }
 }

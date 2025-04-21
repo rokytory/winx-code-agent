@@ -37,10 +37,40 @@ pub fn check_command_safety(command: &str) -> DangerLevel {
         return DangerLevel::Dangerous("Command could delete the entire filesystem".to_string());
     }
 
+    // Check for dangerous permission changes
+    if cmd_trimmed.contains("chmod") && cmd_trimmed.contains("777") && cmd_trimmed.contains("/") {
+        return DangerLevel::Dangerous(
+            "Command could make the filesystem world-writable".to_string(),
+        );
+    }
+
     if cmd_trimmed.contains("dd if=/dev/zero of=/dev/sda")
         || (cmd_trimmed.contains("mkfs") && cmd_trimmed.contains("/dev/sd"))
     {
         return DangerLevel::Dangerous("Command could destroy disk data".to_string());
+    }
+
+    // Check for fork bomb
+    if cmd_trimmed.contains(":(){ :|:& };:") {
+        return DangerLevel::Dangerous(
+            "Command is a fork bomb that could crash the system".to_string(),
+        );
+    }
+
+    // Check for dangerous file redirection to system files
+    if (cmd_trimmed.contains(">") || cmd_trimmed.contains(">>"))
+        && cmd_trimmed.contains("/etc/passwd")
+    {
+        return DangerLevel::Dangerous("Command could overwrite critical system files".to_string());
+    }
+
+    // Check for network scanning tools with suspicious parameters
+    if cmd_trimmed.contains("nmap")
+        && (cmd_trimmed.contains("-p-") || cmd_trimmed.contains("10.0.0"))
+    {
+        return DangerLevel::Dangerous(
+            "Command appears to be performing network scanning".to_string(),
+        );
     }
 
     // Check for dangerous patterns using regex
