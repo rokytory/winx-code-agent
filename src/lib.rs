@@ -1,6 +1,8 @@
 pub mod bash;
+pub mod cache;
 
 pub mod error;
+pub mod error_handling;
 pub mod file;
 pub mod reinforcement;
 pub mod server;
@@ -8,6 +10,8 @@ pub mod tools;
 
 // Reexport error types and utilities
 pub use error::{ErrorExt, WinxError, WinxResult};
+pub use error_handling::{with_context, with_file_context, try_operation, map_error};
+pub use cache::{cached_read_file, cached_metadata, invalidate_cached_file};
 pub use server::CodeAgent;
 
 // Export logging macros
