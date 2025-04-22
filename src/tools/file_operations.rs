@@ -481,6 +481,10 @@ impl FileOperations {
 
                     // Check if file is large and requires chunking
                     const MAX_CONTENT_SIZE: usize = 1_000_000; // ~1MB
+                    const MAX_TOKENS_PER_CHUNK: usize = 8000;  // Estimated tokens, roughly 32KB text
+                    const CHARS_PER_TOKEN: usize = 4;  // Rough estimate: 1 token ≈ 4 characters
+                    const LINES_PER_CHUNK: usize = 500;  // Default lines per chunk for large files
+                    
                     let is_large_file = content.len() > MAX_CONTENT_SIZE;
 
                     // Split content into lines
@@ -490,9 +494,23 @@ impl FileOperations {
                     // Apply line ranges or chunking for large files
                     let (start_idx, end_idx) =
                         if is_large_file && start_line.is_none() && end_line.is_none() {
-                            // For large files without specified ranges, return only first chunk
-                            let chunk_size = 500; // Number of lines per chunk
-                            (0, chunk_size.min(total_lines))
+                            // For large files without specified ranges, use token-aware chunking
+                            let mut chunk_end = 0;
+                            let mut char_count = 0;
+                            let adjusted_max_content_size = MAX_TOKENS_PER_CHUNK * CHARS_PER_TOKEN;
+                            
+                            for (i, line) in lines.iter().enumerate() {
+                                char_count += line.len() + 1; // +1 for newline
+                                if char_count > adjusted_max_content_size || i >= LINES_PER_CHUNK {
+                                    chunk_end = i;
+                                    break;
+                                }
+                            }
+                            
+                            if chunk_end == 0 {
+                                chunk_end = LINES_PER_CHUNK.min(total_lines);
+                            }
+                            (0, chunk_end)
                         } else {
                             (
                                 start_line.map(|s| s.saturating_sub(1)).unwrap_or(0),
@@ -509,10 +527,11 @@ impl FileOperations {
                     // Add warning for large files
                     if is_large_file && start_line.is_none() && end_line.is_none() {
                         result.push_str(&format!(
-                            "\nNote: {} is a large file ({:.2} MB, {} lines). Only showing first 500 lines. Use line ranges for specific sections (e.g. {}:501-1000).\n",
+                            "\nNote: {} is a large file ({:.2} MB, {} lines). Using token-aware chunking (approx {}k tokens). Use line ranges for specific sections (e.g. {}:501-1000).\n",
                             effective_path,
                             content.len() as f64 / 1_000_000.0,
                             total_lines,
+                            MAX_TOKENS_PER_CHUNK / 1000,
                             effective_path
                         ));
                     }
