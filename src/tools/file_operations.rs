@@ -1161,7 +1161,7 @@ impl WriteIfEmpty {
                             return Err(McpError::new(
                                 ErrorCode::INTERNAL_ERROR,
                                 format!(
-                                    "Failed to write file to both original location and /tmp. Original error: {}. /tmp error: {}", 
+                                    "Failed to write file to both original location and /tmp. Original error: {}. /tmp error: {}",
                                     e, tmp_err
                                 ),
                                 Some(json!({"original_error": e.to_string(), "tmp_error": tmp_err.to_string()})),

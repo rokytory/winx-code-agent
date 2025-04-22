@@ -195,10 +195,10 @@ impl LspClient {
 
             match msg {
                 Message::Response(Response {
-                    id: res_id,
-                    result,
-                    error,
-                }) => {
+                                      id: res_id,
+                                      result,
+                                      error,
+                                  }) => {
                     if res_id == id.into() {
                         if let Some(error) = error {
                             return Err(WinxError::LspError(format!("LSP error: {:?}", error)));

@@ -4,7 +4,10 @@ use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use tokio::time::Duration;
 
-use crate::bash::runner::{CommandRunner, ProcessStatus};
+use crate::bash::{
+    runner::{CommandRunner, ProcessStatus},
+    screen_manager::ScreenManager,
+};
 use crate::tools::initialize::{Action, Initialize};
 
 // Global command runner instance
@@ -23,6 +26,7 @@ impl BashCommand {
     }
 
     /// Handle complex commands that need special processing
+    #[allow(dead_code)]
     fn handle_complex_command(&self, command_json: &str) -> Result<ActionJson, McpError> {
         log::debug!("Handling complex command: {}", command_json);
 
@@ -200,6 +204,14 @@ pub struct SendSpecialsRequest {
 }
 
 #[derive(Debug, Deserialize, Serialize, schemars::JsonSchema)]
+pub struct ScreenActionRequest {
+    #[schemars(description = "Screen action to perform (attach, detach, content, list)")]
+    pub screen_action: String,
+    #[schemars(description = "Optional screen session name")]
+    pub session_name: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(untagged)]
 pub enum ActionJson {
     Command(CommandRequest),
@@ -207,6 +219,7 @@ pub enum ActionJson {
     SendText(SendTextRequest),
     SendSpecials(SendSpecialsRequest),
     SendAscii { send_ascii: Vec<i32> },
+    ScreenAction(ScreenActionRequest),
 }
 
 #[derive(Debug, Deserialize, Serialize, schemars::JsonSchema)]
@@ -252,77 +265,48 @@ impl BashCommand {
 
         let timeout = params.wait_for_seconds.unwrap_or(5.0);
 
-        // Parse the action_json with improved error handling
-        let action_json = if let Ok(json_str) = serde_json::to_string(&params.action_json) {
-            // First try: If it's a string (Claude often sends JSON as string), try to parse it
-            if json_str.starts_with('"') && json_str.ends_with('"') {
-                let inner_json = json_str
-                    .trim_start_matches('"')
-                    .trim_end_matches('"')
-                    .replace("\\\"", "\"");
+        // Simplified JSON parsing - try to deserialize directly
+        let action_json = match serde_json::from_value::<ActionJson>(params.action_json.clone()) {
+            Ok(action) => action,
+            Err(e) => {
+                log::warn!(
+                    "Failed to parse action_json directly: {}. Received value: {:?}",
+                    e,
+                    params.action_json
+                );
 
-                // Check for common escaping issues with shell commands
-                let sanitized_json = if inner_json.contains("\\n") || inner_json.contains("\\\\") {
-                    log::debug!("Sanitizing JSON with escaped newlines and backslashes");
-                    // For commands with newlines and double escapes, try to carefully handle them
-                    inner_json.replace("\\n", "\n").replace("\\\\", "\\")
-                } else {
-                    inner_json
-                };
-
-                match serde_json::from_str::<ActionJson>(&sanitized_json) {
-                    Ok(action) => action,
-                    Err(e1) => {
-                        log::warn!(
-                            "Failed to parse inner JSON: {}, trying direct deserialization",
-                            e1
-                        );
-                        // Try direct deserialization as a fallback
-                        match serde_json::from_value::<ActionJson>(params.action_json.clone()) {
-                            Ok(action) => action,
-                            Err(e2) => {
-                                // Handle common errors with complex shell commands
-                                if sanitized_json.contains("command")
-                                    && (sanitized_json.contains(">")
-                                        || sanitized_json.contains("echo")
-                                            && sanitized_json.contains("'"))
-                                {
-                                    // Special case for echo with complex output redirection
-                                    log::info!("Detected complex shell command, attempting to fix");
-                                    self.handle_complex_command(&sanitized_json)?
-                                } else {
-                                    let error = WinxError::parse_error(format!(
-                                        "Invalid action_json format: {}. Original: {}",
-                                        e2, json_str
-                                    ));
-                                    return Err(error.to_mcp_error());
-                                }
-                            }
+                // Handle case where action_json might be a string containing JSON
+                if let Some(json_str) = params.action_json.as_str() {
+                    match serde_json::from_str::<ActionJson>(json_str) {
+                        Ok(action) => action,
+                        Err(e) => {
+                            let error_msg = format!(
+                                "Invalid action_json format. Expected an object like {{'command': '...'}} or {{'status_check': true}}, etc. Received: {}. Error: {}",
+                                json_str, e
+                            );
+                            return Err(WinxError::parse_error(error_msg).to_mcp_error());
                         }
                     }
-                }
-            } else {
-                // Try direct deserialization
-                match serde_json::from_value::<ActionJson>(params.action_json.clone()) {
-                    Ok(action) => action,
-                    Err(e) => {
-                        let error = WinxError::parse_error(format!(
-                            "Invalid action_json format: {}. Original: {}",
-                            e, json_str
-                        ));
-                        return Err(error.to_mcp_error());
-                    }
+                } else {
+                    let error_msg = format!(
+                        "Invalid action_json format. Expected an object like {{'command': '...'}} or {{'status_check': true}}, etc. Received: {}. Error: {}",
+                        params.action_json, e
+                    );
+                    return Err(WinxError::parse_error(error_msg).to_mcp_error());
                 }
             }
-        } else {
-            let error = WinxError::invalid_argument(
-                "Invalid action_json format: Could not serialize to string",
-            );
-            return Err(error.to_mcp_error());
         };
 
         let result = match action_json {
             ActionJson::Command(cmd) => {
+                // Increase timeout for cargo/clippy commands
+                let command_timeout =
+                    if cmd.command.contains("cargo") || cmd.command.contains("clippy") {
+                        30.0 // 30 seconds for Rust tooling
+                    } else {
+                        timeout
+                    };
+
                 // Verify if the command needs terminal access before executing
                 if self.command_requires_terminal(&cmd.command) {
                     let warning = format!(
@@ -338,7 +322,7 @@ impl BashCommand {
                         .map_err(|e| e.to_mcp_error())?;
 
                     // Wait a bit to collect output
-                    tokio::time::sleep(Duration::from_secs_f64(timeout)).await;
+                    tokio::time::sleep(Duration::from_secs_f64(command_timeout)).await;
 
                     // Get output
                     let (stdout, stderr) = runner.get_output();
@@ -354,7 +338,7 @@ impl BashCommand {
                         .map_err(|e| e.to_mcp_error())?;
 
                     // Wait a bit to collect output
-                    tokio::time::sleep(Duration::from_secs_f64(timeout)).await;
+                    tokio::time::sleep(Duration::from_secs_f64(command_timeout)).await;
 
                     // Check if a process is still running
                     let status = runner.check_status(0.5).await;
@@ -402,45 +386,48 @@ impl BashCommand {
                             if cmd.command.contains("ls")
                                 || cmd.command.contains("find")
                                 || cmd.command.contains("cat")
+                                || cmd.command.contains("cargo")  // Add support for cargo commands
+                                || cmd.command.contains("clippy")
+                            // Add support for clippy commands
                             {
                                 // Try to execute the command directly for verification
                                 log::info!("Attempting direct execution for: {}", cmd.command);
-                                let parts: Vec<&str> = cmd.command.split_whitespace().collect();
-                                if !parts.is_empty() {
-                                    let cmd_name = parts[0];
-                                    let args = &parts[1..];
 
-                                    let output = std::process::Command::new(cmd_name)
-                                        .args(args)
-                                        .current_dir(pwd_out.trim())
-                                        .output();
+                                // Parse command properly to handle complex arguments
+                                let output = std::process::Command::new("bash")
+                                    .arg("-c")
+                                    .arg(&cmd.command)
+                                    .current_dir(pwd_out.trim())
+                                    .output();
 
-                                    match output {
-                                        Ok(output) => {
-                                            let cmd_output =
-                                                String::from_utf8_lossy(&output.stdout);
-                                            let cmd_error = String::from_utf8_lossy(&output.stderr);
-                                            log::info!("Direct command stdout: {}", cmd_output);
-                                            log::info!("Direct command stderr: {}", cmd_error);
+                                match output {
+                                    Ok(output) => {
+                                        let cmd_output = String::from_utf8_lossy(&output.stdout);
+                                        let cmd_error = String::from_utf8_lossy(&output.stderr);
+                                        log::info!("Direct command stdout: {}", cmd_output);
+                                        log::info!("Direct command stderr: {}", cmd_error);
 
-                                            if !cmd_output.is_empty() {
-                                                format!("{}\n\n{}", cmd_output, status_info)
-                                            } else if !cmd_error.is_empty() {
-                                                format!("{}\n\n{}", cmd_error, status_info)
-                                            } else {
-                                                format!("Command executed successfully but produced no output. Current directory: {}\n\n{}",
-                                                        pwd_out.trim(), status_info)
+                                        // Ensure we return all output
+                                        let mut result = String::new();
+                                        if !cmd_output.is_empty() {
+                                            result.push_str(&cmd_output);
+                                        }
+                                        if !cmd_error.is_empty() {
+                                            if !result.is_empty() {
+                                                result.push('\n');
                                             }
+                                            result.push_str(&cmd_error);
                                         }
-                                        Err(e) => {
-                                            log::warn!("Direct command execution failed: {}", e);
-                                            format!("Command execution attempt: {}. Current directory: {}\n\n{}",
-                                                    e, pwd_out.trim(), status_info)
+                                        if result.is_empty() {
+                                            result = format!("Command executed successfully but produced no output. Current directory: {}", pwd_out.trim());
                                         }
+                                        format!("{}\n\n{}", result, status_info)
                                     }
-                                } else {
-                                    format!("Command executed successfully but produced no output. Current directory: {}\n\n{}",
-                                            pwd_out.trim(), status_info)
+                                    Err(e) => {
+                                        log::warn!("Direct command execution failed: {}", e);
+                                        format!("Command execution attempt failed: {}. Current directory: {}\n\n{}", 
+                                            e, pwd_out.trim(), status_info)
+                                    }
                                 }
                             } else if cmd.command.contains("echo") {
                                 // If it's an echo command, show what's being echoed
@@ -451,7 +438,44 @@ impl BashCommand {
                                     status_info
                                 )
                             } else {
-                                format!("Command executed successfully.\n\n{}", status_info)
+                                // Force execution with output capture for any command
+                                log::info!(
+                                    "Forcing direct execution with output capture for: {}",
+                                    cmd.command
+                                );
+                                let output = std::process::Command::new("bash")
+                                    .arg("-c")
+                                    .arg(&cmd.command)
+                                    .current_dir(pwd_out.trim())
+                                    .output();
+
+                                match output {
+                                    Ok(output) => {
+                                        let cmd_output = String::from_utf8_lossy(&output.stdout);
+                                        let cmd_error = String::from_utf8_lossy(&output.stderr);
+
+                                        let mut result = String::new();
+                                        if !cmd_output.is_empty() {
+                                            result.push_str(&cmd_output);
+                                        }
+                                        if !cmd_error.is_empty() {
+                                            if !result.is_empty() {
+                                                result.push('\n');
+                                            }
+                                            result.push_str(&cmd_error);
+                                        }
+                                        if result.is_empty() {
+                                            result = "Command executed successfully.".to_string();
+                                        }
+                                        format!("{}\n\n{}", result, status_info)
+                                    }
+                                    Err(e) => {
+                                        format!(
+                                            "Command execution failed: {}\n\n{}",
+                                            e, status_info
+                                        )
+                                    }
+                                }
                             }
                         }
                     } else {
@@ -601,6 +625,60 @@ impl BashCommand {
                 let status_info = runner.get_status_info();
 
                 format!("{}\n{}\n\n{}", stdout, stderr, status_info)
+            }
+            ActionJson::ScreenAction(action) => {
+                match action.screen_action.as_str() {
+                    "attach" => {
+                        // Attach to the current screen session
+                        if let Some(session_name) = &action.session_name {
+                            // Attach to specific session
+                            ScreenManager::attach_to_screen(session_name)
+                                .map_err(|e| e.to_mcp_error())?;
+                            format!("Attached to screen session: {}", session_name)
+                        } else {
+                            // Attach to the runner's current session
+                            runner.attach_to_screen().map_err(|e| e.to_mcp_error())?;
+
+                            if let Some(current_session) = runner.get_screen_session() {
+                                format!("Attached to screen session: {}", current_session)
+                            } else {
+                                "No active screen session to attach to".to_string()
+                            }
+                        }
+                    }
+                    "detach" => {
+                        // Detach is automatic when screen is not active
+                        "Screen session will automatically detach when not active".to_string()
+                    }
+                    "content" => {
+                        // Get the content of the current screen
+                        match runner.get_screen_content() {
+                            Ok(content) => format!("Screen content:\n{}", content),
+                            Err(e) => format!("Failed to get screen content: {}", e),
+                        }
+                    }
+                    "list" => {
+                        // List all available screen sessions
+                        let sessions = ScreenManager::get_winx_screen_sessions()
+                            .map_err(|e| e.to_mcp_error())?;
+
+                        if sessions.is_empty() {
+                            "No active WINX screen sessions".to_string()
+                        } else {
+                            let mut output = "Active WINX screen sessions:\n".to_string();
+                            for session in sessions {
+                                output.push_str(&format!("  - {}\n", session));
+                            }
+                            if let Some(current) = runner.get_screen_session() {
+                                output.push_str(&format!("\nCurrent session: {}\n", current));
+                            }
+                            output
+                        }
+                    }
+                    _ => {
+                        format!("Unknown screen action: {}. Supported actions: attach, detach, content, list", action.screen_action)
+                    }
+                }
             }
         };
 

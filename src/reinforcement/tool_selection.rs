@@ -12,6 +12,7 @@ use crate::reinforcement::{
     Policy,
 };
 use crate::WinxResult;
+use serde_json::json;
 
 /// System for adaptively selecting tools based on reinforcement learning
 /// Uses Q-learning to improve tool selection based on previous outcomes
@@ -77,7 +78,7 @@ impl AdaptiveToolSystem {
         // This provides a safe, informative fallback action that helps understand
         // the current environment state
         Ok(ToolAction::BashCommand {
-            action_json: String::from("{\"command\": \"ls -la\"}"),
+            action_json: json!({"command": "ls -la"}),
             wait_for_seconds: None,
         })
     }
@@ -163,27 +164,61 @@ impl AdaptiveToolSystem {
             }
 
             ToolAction::BashCommand { action_json, .. } => {
-                // Try to extract the command from the action_json
-                if let Ok(json) = serde_json::from_str::<serde_json::Value>(action_json) {
-                    if let Some(cmd) = json.get("command").and_then(|c| c.as_str()) {
-                        // Heuristic mapping based on command content
-                        // Identifies special command types like test or build commands
-                        if cmd.contains("test") {
-                            AgentAction::RunTests
-                        } else if cmd.contains("build") || cmd.contains("make") {
-                            AgentAction::RunBuild
-                        } else {
-                            AgentAction::ExecuteCommand(cmd.to_string())
+                // First check for complex command structure with "command" type
+                if let Some(command_type) = action_json.get("command").and_then(|c| c.as_str()) {
+                    if command_type == "run" {
+                        // Handle the case where we have a nested command structure
+                        if let Some(command_line) =
+                            action_json.get("command_line").and_then(|c| c.as_str())
+                        {
+                            return self.command_to_action(command_line);
                         }
                     } else {
-                        AgentAction::ExecuteCommand(String::from("unknown"))
+                        // Direct command in the "command" field
+                        return self.command_to_action(command_type);
                     }
+                }
+
+                // Fallback: if action_json is a simple command object
+                if let Some(cmd) = action_json.get("command").and_then(|c| c.as_str()) {
+                    self.command_to_action(cmd)
                 } else {
                     AgentAction::ExecuteCommand(String::from("unknown"))
                 }
             }
 
             ToolAction::NoOp => AgentAction::NoOp,
+        }
+    }
+
+    /// Helper function to map command strings to appropriate AgentActions
+    fn command_to_action(&self, cmd: &str) -> AgentAction {
+        // Enhanced command type detection
+        if cmd.contains("cargo test") || cmd.contains("npm test") || cmd.contains("pytest") {
+            AgentAction::RunTests
+        } else if cmd.contains("cargo build")
+            || cmd.contains("npm run build")
+            || cmd.contains("make")
+        {
+            AgentAction::RunBuild
+        } else if cmd.contains("cargo clippy")
+            || cmd.contains("cargo check")
+            || cmd.contains("eslint")
+        {
+            AgentAction::AnalyzeCode(std::path::PathBuf::from("."))
+        } else if cmd.contains("grep") && cmd.contains("-r") {
+            // Extract symbol from grep command if possible
+            let words: Vec<&str> = cmd.split_whitespace().collect();
+            if let Some(pos) = words.iter().position(|&w| w.contains("grep")) {
+                if pos + 2 < words.len() {
+                    return AgentAction::SearchForSymbol(
+                        words[pos + 2].trim_matches('"').to_string(),
+                    );
+                }
+            }
+            AgentAction::ExecuteCommand(cmd.to_string())
+        } else {
+            AgentAction::ExecuteCommand(cmd.to_string())
         }
     }
 

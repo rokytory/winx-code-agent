@@ -1,10 +1,11 @@
+use crate::bash::screen_manager::ScreenManager;
 use crate::error::{WinxError, WinxResult};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 use tokio::sync::mpsc::{self, Sender};
 
 const PROMPT_CONST: &str = "winx ";
@@ -54,12 +55,24 @@ impl Drop for CommandRunner {
         if let Some(mut process) = self.process.take() {
             let _ = process.kill();
         }
+
+        // Clean up screen session if it exists
+        if let Some(session) = self.get_screen_session() {
+            if let Err(e) = ScreenManager::cleanup_screen_session(&session) {
+                log::warn!("Failed to clean up screen session on drop: {}", e);
+            }
+        }
     }
 }
 
 impl CommandRunner {
     /// Create a new command runner
     pub fn new(initial_dir: &str) -> Self {
+        // Clean up any orphaned screens on startup
+        if let Err(e) = ScreenManager::cleanup_orphaned_screens() {
+            log::warn!("Failed to clean up orphaned screens: {}", e);
+        }
+
         Self {
             process: None,
             stdout_buffer: Arc::new(Mutex::new(String::new())),
@@ -73,66 +86,27 @@ impl CommandRunner {
         }
     }
 
-    /// Check if screen is available on the system
-    fn is_screen_available() -> bool {
-        Command::new("which")
-            .arg("screen")
-            .output()
-            .map(|output| output.status.success())
-            .unwrap_or(false)
-    }
-
-    /// Create a screen session name based on current time
-    fn generate_screen_name() -> String {
-        let now = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap_or_else(|_| Duration::from_secs(0))
-            .as_secs();
-
-        let timestamp = now % 1000000; // Last 6 digits of timestamp
-        format!("winx.{}", timestamp)
-    }
-
-    /// Start a new screen session and return its name
-    fn start_screen_session(&self, cwd: &str) -> WinxResult<String> {
-        // Check if screen is available
-        if !Self::is_screen_available() {
-            return Err(WinxError::bash_error(
-                "screen is not available on this system",
-            ));
-        }
-
-        // Generate session name
-        let session_name = Self::generate_screen_name();
-
-        // Create screen session
-        let status = Command::new("screen")
-            .args(["-dmS", &session_name])
-            .current_dir(cwd)
-            .status()
-            .map_err(|e| {
-                WinxError::bash_error(format!("Failed to execute screen command: {}", e))
-            })?;
-
-        if !status.success() {
-            return Err(WinxError::bash_error(format!(
-                "Failed to create screen session. Exit code: {}",
-                status.code().unwrap_or(-1)
-            )));
-        }
-
-        // Store the session name
-        {
-            let mut screen = self.screen_session.lock().unwrap();
-            *screen = Some(session_name.clone());
-        }
-
-        Ok(session_name)
-    }
-
     /// Get the current screen session name
     pub fn get_screen_session(&self) -> Option<String> {
         self.screen_session.lock().unwrap().clone()
+    }
+
+    /// Attach to the current screen session
+    pub fn attach_to_screen(&self) -> WinxResult<()> {
+        if let Some(session) = self.get_screen_session() {
+            ScreenManager::attach_to_screen(&session)
+        } else {
+            Err(WinxError::bash_error("No screen session currently active"))
+        }
+    }
+
+    /// Get the content of current screen session
+    pub fn get_screen_content(&self) -> WinxResult<String> {
+        if let Some(session) = self.get_screen_session() {
+            ScreenManager::get_screen_content(&session)
+        } else {
+            Err(WinxError::bash_error("No screen session currently active"))
+        }
     }
 
     /// Start the shell process
@@ -149,8 +123,6 @@ impl CommandRunner {
             cmd.current_dir(&cwd)
                 .env("PS1", PROMPT_CONST)
                 .env("TERM", "dumb") // Simpler terminal that doesn't require advanced features
-                .arg("-c") // Non-interactive mode
-                .arg("echo 'Shell initialized in non-interactive mode'") // Initial test command
                 .stdin(Stdio::piped())
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped());
@@ -158,10 +130,13 @@ impl CommandRunner {
             cmd
         } else {
             // Original approach with screen
-            let use_screen = if Self::is_screen_available() {
-                match self.start_screen_session(&cwd) {
-                    Ok(session) => {
-                        log::info!("Started screen session: {}", session);
+            let use_screen = if ScreenManager::is_screen_available() {
+                let session_name = ScreenManager::generate_session_name();
+                match ScreenManager::start_screen_session(&session_name, &cwd) {
+                    Ok(_) => {
+                        log::info!("Started screen session: {}", session_name);
+                        let mut screen_session = self.screen_session.lock().unwrap();
+                        *screen_session = Some(session_name);
                         true
                     }
                     Err(e) => {
@@ -177,9 +152,12 @@ impl CommandRunner {
 
             if use_screen {
                 let session = self.get_screen_session().unwrap();
-                let mut real_cmd = Command::new("screen");
+
+                // Use a temporary shell to attach to the screen
+                let mut real_cmd = Command::new("bash");
                 real_cmd
-                    .args(["-S", &session])
+                    .arg("-c")
+                    .arg(format!("screen -S {} bash", session))
                     .current_dir(&cwd)
                     .stdin(Stdio::piped())
                     .stdout(Stdio::piped())
@@ -369,11 +347,12 @@ impl CommandRunner {
         if is_background && self.get_screen_session().is_some() {
             // Instead of using &, use screen to properly background the process
             let screen_cmd = command.trim().trim_end_matches("&").trim();
+            let session_name = ScreenManager::generate_session_name();
 
             // Store the modified command
             {
                 let mut last_cmd = self.last_command.lock().unwrap();
-                *last_cmd = format!("screen -d -m {}", screen_cmd);
+                *last_cmd = format!("screen -dmS {} {}", session_name, screen_cmd);
             }
 
             // Clear previous output
@@ -384,17 +363,32 @@ impl CommandRunner {
                 *stderr = String::new();
             }
 
-            // Create a screen detached session for the background command
-            let tx = self.tx_input.as_ref().unwrap();
-            tx.send(format!("screen -d -m {}\n", screen_cmd))
-                .await
-                .map_err(|e| {
-                    WinxError::bash_error(format!("Failed to send command to shell: {}", e))
-                })?;
+            // Create a new screen session for the background command
+            match ScreenManager::start_screen_session(&session_name, &self.get_cwd()) {
+                Ok(_) => {
+                    // Execute the command in the new screen session
+                    if let Err(e) = ScreenManager::execute_in_screen(&session_name, screen_cmd) {
+                        log::error!("Failed to execute in screen: {}", e);
+                        return Err(e);
+                    }
 
-            // Add some information to the stdout
-            let mut stdout = self.stdout_buffer.lock().unwrap();
-            *stdout = format!("Command running in background: {}\n", screen_cmd);
+                    // Add some information to the stdout
+                    let mut stdout = self.stdout_buffer.lock().unwrap();
+                    *stdout = format!(
+                        "Command running in background screen session '{}': {}\n",
+                        session_name, screen_cmd
+                    );
+                    *stdout += &format!(
+                        "To attach to this session, use: screen -r {}\n",
+                        session_name
+                    );
+                }
+                Err(e) => {
+                    log::error!("Failed to create background screen session: {}", e);
+                    // Fallback to the regular approach
+                    return self.execute_direct_command(command);
+                }
+            }
 
             return Ok(());
         }

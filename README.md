@@ -27,22 +27,25 @@
 - ⚡ **High Performance**: Implemented in Rust for maximum efficiency
 - 🔄 **Reinforcement Learning**: Adaptive tool selection based on context and success patterns
 - 📁 **Advanced File Operations**:
-  - 📖 Read files with line range support and chunking for large files
-  - ✏️ Write new files with syntax validation
-  - 🔍 Edit existing files with intelligent search/replace
-  - ✅ Syntax checking to prevent code errors
+    - 📖 Read files with line range support and chunking for large files
+    - ✏️ Write new files with syntax validation
+    - 🔍 Edit existing files with intelligent search/replace
+    - ✅ Syntax checking to prevent code errors
 - 🖥️ **Command Execution**:
-  - 🚀 Run shell commands with status tracking
-  - 📺 Screen support for long-running processes
-  - ⌨️ Interactive terminal commands with real-time feedback
+    - 🚀 Run shell commands with status tracking
+    - 📺 Full GNU Screen integration for interactive sessions
+    - 🔄 Automatic screen session management and orphan cleanup
+    - 🖥️ Attach/detach from active sessions like wcgw
+    - ⌨️ Interactive terminal commands with real-time feedback
+    - 🏃‍♂️ Background process execution in detached screens
 - 🔀 **Operational Modes**:
-  - 🔓 `wcgw`: Complete access to all features
-  - 🔎 `architect`: Read-only mode for planning and analysis
-  - 🔒 `code_writer`: Restricted access for controlled modifications
+    - 🔓 `wcgw`: Complete access to all features
+    - 🔎 `architect`: Read-only mode for planning and analysis
+    - 🔒 `code_writer`: Restricted access for controlled modifications
 - 📊 **Project Management**:
-  - 📝 Repository structure analysis
-  - 💾 Context saving and task resumption
-  - 🧠 Task memory system
+    - 📝 Repository structure analysis
+    - 💾 Context saving and task resumption
+    - 🧠 Task memory system
 - 🖼️ **Media Support**: Read images and encode as base64
 - 🧩 **RMCP Protocol**: Seamless integration with Claude and other LLMs
 
@@ -51,16 +54,19 @@
 ## 🖇️ Installation & Setup
 
 ### Prerequisites
+
 - Rust 1.70 or higher
 - Tokio runtime
 - RMCP SDK
 
 ### 1. Clone the Repository
+
 ```bash
 git clone https://github.com/gabrielmaialva33/winx-code-agent.git && cd winx-code-agent
 ```
 
 ### 2. Build the Project
+
 ```bash
 # For development
 cargo build
@@ -70,6 +76,7 @@ cargo build --release
 ```
 
 ### 3. Run the Agent
+
 ```bash
 # Using cargo
 cargo run
@@ -109,18 +116,22 @@ Winx Code Agent is designed to work seamlessly with Claude via the MCP interface
 ## 🛠️ Available Tools
 
 ### 🚀 Initialize
+
 Always call this first to set up your workspace environment.
 
 ### 🖥️ BashCommand
+
 Execute shell commands with intelligent error handling and status tracking.
 
 ### 📁 File Operations
+
 - **ReadFiles**: Read file content with line range support
 - **WriteIfEmpty**: Create new files safely
 - **FileEdit**: Edit existing files using intelligent search/replace
 - **ReadImage**: Process image files as base64
 
 ### 💾 ContextSave
+
 Save task context for later resumption.
 
 ---
@@ -159,11 +170,26 @@ Save task context for later resumption.
 
 ---
 
+## 📺 Screen Integration
+
+Winx Code Agent now includes comprehensive GNU Screen integration, similar to wcgw:
+
+- **Automatic session management**: Commands run in screen sessions when available
+- **Interactive terminal access**: Use `screen -x` to attach to running sessions
+- **Background process support**: Run long processes with `&` in detached screens
+- **Orphan cleanup**: Automatically detects and cleans abandoned sessions
+- **Screen commands**: List, attach, detach, and get content via tool actions
+
+See [SCREEN_INTEGRATION.md](docs/SCREEN_INTEGRATION.md) for detailed documentation.
+
+---
+
 ## 🏷 Need Support or Assistance?
 
 If you need help or have any questions about Winx Code Agent, feel free to reach out via the following channels:
 
-- [GitHub Issues](https://github.com/gabrielmaialva33/winx-code-agent/issues/new?assignees=&labels=question&title=support%3A+): Open a support issue on GitHub.
+- [GitHub Issues](https://github.com/gabrielmaialva33/winx-code-agent/issues/new?assignees=&labels=question&title=support%3A+):
+  Open a support issue on GitHub.
 - Email: gabrielmaialva33@gmail.com
 
 ---
@@ -174,7 +200,8 @@ If you enjoy **Winx Code Agent** and want to support its development, consider:
 
 - ⭐ [Starring the repository](https://github.com/gabrielmaialva33/winx-code-agent) on GitHub.
 - 🍴 [Forking the repository](https://github.com/gabrielmaialva33/winx-code-agent) and contributing improvements.
-- 📝 Sharing your experience with tutorials or articles on [Dev.to](https://dev.to/), [Medium](https://medium.com/), or your personal blog.
+- 📝 Sharing your experience with tutorials or articles on [Dev.to](https://dev.to/), [Medium](https://medium.com/), or
+  your personal blog.
 
 Together, we can make **Winx Code Agent** even better!
 
@@ -182,7 +209,10 @@ Together, we can make **Winx Code Agent** even better!
 
 ## 🙏 Special Thanks
 
-A huge thank you to [rusiaaman](https://github.com/rusiaaman) for the inspiring work on [WCGW](https://github.com/rusiaaman/wcgw), which served as a primary inspiration for this project. Winx Code Agent reimplements many of WCGW's best features in Rust for enhanced performance while adding reinforcement learning capabilities.
+A huge thank you to [rusiaaman](https://github.com/rusiaaman) for the inspiring work
+on [WCGW](https://github.com/rusiaaman/wcgw), which served as a primary inspiration for this project. Winx Code Agent
+reimplements many of WCGW's best features in Rust for enhanced performance while adding reinforcement learning
+capabilities.
 
 ---
 

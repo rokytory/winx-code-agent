@@ -31,6 +31,11 @@ pub struct SearchReplaceBlock {
 
     /// Lines of text to replace the matched content with
     pub replace_lines: Vec<String>,
+
+    /// Optional index to specify which occurrence to replace (0-based)
+    /// None means apply to all occurrences
+    /// Some(0) means apply to first occurrence, Some(1) to second, etc.
+    pub occurrence_index: Option<usize>,
 }
 
 /// Error types specific to search/replace operations
@@ -168,6 +173,9 @@ pub struct MatchResult {
 /// 2. Simple format (`<<<`, `>>>`)
 /// 3. Markdown code blocks format (pairs of "```" blocks)
 ///
+/// It also supports occurrence index specification using a comment format:
+/// `# occurrence: 0` (first match), `# occurrence: 1` (second match), etc.
+///
 /// If parsing fails, it provides helpful error messages with format examples.
 pub fn parse_search_replace_blocks(
     input: &str,
@@ -205,6 +213,13 @@ pub fn parse_search_replace_blocks(
         Err(SearchReplaceError::SyntaxError(format!(
             "{}\n\nPlease use one of these formats:\n\n\
              1. Standard format (recommended):\n\
+             <<<<<<< SEARCH\n\
+             search content\n\
+             =======\n\
+             replace content\n\
+             >>>>>>> REPLACE\n\n\
+             For specific occurrence (optional):\n\
+             # occurrence: 0  // first occurrence\n\
              <<<<<<< SEARCH\n\
              search content\n\
              =======\n\
@@ -451,6 +466,16 @@ fn find_closest_match(
 /// replace content
 /// >>>>>>> REPLACE
 /// ```
+///
+/// With occurrence index:
+/// ```text
+/// # occurrence: 0
+/// <<<<<<< SEARCH
+/// search content
+/// =======
+/// replace content
+/// >>>>>>> REPLACE
+/// ```
 fn parse_standard_format(lines: &[&str]) -> Vec<SearchReplaceBlock> {
     let mut blocks: Vec<SearchReplaceBlock> = Vec::new();
     let mut i = 0;
@@ -462,19 +487,31 @@ fn parse_standard_format(lines: &[&str]) -> Vec<SearchReplaceBlock> {
                 "Found '<<<<<<< ORIGINAL' at line {}. Use '<<<<<<< SEARCH' instead.",
                 idx + 1
             );
-            return Vec::new(); // Incorrect syntax
+            // Don't immediately return, continue parsing to try to find valid blocks
         }
         if UPDATED_MARKER.is_match(line) {
             log::warn!(
                 "Found '>>>>>>> UPDATED' at line {}. Use '>>>>>>> REPLACE' instead.",
                 idx + 1
             );
-            return Vec::new(); // Incorrect syntax
+            // Don't immediately return, continue parsing to try to find valid blocks
         }
     }
 
     while i < lines.len() {
-        if SEARCH_MARKER.is_match(lines[i]) {
+        // Check for occurrence index comment
+        let mut occurrence_index = None;
+        if i < lines.len() && lines[i].trim().starts_with("# occurrence:") {
+            let parts: Vec<&str> = lines[i].split(':').collect();
+            if parts.len() == 2 {
+                if let Ok(index) = parts[1].trim().parse::<usize>() {
+                    occurrence_index = Some(index);
+                }
+            }
+            i += 1;
+        }
+
+        if i < lines.len() && SEARCH_MARKER.is_match(lines[i]) {
             let mut search_block = Vec::new();
             i += 1;
 
@@ -497,11 +534,6 @@ fn parse_standard_format(lines: &[&str]) -> Vec<SearchReplaceBlock> {
 
             i += 1; // Skip the divider
 
-            if search_block.is_empty() {
-                // Empty search block, skip
-                return Vec::new();
-            }
-
             // Collect replace lines until replace marker
             let mut replace_block = Vec::new();
             while i < lines.len() && !REPLACE_MARKER.is_match(lines[i]) {
@@ -518,17 +550,23 @@ fn parse_standard_format(lines: &[&str]) -> Vec<SearchReplaceBlock> {
                 return Vec::new();
             }
 
+            i += 1; // Skip the replace marker
+
             // Block is valid, add it to the result
             blocks.push(SearchReplaceBlock {
                 search_lines: search_block,
                 replace_lines: replace_block,
+                occurrence_index,
             });
+        } else if lines[i].trim().starts_with("#") {
+            // Skip other comments
+            i += 1;
         } else if REPLACE_MARKER.is_match(lines[i]) || DIVIDER_MARKER.is_match(lines[i]) {
             // Stray marker, invalid format
             return Vec::new();
+        } else {
+            i += 1;
         }
-
-        i += 1;
     }
 
     blocks
@@ -624,6 +662,7 @@ fn parse_simple_format(lines: &[&str]) -> Vec<SearchReplaceBlock> {
             blocks.push(SearchReplaceBlock {
                 search_lines: search_content,
                 replace_lines: replace_content,
+                occurrence_index: None, // default to all occurrences
             });
         }
 
@@ -710,6 +749,7 @@ fn parse_markdown_format(lines: &[&str]) -> Vec<SearchReplaceBlock> {
             blocks.push(SearchReplaceBlock {
                 search_lines: search_block,
                 replace_lines: replace_block,
+                occurrence_index: None, // default to all occurrences
             });
         } else {
             i += 1; // Skip non-marker lines
@@ -1076,67 +1116,82 @@ pub fn apply_search_replace(
             }
         }
 
-        // For tests, allow multiple matches of the same section
-        #[cfg(not(test))]
-        {
-            // Check if the search block is the entire file
-            let search_content = block.search_lines.join("\n");
-            let full_content = content_lines.join("\n");
+        // Check if we need to handle specific occurrence index
+        let target_match = if let Some(index) = block.occurrence_index {
+            // User specified which occurrence to replace
+            if index >= matches.len() {
+                return Err(anyhow!(SearchReplaceError::MatchError(format!(
+                    "Requested occurrence index {} but only found {} matches. Valid indices: 0 to {}",
+                    index,
+                    matches.len(),
+                    matches.len() - 1
+                ))));
+            }
+            &matches[index]
+        } else {
+            // No specific index, handle as before
+            #[cfg(not(test))]
+            {
+                // Check if the search block is the entire file
+                let search_content = block.search_lines.join("\n");
+                let full_content = content_lines.join("\n");
 
-            // If we're searching for exactly the whole file, just use the first match
-            if search_content == full_content {
-                log::debug!("Search block is the entire file content - using first match");
-            } else {
-                let best_score = matches[0].score;
-                let matches_with_best_score: Vec<_> = matches
-                    .iter()
-                    .filter(|m| (m.score - best_score).abs() < 1e-6)
-                    .collect();
+                // If we're searching for exactly the whole file, just use the first match
+                if search_content == full_content {
+                    log::debug!("Search block is the entire file content - using first match");
+                } else {
+                    let best_score = matches[0].score;
+                    let matches_with_best_score: Vec<_> = matches
+                        .iter()
+                        .filter(|m| (m.score - best_score).abs() < 1e-6)
+                        .collect();
 
-                // Check if we have matches at different positions (not just duplicates)
-                let unique_positions: HashSet<_> = matches_with_best_score
-                    .iter()
-                    .map(|m| (m.range.start, m.range.end))
-                    .collect();
+                    // Check if we have matches at different positions (not just duplicates)
+                    let unique_positions: HashSet<_> = matches_with_best_score
+                        .iter()
+                        .map(|m| (m.range.start, m.range.end))
+                        .collect();
 
-                if unique_positions.len() > 1 {
-                    // Multiple matches found with the same score at different positions
-                    let block_content = block.search_lines.join("\n");
+                    if unique_positions.len() > 1 {
+                        // Multiple matches found with the same score at different positions
+                        let block_content = block.search_lines.join("\n");
 
-                    // Analyze context for each match to help the user
-                    let mut match_contexts = Vec::new();
-                    for m in matches_with_best_score.iter().take(4) {
-                        // Get some lines before and after the match to show context
-                        let start = m.range.start.saturating_sub(3); // 3 linhas antes
-                        let end = (m.range.end + 3).min(content_lines.len()); // 3 linhas depois
+                        // Analyze context for each match to help the user
+                        let mut match_contexts = Vec::new();
+                        for (idx, m) in matches_with_best_score.iter().take(4).enumerate() {
+                            // Get some lines before and after the match to show context
+                            let start = m.range.start.saturating_sub(3); // 3 linhas antes
+                            let end = (m.range.end + 3).min(content_lines.len()); // 3 linhas depois
 
-                        let context = content_lines[start..end].join("\n");
-                        match_contexts.push(format!(
-                            "Match at lines {}-{}:\n```\n{}\n```",
-                            start + 1,
-                            end,
-                            context
-                        ));
+                            let context = content_lines[start..end].join("\n");
+                            match_contexts.push(format!(
+                                "Match #{} at lines {}-{}:\n```\n{}\n```",
+                                idx,
+                                start + 1,
+                                end,
+                                context
+                            ));
+                        }
+
+                        // Incluir o contexto na mensagem de erro e sugestões mais claras
+                        let context_str = match_contexts.join("\n\n");
+
+                        return Err(anyhow!(SearchReplaceError::MultipleMatchesError(format!(
+                            "The following block matched {} times:\n```\n{}\n```\n\nHere are the matches found:\n{}\n\nRecommendations to fix this problem:\n1. Include more unique context before and after the block to make the match unique\n2. Include neighboring lines or distinctive characteristics of the text\n3. Specify which occurrence to replace using occurrence_index (0-based)\n4. Use the complete content of the file if it's small\n5. Check for duplicate sections in the file\n\nRetry immediately with same \"percentage_to_change\" using search replace blocks with more context, or specify occurrence_index.",
+                            unique_positions.len(),
+                            block_content,
+                            context_str
+                        ))));
                     }
-
-                    // Incluir o contexto na mensagem de erro e sugestões mais claras
-                    let context_str = match_contexts.join("\n\n");
-
-                    return Err(anyhow!(SearchReplaceError::MultipleMatchesError(format!(
-                        "The following block matched {} times:\n```\n{}\n```\n\nHere are the matches found:\n{}\n\nRecommendations to fix this problem:\n1. Include more unique context before and after the block to make the match unique\n2. Include neighboring lines or distinctive characteristics of the text\n3. Use the complete content of the file if it's small\n4. Check for duplicate sections in the file\n\nRetry immediately with same \"percentage_to_change\" using search replace blocks with more context.",
-                        unique_positions.len(),
-                        block_content,
-                        context_str
-                    ))));
                 }
             }
-        }
 
-        // We have a unique best match
-        let best_match = &matches[0];
+            // We have a unique best match
+            &matches[0]
+        };
 
         // Log which tolerance level was used
-        for hit in &best_match.tolerances {
+        for hit in &target_match.tolerances {
             if let Some(warning) = hit.level.warning_message() {
                 logger(warning);
                 warnings.push(warning.to_string());
@@ -1144,16 +1199,16 @@ pub fn apply_search_replace(
         }
 
         // Get the matched lines for indentation fixing
-        let matched_lines = content_lines[best_match.range.clone()].to_vec();
+        let matched_lines = content_lines[target_match.range.clone()].to_vec();
 
         // Fix indentation in replace lines
         let adjusted_replace_lines =
             fix_indentation(&matched_lines, &block.search_lines, &replace_lines);
 
         // Create new content with replacement
-        let mut new_content_lines = content_lines[..best_match.range.start].to_vec();
+        let mut new_content_lines = content_lines[..target_match.range.start].to_vec();
         new_content_lines.extend(adjusted_replace_lines);
-        new_content_lines.extend(content_lines[best_match.range.end..].to_vec());
+        new_content_lines.extend(content_lines[target_match.range.end..].to_vec());
 
         content = new_content_lines.join("\n");
     }
@@ -1204,5 +1259,75 @@ pub fn apply_search_replace_with_fallback(
                 Err(err)
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_with_occurrence_index() {
+        let input = r#"# occurrence: 1
+<<<<<<< SEARCH
+foo
+=======
+bar
+>>>>>>> REPLACE"#;
+
+        let blocks = parse_search_replace_blocks(input).unwrap();
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0].occurrence_index, Some(1));
+        assert_eq!(blocks[0].search_lines, vec!["foo"]);
+        assert_eq!(blocks[0].replace_lines, vec!["bar"]);
+    }
+
+    #[test]
+    fn test_multiple_matches_with_occurrence_index() {
+        let content = "foo\nbar\nfoo\nbaz\nfoo\nqux";
+        let blocks = vec![SearchReplaceBlock {
+            search_lines: vec!["foo".to_string()],
+            replace_lines: vec!["replaced".to_string()],
+            occurrence_index: Some(1), // replace second occurrence
+        }];
+
+        let (result, _) = apply_search_replace(content, &blocks, |_| {}).unwrap();
+
+        // Check that only the second occurrence was replaced
+        let expected = "foo\nbar\nreplaced\nbaz\nfoo\nqux";
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_occurrence_index_out_of_bounds() {
+        let content = "foo\nbar\nfoo";
+        let blocks = vec![SearchReplaceBlock {
+            search_lines: vec!["foo".to_string()],
+            replace_lines: vec!["replaced".to_string()],
+            occurrence_index: Some(5), // index out of bounds
+        }];
+
+        let result = apply_search_replace(content, &blocks, |_| {});
+        assert!(result.is_err());
+
+        if let Err(err) = result {
+            let error_msg = err.to_string();
+            assert!(error_msg.contains("Requested occurrence index 5 but only found 2 matches"));
+        }
+    }
+
+    #[test]
+    fn test_parse_without_occurrence_index() {
+        let input = r#"<<<<<<< SEARCH
+foo
+=======
+bar
+>>>>>>> REPLACE"#;
+
+        let blocks = parse_search_replace_blocks(input).unwrap();
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0].occurrence_index, None);
+        assert_eq!(blocks[0].search_lines, vec!["foo"]);
+        assert_eq!(blocks[0].replace_lines, vec!["bar"]);
     }
 }

@@ -1,6 +1,7 @@
 // Actions available to the reinforcement learning agent
 // Each action maps directly to a specific tool in the winx-code-agent codebase
 
+use serde_json::json;
 use std::path::PathBuf;
 
 /// Defines all possible actions that the agent can take within the codebase
@@ -57,26 +58,26 @@ pub fn map_action_to_tool(action: &AgentAction) -> ToolAction {
             ),
         },
         AgentAction::ExecuteCommand(cmd) => ToolAction::BashCommand {
-            action_json: format!("{{\"command\": \"{}\"}}", cmd.replace("\"", "\\\"")),
+            action_json: json!({"command": cmd}), // Pass JSON object directly
             wait_for_seconds: None,
         },
         AgentAction::RunTests => ToolAction::BashCommand {
-            action_json: String::from("{\"command\": \"if [ -f Cargo.toml ]; then cargo test; elif [ -f package.json ]; then npm test; elif [ -f requirements.txt ]; then python -m pytest; else echo \\\"No test command found\\\"; fi\"}"),
+            action_json: json!({"command": "if [ -f Cargo.toml ]; then cargo test; elif [ -f package.json ]; then npm test; elif [ -f requirements.txt ]; then python -m pytest; else echo 'No test command found'; fi"}),
             wait_for_seconds: None,
         },
         AgentAction::RunBuild => ToolAction::BashCommand {
-            action_json: String::from("{\"command\": \"if [ -f Cargo.toml ]; then cargo build; elif [ -f package.json ]; then npm run build; elif [ -f Makefile ]; then make; else echo \\\"No build command found\\\"; fi\"}"),
+            action_json: json!({"command": "if [ -f Cargo.toml ]; then cargo build; elif [ -f package.json ]; then npm run build; elif [ -f Makefile ]; then make; else echo 'No build command found'; fi"}),
             wait_for_seconds: None,
         },
         AgentAction::AnalyzeCode(path) => ToolAction::BashCommand {
-            action_json: format!(
-                "{{\"command\": \"if [ -f Cargo.toml ]; then cargo check --message-format=json | grep \\\"{}\\\" -A 10; elif [ -f package.json ]; then npx eslint {} --format=json; else echo \\\"No analysis command found\\\"; fi\"}}",
+            action_json: json!({"command": format!(
+                "if [ -f Cargo.toml ]; then cargo check --message-format=json | grep \"{}\" -A 10; elif [ -f package.json ]; then npx eslint {} --format=json; else echo 'No analysis command found'; fi",
                 path.to_string_lossy(), path.to_string_lossy()
-            ),
+            )}),
             wait_for_seconds: None,
         },
         AgentAction::SearchForSymbol(symbol) => ToolAction::BashCommand {
-            action_json: format!("{{\"command\": \"grep -r \\\"{}\\\" --include=\\\"*.rs\\\" --include=\\\"*.js\\\" --include=\\\"*.py\\\" --include=\\\"*.java\\\" --include=\\\"*.cpp\\\" --include=\\\"*.h\\\" .\"}}", symbol),
+            action_json: json!({"command": format!("grep -r \"{}\" --include=\"*.rs\" --include=\"*.js\" --include=\"*.py\" --include=\"*.java\" --include=\"*.cpp\" --include=\"*.h\" .", symbol)}),
             wait_for_seconds: None,
         },
         AgentAction::SuggestFix(_, _, _) => ToolAction::NoOp,
@@ -107,10 +108,26 @@ pub fn map_tool_result_to_action_result(action: &AgentAction, result: &str) -> A
         }
 
         AgentAction::ExecuteCommand(_) => {
-            if result.contains("process exited with code 0") {
-                ActionResult::Success(result.to_string())
+            // Look for explicit status codes
+            if let Some(status_code) = extract_status_code(result) {
+                if status_code == 0 {
+                    ActionResult::Success(result.to_string())
+                } else {
+                    ActionResult::Failure(result.to_string())
+                }
             } else {
-                ActionResult::Failure(result.to_string())
+                // Fallback: check for common success/failure patterns
+                if result.contains("process exited with code 0") {
+                    ActionResult::Success(result.to_string())
+                } else if result.contains("error")
+                    || result.contains("failed")
+                    || result.contains("command not found")
+                {
+                    ActionResult::Failure(result.to_string())
+                } else {
+                    // If no clear indicators, assume success
+                    ActionResult::Success(result.to_string())
+                }
             }
         }
 
@@ -161,6 +178,29 @@ pub fn map_tool_result_to_action_result(action: &AgentAction, result: &str) -> A
     }
 }
 
+/// Extract status code from command output
+fn extract_status_code(output: &str) -> Option<i32> {
+    // Look for patterns like "WINX_CMD_STATUS=0" or "process exited with code X"
+    if let Some(status_line) = output
+        .lines()
+        .find(|line| line.contains("WINX_CMD_STATUS="))
+    {
+        if let Some(status_part) = status_line.split('=').nth(1) {
+            return status_part.trim().parse().ok();
+        }
+    }
+
+    // Fallback to looking for "process exited with code X"
+    if let Some(idx) = output.find("process exited with code ") {
+        let code_part = &output[idx + "process exited with code ".len()..];
+        if let Some(space_idx) = code_part.find(|c: char| !c.is_numeric()) {
+            return code_part[..space_idx].parse().ok();
+        }
+    }
+
+    None
+}
+
 /// Available concrete tool implementations that can be executed
 /// These represent the actual implementation mechanisms for agent actions
 #[derive(Debug, Clone)]
@@ -185,7 +225,7 @@ pub enum ToolAction {
 
     /// Execute a bash command
     BashCommand {
-        action_json: String,
+        action_json: serde_json::Value, // Changed from String to Value
         wait_for_seconds: Option<f64>,
     },
 
@@ -252,7 +292,7 @@ pub fn get_tool_details(action: &ToolAction) -> Option<(String, serde_json::Valu
             wait_for_seconds,
         } => {
             let params = serde_json::json!({
-                "action_json": action_json,
+                "action_json": action_json, // Pass the JSON value directly
                 "wait_for_seconds": wait_for_seconds
             });
             Some(("bash_command".to_string(), params))

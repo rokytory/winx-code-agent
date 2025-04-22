@@ -157,7 +157,6 @@ impl CodeAgent {
                     show_line_numbers_reason,
                 }
             }
-
             "write_if_empty" => {
                 let file_path = params
                     .get("file_path")
@@ -176,7 +175,6 @@ impl CodeAgent {
                     file_content,
                 }
             }
-
             "file_edit" => {
                 let file_path = params
                     .get("file_path")
@@ -195,13 +193,12 @@ impl CodeAgent {
                     file_edit_using_search_replace_blocks,
                 }
             }
-
             "bash_command" => {
+                // Extract action_json as a Value, not as a string
                 let action_json = params
                     .get("action_json")
-                    .and_then(|a| a.as_str())
-                    .map(String::from)
-                    .unwrap_or_default();
+                    .cloned()
+                    .unwrap_or_else(|| serde_json::json!({"command": ""}));
 
                 let wait_for_seconds = params.get("wait_for_seconds").and_then(|w| w.as_f64());
 
@@ -210,7 +207,6 @@ impl CodeAgent {
                     wait_for_seconds,
                 }
             }
-
             _ => crate::reinforcement::action::ToolAction::NoOp,
         }
     }
