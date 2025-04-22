@@ -265,29 +265,36 @@ impl BashCommand {
 
         let timeout = params.wait_for_seconds.unwrap_or(5.0);
 
-        // Simplified JSON parsing - try to deserialize directly
-        let action_json = match serde_json::from_value::<ActionJson>(params.action_json.clone()) {
-            Ok(action) => action,
-            Err(e) => {
-                log::warn!(
-                    "Failed to parse action_json directly: {}. Received value: {:?}",
-                    e,
-                    params.action_json
-                );
-
-                // Handle case where action_json might be a string containing JSON
-                if let Some(json_str) = params.action_json.as_str() {
-                    match serde_json::from_str::<ActionJson>(json_str) {
-                        Ok(action) => action,
-                        Err(e) => {
-                            let error_msg = format!(
-                                "Invalid action_json format. Expected an object like {{'command': '...'}} or {{'status_check': true}}, etc. Received: {}. Error: {}",
-                                json_str, e
-                            );
-                            return Err(WinxError::parse_error(error_msg).to_mcp_error());
-                        }
-                    }
-                } else {
+        // Handle both JSON object and JSON string formats elegantly
+        let action_json = if let Some(json_str) = params.action_json.as_str() {
+            // MCP sending as JSON string
+            log::debug!("Received action_json as string: {}", json_str);
+            
+            // Fix common JSON escape issues
+            let fixed_json = if json_str.contains("\\|") {
+                log::debug!("Fixing escape issue with pipe character");
+                json_str.replace("\\|", "|")
+            } else {
+                json_str.to_string()
+            };
+            
+            match serde_json::from_str::<ActionJson>(&fixed_json) {
+                Ok(action) => action,
+                Err(e) => {
+                    let error_msg = format!(
+                        "Invalid action_json format. Expected an object like {{'command': '...'}} or {{'status_check': true}}, etc. Received: {}. Error: {}",
+                        json_str, e
+                    );
+                    return Err(WinxError::parse_error(error_msg).to_mcp_error());
+                }
+            }
+        } else {
+            // MCP sending as direct JSON object
+            log::debug!("Received action_json as object: {:?}", params.action_json);
+            
+            match serde_json::from_value::<ActionJson>(params.action_json.clone()) {
+                Ok(action) => action,
+                Err(e) => {
                     let error_msg = format!(
                         "Invalid action_json format. Expected an object like {{'command': '...'}} or {{'status_check': true}}, etc. Received: {}. Error: {}",
                         params.action_json, e
