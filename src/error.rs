@@ -308,6 +308,41 @@ impl WinxError {
     }
 }
 
+// Implement From for std::io::Error
+impl From<std::io::Error> for WinxError {
+    fn from(error: std::io::Error) -> Self {
+        WinxError::io_error(error, None::<PathBuf>)
+    }
+}
+
+// Implement From for serde_json::Error
+impl From<serde_json::Error> for WinxError {
+    fn from(error: serde_json::Error) -> Self {
+        WinxError::parse_error(error.to_string())
+    }
+}
+
+// Implement From for serde_yaml::Error
+impl From<serde_yaml::Error> for WinxError {
+    fn from(error: serde_yaml::Error) -> Self {
+        WinxError::parse_error(error.to_string())
+    }
+}
+
+// Implement From for toml::de::Error
+impl From<toml::de::Error> for WinxError {
+    fn from(error: toml::de::Error) -> Self {
+        WinxError::parse_error(error.to_string())
+    }
+}
+
+// Implement From for toml::ser::Error
+impl From<toml::ser::Error> for WinxError {
+    fn from(error: toml::ser::Error) -> Self {
+        WinxError::parse_error(error.to_string())
+    }
+}
+
 /// Result type alias using WinxError
 pub type WinxResult<T> = Result<T, WinxError>;
 

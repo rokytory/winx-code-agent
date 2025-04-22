@@ -1,4 +1,5 @@
 pub mod manager;
+pub mod wasm;
 
-// Re-export
-pub use manager::PluginManager;
+pub use manager::{PluginConfig, PluginManager, RuntimeConfig};
+pub use wasm::{OciConfig, WasmPlugin, WasmPluginManager};

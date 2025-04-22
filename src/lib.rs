@@ -6,6 +6,8 @@ pub mod file;
 // pub mod lsp; // Temporarily commented due to compilation errors
 pub mod plugins;
 pub mod reinforcement;
+pub mod security;
+pub mod semantic;
 pub mod server;
 pub mod tools;
 

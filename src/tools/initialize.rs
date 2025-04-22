@@ -8,6 +8,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::bash::state::BashState;
 use crate::file::repository::RepositoryExplorer;
+use crate::security::SecurityManager;
 
 // Global shared state instances
 lazy_static::lazy_static! {
@@ -21,6 +22,8 @@ lazy_static::lazy_static! {
         Arc::new(Mutex::new(std::path::PathBuf::from(".")));
     static ref INITIALIZATION_STATUS: Arc<std::sync::atomic::AtomicBool> =
         Arc::new(std::sync::atomic::AtomicBool::new(false));
+    static ref SECURITY_MANAGER: Arc<Mutex<SecurityManager>> =
+        Arc::new(Mutex::new(SecurityManager::new()));
 }
 
 // Mode enum for different operational modes
@@ -180,75 +183,95 @@ impl Initialize {
     }
 
     pub fn check_permission(action: Action, path: Option<&str>) -> WinxResult<()> {
+        // Get the security manager instance
+        let security_manager = SECURITY_MANAGER.lock().map_err(|e| {
+            WinxError::lock_error(format!("Failed to acquire SECURITY_MANAGER lock: {}", e))
+        })?;
+
+        // Convert string path to Path if provided
+        let path_buf = path.map(Path::new);
+
+        // For backward compatibility, check current mode as well
         let current_mode = CURRENT_MODE.lock().map_err(|e| {
             WinxError::lock_error(format!("Failed to acquire CURRENT_MODE lock: {}", e))
         })?;
 
-        match *current_mode {
-            Mode::Wcgw => {
-                // All actions are allowed in wcgw mode
-                Ok(())
-            }
-            Mode::Architect => {
-                // Only read operations are allowed in architect mode
-                match action {
-                    Action::ReadFile | Action::ReadImage => Ok(()),
-                    _ => Err(WinxError::permission_error(format!(
-                        "Action {:?} is not allowed in architect mode",
-                        action
-                    ))),
-                }
-            }
-            Mode::CodeWriter(ref config) => {
-                match action {
-                    Action::ReadFile | Action::ReadImage => {
-                        // Reading is always allowed
-                        Ok(())
-                    }
-                    Action::WriteFile | Action::EditFile => {
-                        // Check if the path matches allowed globs
-                        if let Some(file_path) = path {
-                            if config.allowed_globs.contains(&"all".to_string()) {
-                                return Ok(());
-                            }
+        // Map the tool Action to security Action
+        let security_action = match action {
+            Action::ReadFile => crate::security::Action::ReadFile,
+            Action::WriteFile => crate::security::Action::WriteFile,
+            Action::EditFile => crate::security::Action::EditFile,
+            Action::ExecuteCommand => crate::security::Action::ExecuteCommand,
+            Action::ReadImage => crate::security::Action::ReadImage,
+            Action::SaveContext => crate::security::Action::SaveContext,
+        };
 
-                            // Check if any glob matches
-                            for glob_pattern in &config.allowed_globs {
-                                if let Ok(glob) = glob::Pattern::new(glob_pattern) {
-                                    if glob.matches(file_path) {
-                                        return Ok(());
+        // First check with the security manager
+        if let Err(e) =
+            security_manager.check_permission("default", security_action.clone(), path_buf)
+        {
+            // If security manager denies, check with current mode for backward compatibility
+            match *current_mode {
+                Mode::Wcgw => {
+                    // All actions are allowed in wcgw mode
+                    Ok(())
+                }
+                Mode::Architect => {
+                    // Only read operations are allowed in architect mode
+                    match action {
+                        Action::ReadFile | Action::ReadImage => Ok(()),
+                        _ => Err(e), // Use the security manager's error
+                    }
+                }
+                Mode::CodeWriter(ref config) => {
+                    match action {
+                        Action::ReadFile | Action::ReadImage => {
+                            // Reading is always allowed
+                            Ok(())
+                        }
+                        Action::WriteFile | Action::EditFile => {
+                            // Check if the path matches allowed globs
+                            if let Some(file_path) = path {
+                                if config.allowed_globs.contains(&"all".to_string()) {
+                                    return Ok(());
+                                }
+
+                                // Check if any glob matches
+                                for glob_pattern in &config.allowed_globs {
+                                    if let Ok(glob) = glob::Pattern::new(glob_pattern) {
+                                        if glob.matches(file_path) {
+                                            return Ok(());
+                                        }
                                     }
                                 }
-                            }
 
-                            // No matching glob found
-                            Err(WinxError::permission_error(
-                                format!("File path {} does not match any allowed glob pattern in code-writer mode", file_path)
-                            ))
-                        } else {
-                            Err(WinxError::invalid_argument(
-                                "No file path provided for write/edit action",
-                            ))
+                                // No matching glob found
+                                Err(e) // Use the security manager's error
+                            } else {
+                                Err(WinxError::invalid_argument(
+                                    "No file path provided for write/edit action",
+                                ))
+                            }
                         }
-                    }
-                    Action::ExecuteCommand => {
-                        // Check if commands are allowed
-                        if config.allowed_commands.contains(&"all".to_string()) {
+                        Action::ExecuteCommand => {
+                            // Check if commands are allowed
+                            if config.allowed_commands.contains(&"all".to_string()) {
+                                Ok(())
+                            } else {
+                                // For simplicity, we're not checking specific commands here
+                                // In a real implementation, you would check if the specific command is allowed
+                                Err(e) // Use the security manager's error
+                            }
+                        }
+                        Action::SaveContext => {
+                            // Context saving is always allowed
                             Ok(())
-                        } else {
-                            // For simplicity, we're not checking specific commands here
-                            // In a real implementation, you would check if the specific command is allowed
-                            Err(WinxError::permission_error(
-                                "Command execution restricted in code-writer mode",
-                            ))
                         }
-                    }
-                    Action::SaveContext => {
-                        // Context saving is always allowed
-                        Ok(())
                     }
                 }
             }
+        } else {
+            Ok(())
         }
     }
 }

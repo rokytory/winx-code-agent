@@ -8,6 +8,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
+use super::wasm::WasmPluginManager;
+
 // Plugin configuration
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct PluginConfig {
@@ -24,6 +26,22 @@ pub struct PluginConfig {
     pub checksum: Option<String>,
     #[serde(default)]
     pub enabled: bool,
+    #[serde(default)]
+    pub plugin_type: PluginType,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum PluginType {
+    Wasm,
+    Native,
+    Remote,
+}
+
+impl Default for PluginType {
+    fn default() -> Self {
+        Self::Wasm
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
@@ -46,8 +64,9 @@ pub struct PluginManager {
     #[allow(dead_code)]
     cache_dir: PathBuf,
     // Whether to verify plugin signatures
-    #[allow(dead_code)]
     verify_signatures: bool,
+    // WebAssembly plugin manager
+    wasm_manager: WasmPluginManager,
 }
 
 #[derive(Clone)]
@@ -67,38 +86,68 @@ impl PluginManager {
         Self {
             plugins: Arc::new(RwLock::new(HashMap::new())),
             tool_plugin_map: Arc::new(RwLock::new(HashMap::new())),
-            cache_dir,
+            cache_dir: cache_dir.clone(),
             verify_signatures: true,
+            wasm_manager: WasmPluginManager::new(cache_dir, true),
+        }
+    }
+
+    pub fn with_settings(cache_dir: PathBuf, verify_signatures: bool) -> Self {
+        Self {
+            plugins: Arc::new(RwLock::new(HashMap::new())),
+            tool_plugin_map: Arc::new(RwLock::new(HashMap::new())),
+            cache_dir: cache_dir.clone(),
+            verify_signatures,
+            wasm_manager: WasmPluginManager::new(cache_dir, verify_signatures),
         }
     }
 
     /// Registers a plugin with the manager
     pub async fn register_plugin(&self, config: PluginConfig, tools: Vec<Tool>) -> Result<()> {
-        let plugin_name = config.name.clone();
-
-        // Update tool -> plugin mapping
-        let mut tool_map = self.tool_plugin_map.write().await;
-        for tool in &tools {
-            // Check for name collisions
-            let tool_name = tool.name.to_string();
-            if let Some(existing_plugin) = tool_map.get(&tool_name) {
-                if existing_plugin != &plugin_name {
-                    return Err(anyhow::anyhow!(
-                        "Tool name collision: '{}' is provided by both '{}' and '{}'",
-                        tool_name,
-                        existing_plugin,
-                        plugin_name
-                    ));
-                }
-            }
-            tool_map.insert(tool_name, plugin_name.clone());
+        if !config.enabled {
+            return Ok(());
         }
 
-        // Add plugin to registry
-        let metadata = PluginMetadata { config, tools };
+        match config.plugin_type {
+            PluginType::Wasm => {
+                // Delegate to WASM manager
+                self.wasm_manager
+                    .load_plugin(&config)
+                    .await
+                    .map_err(|e| anyhow::anyhow!("Failed to load WASM plugin: {}", e))?;
+            }
+            PluginType::Native => {
+                // Native plugin registration (traditional approach)
+                let plugin_name = config.name.clone();
 
-        let mut plugins = self.plugins.write().await;
-        plugins.insert(plugin_name, metadata);
+                // Update tool -> plugin mapping
+                let mut tool_map = self.tool_plugin_map.write().await;
+                for tool in &tools {
+                    // Check for name collisions
+                    let tool_name = tool.name.to_string();
+                    if let Some(existing_plugin) = tool_map.get(&tool_name) {
+                        if existing_plugin != &plugin_name {
+                            return Err(anyhow::anyhow!(
+                                "Tool name collision: '{}' is provided by both '{}' and '{}'",
+                                tool_name,
+                                existing_plugin,
+                                plugin_name
+                            ));
+                        }
+                    }
+                    tool_map.insert(tool_name, plugin_name.clone());
+                }
+
+                // Add plugin to registry
+                let metadata = PluginMetadata { config, tools };
+                let mut plugins = self.plugins.write().await;
+                plugins.insert(plugin_name, metadata);
+            }
+            PluginType::Remote => {
+                // TODO: Implement remote plugin registration
+                todo!("Remote plugin support not yet implemented");
+            }
+        }
 
         Ok(())
     }
@@ -121,19 +170,67 @@ impl PluginManager {
         tool_map.get(tool_name).cloned()
     }
 
-    /// Implementation placeholder for calling a tool
-    /// This will be implemented when we add the actual plugin execution system
+    /// Calls a tool provided by a plugin
     pub async fn call_tool(
         &self,
-        _tool_name: &str,
-        _params: serde_json::Value,
+        tool_name: &str,
+        params: serde_json::Value,
     ) -> Result<CallToolResult, McpError> {
-        // This is just a placeholder - we'll implement actual plugin execution later
-        Err(McpError::new(
-            ErrorCode::INTERNAL_ERROR,
-            "Plugin system not fully implemented yet".to_string(),
-            Some(json!({"status": "not_implemented"})),
-        ))
+        // Check if the tool belongs to a plugin
+        let tool_map = self.tool_plugin_map.read().await;
+        if let Some(plugin_name) = tool_map.get(tool_name) {
+            let plugins = self.plugins.read().await;
+            if let Some(metadata) = plugins.get(plugin_name) {
+                match metadata.config.plugin_type {
+                    PluginType::Wasm => {
+                        // Delegate to WASM manager
+                        self.wasm_manager
+                            .call_tool(tool_name, params)
+                            .await
+                            .map_err(|e| e.to_mcp_error())
+                    }
+                    PluginType::Native => {
+                        // Native plugin calls (not yet implemented)
+                        Err(McpError::new(
+                            ErrorCode::INTERNAL_ERROR,
+                            "Native plugin execution not yet implemented".to_string(),
+                            Some(json!({"status": "not_implemented"})),
+                        ))
+                    }
+                    PluginType::Remote => {
+                        // Remote plugin calls
+                        Err(McpError::new(
+                            ErrorCode::INTERNAL_ERROR,
+                            "Remote plugin execution not yet implemented".to_string(),
+                            Some(json!({"status": "not_implemented"})),
+                        ))
+                    }
+                }
+            } else {
+                Err(McpError::new(
+                    ErrorCode::INVALID_PARAMS,
+                    format!("Plugin '{}' not found", plugin_name),
+                    None,
+                ))
+            }
+        } else {
+            // Tool doesn't belong to a plugin
+            Err(McpError::new(
+                ErrorCode::INVALID_PARAMS,
+                format!("Tool '{}' not registered", tool_name),
+                None,
+            ))
+        }
+    }
+
+    /// Gets whether signature verification is enabled
+    pub fn verify_signatures(&self) -> bool {
+        self.verify_signatures
+    }
+
+    /// Sets whether to verify plugin signatures
+    pub fn set_verify_signatures(&mut self, verify: bool) {
+        self.verify_signatures = verify;
     }
 }
 

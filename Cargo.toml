@@ -26,6 +26,12 @@ chrono = "0.4"
 rand = "0.9.1"
 once_cell = "1.18"
 uuid = { version = "1.6.1", features = ["v4"] }
+extism = "1.0"
+sigstore = "0.10"
+oci-client = "0.13"
+serde_yaml = "0.9"
+toml = "0.8"
+lru = "0.14.0"
 
 [lib]
 name = "winx_code_agent"
