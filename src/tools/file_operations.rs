@@ -483,10 +483,10 @@ impl FileOperations {
 
                     // Check if file is large and requires chunking
                     const MAX_CONTENT_SIZE: usize = 1_000_000; // ~1MB
-                    const MAX_TOKENS_PER_CHUNK: usize = 8000;  // Estimated tokens, roughly 32KB text
-                    const CHARS_PER_TOKEN: usize = 4;  // Rough estimate: 1 token ≈ 4 characters
-                    const LINES_PER_CHUNK: usize = 500;  // Default lines per chunk for large files
-                    
+                    const MAX_TOKENS_PER_CHUNK: usize = 8000; // Estimated tokens, roughly 32KB text
+                    const CHARS_PER_TOKEN: usize = 4; // Rough estimate: 1 token ≈ 4 characters
+                    const LINES_PER_CHUNK: usize = 500; // Default lines per chunk for large files
+
                     let is_large_file = content.len() > MAX_CONTENT_SIZE;
 
                     // Split content into lines
@@ -500,7 +500,7 @@ impl FileOperations {
                             let mut chunk_end = 0;
                             let mut char_count = 0;
                             let adjusted_max_content_size = MAX_TOKENS_PER_CHUNK * CHARS_PER_TOKEN;
-                            
+
                             for (i, line) in lines.iter().enumerate() {
                                 char_count += line.len() + 1; // +1 for newline
                                 if char_count > adjusted_max_content_size || i >= LINES_PER_CHUNK {
@@ -508,7 +508,7 @@ impl FileOperations {
                                     break;
                                 }
                             }
-                            
+
                             if chunk_end == 0 {
                                 chunk_end = LINES_PER_CHUNK.min(total_lines);
                             }

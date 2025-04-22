@@ -269,7 +269,7 @@ impl BashCommand {
         let action_json = if let Some(json_str) = params.action_json.as_str() {
             // MCP sending as JSON string
             log::debug!("Received action_json as string: {}", json_str);
-            
+
             // Fix common JSON escape issues
             let fixed_json = if json_str.contains("\\|") {
                 log::debug!("Fixing escape issue with pipe character");
@@ -277,7 +277,7 @@ impl BashCommand {
             } else {
                 json_str.to_string()
             };
-            
+
             match serde_json::from_str::<ActionJson>(&fixed_json) {
                 Ok(action) => action,
                 Err(e) => {
@@ -291,7 +291,7 @@ impl BashCommand {
         } else {
             // MCP sending as direct JSON object
             log::debug!("Received action_json as object: {:?}", params.action_json);
-            
+
             match serde_json::from_value::<ActionJson>(params.action_json.clone()) {
                 Ok(action) => action,
                 Err(e) => {

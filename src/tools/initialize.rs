@@ -317,7 +317,9 @@ pub struct CodeWriterConfig {
 
 #[tool(tool_box)]
 impl Initialize {
-    #[tool(description = "CRITICAL: This is the FIRST tool that MUST be called before any other operation. Initializes a workspace and environment, sets up the shell, and configures permissions. Without this, no other tools will work.")]
+    #[tool(
+        description = "CRITICAL: This is the FIRST tool that MUST be called before any other operation. Initializes a workspace and environment, sets up the shell, and configures permissions. Without this, no other tools will work."
+    )]
     pub async fn initialize(
         &self,
         #[tool(aggr)] params: InitializeParams,
