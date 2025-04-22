@@ -427,7 +427,9 @@ impl FileOperations {
         #[tool(aggr)] params: ReadFilesParams,
     ) -> Result<CallToolResult, McpError> {
         // Check if initialization has been done
+        log::debug!("Checking initialization before reading files");
         crate::ensure_initialized!("You must call 'initialize' before reading files.");
+        log::debug!("Initialization check passed");
 
         // Check permission
         // Convert WinxError to McpError for permissions

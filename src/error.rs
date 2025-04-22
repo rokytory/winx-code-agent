@@ -280,7 +280,7 @@ impl WinxError {
                 })),
             ),
             WinxError::InitializationRequired { message } => McpError::new(
-                ErrorCode::INVALID_REQUEST,
+                ErrorCode::INVALID_PARAMS,
                 format!("Initialization required: {}", message),
                 Some(json!({
                     "error_type": "initialization_required",

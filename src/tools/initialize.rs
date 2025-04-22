@@ -317,7 +317,7 @@ pub struct CodeWriterConfig {
 
 #[tool(tool_box)]
 impl Initialize {
-    #[tool(description = "Initialize a workspace and environment")]
+    #[tool(description = "CRITICAL: This is the FIRST tool that MUST be called before any other operation. Initializes a workspace and environment, sets up the shell, and configures permissions. Without this, no other tools will work.")]
     pub async fn initialize(
         &self,
         #[tool(aggr)] params: InitializeParams,
@@ -719,7 +719,9 @@ impl Initialize {
         };
 
         // Set initialization status to true
+        log::info!("Setting initialization status to true");
         INITIALIZATION_STATUS.store(true, std::sync::atomic::Ordering::SeqCst);
+        log::info!("Initialization status set to: {}", Self::was_initialized());
 
         // Build the result
         let result = format!(
